@@ -12,16 +12,19 @@ import {
   X,
   Zap,
   ChevronRight,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 
-const NAV_ITEMS = [
+type NavItem = { href: string; label: string; icon: LucideIcon; exact?: boolean };
+
+const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard",          label: "Overview",  icon: LayoutDashboard, exact: true },
   { href: "/dashboard/services", label: "Services",  icon: Server },
   { href: "/dashboard/ghosts",   label: "Ghosts",    icon: Ghost },
   { href: "/dashboard/timeline", label: "Timeline",  icon: Activity },
-] as const;
+];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -149,7 +152,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   );
 }
 
-function NavLink({ item }: { item: (typeof NAV_ITEMS)[number] }) {
+function NavLink({ item }: { item: NavItem }) {
   const pathname = usePathname();
   const Icon = item.icon;
   const active = item.exact

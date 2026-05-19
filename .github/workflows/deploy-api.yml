@@ -38,6 +38,9 @@ jobs:
 
       - name: Run tests
         working-directory: api
+        env:
+          GCP_PROJECT_ID: test-project
+          API_SECRET_KEY: ci-placeholder-not-real
         run: pytest tests/ -v --tb=short
 
       - name: Lint
