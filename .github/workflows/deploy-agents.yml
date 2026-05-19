@@ -97,9 +97,8 @@ jobs:
       - name: Install deploy dependencies
         working-directory: agents
         run: |
-          pip install uv build hatchling
-          python -m build --wheel --no-isolation --outdir dist
-          uv pip install dist/karma_agents*.whl "google-cloud-aiplatform[agent_engines]" --system
+          pip install uv
+          uv pip install -e "." "google-cloud-aiplatform[agent_engines]" --system
 
       - name: Deploy AdkApp to Agent Engine
         working-directory: agents
@@ -112,7 +111,6 @@ jobs:
           FIRESTORE_DATABASE: ${{ vars.FIRESTORE_DATABASE }}
         run: |
           python - <<'EOF'
-          import glob
           import os
           import vertexai
           from vertexai import agent_engines
@@ -128,7 +126,12 @@ jobs:
           from karma.app import app as coordinator_agent
 
           karma_app = AdkApp(agent=coordinator_agent, enable_tracing=True)
-          wheels = glob.glob("dist/karma_agents*.whl")
+
+          # Pass the karma source directory, not the wheel.
+          # Agent Engine bundles wheels into a tar.gz and extracts them without
+          # pip-installing, so the package would not be importable. Directories
+          # are extracted and their parent is added to sys.path — reliable.
+          extra_packages = ["karma"]
 
           requirements = [
               "google-adk>=1.0.0",
@@ -149,14 +152,14 @@ jobs:
                   resource_name,
                   agent_engine=karma_app,
                   requirements=requirements,
-                  extra_packages=wheels,
+                  extra_packages=extra_packages,
               )
               print(f"Updated: {engine.resource_name}")
           else:
               engine = agent_engines.create(
                   karma_app,
                   requirements=requirements,
-                  extra_packages=wheels,
+                  extra_packages=extra_packages,
                   display_name="Karma Agent System",
                   description="Reincarnation agent for deprecated services",
               )
