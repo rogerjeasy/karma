@@ -1,0 +1,53 @@
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - generic [ref=e4]:
+      - img [ref=e6]
+      - generic [ref=e8]:
+        - generic [ref=e9]: Karma
+        - generic [ref=e10]: Reincarnation Agent
+      - button "Close sidebar" [ref=e11] [cursor=pointer]:
+        - img [ref=e12]
+    - navigation [ref=e15]:
+      - paragraph [ref=e16]: Main menu
+      - link "Overview" [ref=e17] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e18]
+        - text: Overview
+      - link "Services" [ref=e23] [cursor=pointer]:
+        - /url: /dashboard/services
+        - img [ref=e24]
+        - text: Services
+      - link "Ghosts" [ref=e27] [cursor=pointer]:
+        - /url: /dashboard/ghosts
+        - img [ref=e28]
+        - text: Ghosts
+      - link "Timeline" [ref=e30] [cursor=pointer]:
+        - /url: /dashboard/timeline
+        - img [ref=e31]
+        - text: Timeline
+        - img [ref=e33]
+      - paragraph [ref=e35]: System
+      - generic [ref=e36]:
+        - img [ref=e37]
+        - generic [ref=e39]: Dynatrace MCP
+        - img [ref=e40]
+    - generic [ref=e47]:
+      - paragraph [ref=e48]: Demo Mode
+      - paragraph [ref=e49]: API not connected
+  - generic [ref=e50]:
+    - banner [ref=e51]:
+      - button "Open menu" [ref=e52] [cursor=pointer]:
+        - img [ref=e53]
+      - generic [ref=e54]:
+        - img [ref=e55]
+        - generic [ref=e57]: Karma
+      - generic [ref=e59]: Timeline
+    - main [ref=e60]:
+      - generic [ref=e62]:
+        - generic [ref=e63]:
+          - heading "Contract Timeline" [level=1] [ref=e64]
+          - paragraph [ref=e65]: Implicit contracts discovered and validated during the learning phase.
+        - generic [ref=e66]:
+          - img [ref=e68]
+          - heading "No contracts learned yet" [level=3] [ref=e70]
+          - paragraph [ref=e71]: The Learner will populate this timeline once the observation window is complete.

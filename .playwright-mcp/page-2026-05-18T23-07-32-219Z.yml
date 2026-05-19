@@ -1,0 +1,51 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - link "Karma Reincarnation Agent" [ref=e6] [cursor=pointer]:
+            - /url: /dashboard
+            - generic [ref=e7]: Karma
+            - generic [ref=e8]: Reincarnation Agent
+          - navigation [ref=e9]:
+            - link "Overview" [ref=e10] [cursor=pointer]:
+              - /url: /dashboard
+            - link "Services" [ref=e11] [cursor=pointer]:
+              - /url: /dashboard/services
+            - link "Ghosts" [ref=e12] [cursor=pointer]:
+              - /url: /dashboard/ghosts
+            - link "Timeline" [ref=e13] [cursor=pointer]:
+              - /url: /dashboard/timeline
+        - generic [ref=e15]: Demo mode
+    - main [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - generic [ref=e19]:
+            - heading "Services" [level=1] [ref=e20]
+            - paragraph [ref=e21]: Manage services under observation and their replacement status.
+          - button "Register service" [active] [ref=e22] [cursor=pointer]
+        - generic [ref=e37]:
+          - heading "Register a service for deprecation observation" [level=2] [ref=e38]
+          - generic [ref=e39]:
+            - generic [ref=e40]:
+              - text: Service name
+              - textbox "svc-payments-v2" [ref=e41]
+            - generic [ref=e42]:
+              - text: Dynatrace entity ID
+              - textbox "SERVICE-..." [ref=e43]
+            - generic [ref=e44]:
+              - text: Deprecation date
+              - textbox [ref=e45]
+            - generic [ref=e46]:
+              - text: Learning window (days)
+              - spinbutton [ref=e47]: "14"
+          - button "Register and begin learning" [ref=e48] [cursor=pointer]
+        - paragraph [ref=e23]: No services registered yet.
+    - contentinfo [ref=e24]:
+      - generic [ref=e25]:
+        - text: Google Cloud Rapid Agent Hackathon — Dynatrace Track ·
+        - link "GitHub" [ref=e26] [cursor=pointer]:
+          - /url: https://github.com/rogerjeasy/karma
+  - button "Open Next.js Dev Tools" [ref=e32] [cursor=pointer]:
+    - img [ref=e33]
+  - alert [ref=e36]

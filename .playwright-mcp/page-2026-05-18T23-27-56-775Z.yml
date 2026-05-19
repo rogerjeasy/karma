@@ -1,0 +1,51 @@
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - generic [ref=e4]:
+      - img [ref=e6]
+      - generic [ref=e8]:
+        - generic [ref=e9]: Karma
+        - generic [ref=e10]: Reincarnation Agent
+    - navigation [ref=e11]:
+      - paragraph [ref=e12]: Main menu
+      - link "Overview" [ref=e13] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=e14]
+        - text: Overview
+      - link "Services" [ref=e19] [cursor=pointer]:
+        - /url: /dashboard/services
+        - img [ref=e20]
+        - text: Services
+      - link "Ghosts" [ref=e23] [cursor=pointer]:
+        - /url: /dashboard/ghosts
+        - img [ref=e24]
+        - text: Ghosts
+        - img [ref=e26]
+      - link "Timeline" [ref=e28] [cursor=pointer]:
+        - /url: /dashboard/timeline
+        - img [ref=e29]
+        - text: Timeline
+      - paragraph [ref=e31]: System
+      - generic [ref=e32]:
+        - img [ref=e33]
+        - generic [ref=e35]: Dynatrace MCP
+        - img [ref=e36]
+    - generic [ref=e43]:
+      - paragraph [ref=e44]: Demo Mode
+      - paragraph [ref=e45]: API not connected
+  - generic [ref=e46]:
+    - banner [ref=e47]:
+      - generic [ref=e48]:
+        - img [ref=e49]
+        - generic [ref=e51]: Karma
+        - img [ref=e52]
+        - generic [ref=e54]: Ghosts
+    - main [ref=e55]:
+      - generic [ref=e57]:
+        - generic [ref=e59]:
+          - heading "Ghosts" [level=1] [ref=e60]
+          - paragraph [ref=e61]: Implicit contract violations detected in replacement services.
+        - generic [ref=e62]:
+          - img [ref=e65]
+          - heading "No ghosts detected yet" [level=3] [ref=e68]
+          - paragraph [ref=e69]: The haunting begins after cutover. Ghost reports appear here in real time as violations are detected.
+          - paragraph [ref=e70]: Listening for events on /stream/ghosts…

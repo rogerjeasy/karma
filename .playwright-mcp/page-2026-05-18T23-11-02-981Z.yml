@@ -1,0 +1,29 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - link "Karma Reincarnation Agent" [ref=e6] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=e7]: Karma
+          - generic [ref=e8]: Reincarnation Agent
+        - navigation [ref=e9]:
+          - link "Overview" [ref=e10] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Services" [ref=e11] [cursor=pointer]:
+            - /url: /dashboard/services
+          - link "Ghosts" [ref=e12] [cursor=pointer]:
+            - /url: /dashboard/ghosts
+          - link "Timeline" [ref=e13] [cursor=pointer]:
+            - /url: /dashboard/timeline
+      - generic [ref=e15]: Demo mode
+  - main [ref=e16]:
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - heading "Ghosts" [level=1] [ref=e19]
+        - paragraph [ref=e20]: Violations detected in replacement services.
+      - paragraph [ref=e21]: No ghosts detected yet. The haunting begins after cutover.
+  - contentinfo [ref=e22]:
+    - generic [ref=e23]:
+      - text: Google Cloud Rapid Agent Hackathon — Dynatrace Track ·
+      - link "GitHub" [ref=e24] [cursor=pointer]:
+        - /url: https://github.com/rogerjeasy/karma

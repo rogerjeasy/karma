@@ -1,0 +1,71 @@
+name: Deploy Synthetic Env → Cloud Run
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "synthetic-env/**"
+      - ".github/workflows/deploy-synthetic-env.yml"
+  workflow_dispatch:
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_LOCATION: ${{ vars.GCP_LOCATION }}
+  GAR_LOCATION: ${{ vars.GCP_LOCATION }}
+  GAR_REPOSITORY: karma-images
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy synthetic services
+    runs-on: ubuntu-latest
+    environment: production
+    strategy:
+      matrix:
+        service:
+          - name: svc-payments-v2
+            dir: synthetic-env/svc-payments-v2
+            cloud_run_name: karma-svc-payments-v2
+          - name: svc-payments-v3
+            dir: synthetic-env/svc-payments-v3
+            cloud_run_name: karma-svc-payments-v3
+          - name: svc-reporting
+            dir: synthetic-env/svc-reporting
+            cloud_run_name: karma-svc-reporting
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev --quiet
+
+      - name: Build and push ${{ matrix.service.name }}
+        run: |
+          IMAGE_TAG=${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ matrix.service.name }}:${{ github.sha }}
+          docker build -t "$IMAGE_TAG" ${{ matrix.service.dir }}
+          docker push "$IMAGE_TAG"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: Deploy ${{ matrix.service.name }} to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ matrix.service.cloud_run_name }}
+          region: ${{ env.GCP_LOCATION }}
+          image: ${{ env.IMAGE_TAG }}
+          flags: >
+            --allow-unauthenticated
+            --memory=256Mi
+            --cpu=1
+            --set-secrets=DT_API_TOKEN=dt-api-token:latest
+          env_vars: >
+            OTEL_SERVICE_NAME=${{ matrix.service.name }},
+            REDIS_URL=${{ vars.REDIS_URL }}

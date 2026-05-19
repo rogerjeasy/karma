@@ -1,0 +1,28 @@
+# Copy this file to terraform.tfvars and fill in the values.
+# terraform.tfvars is gitignored — never commit real secrets.
+#
+# Usage:
+#   cp terraform.tfvars.example terraform.tfvars
+#   # edit terraform.tfvars with real values
+#   terraform init
+#   terraform apply
+
+# ── Project ───────────────────────────────────────────────────────────────────
+project_id = "skillbridge-76a4c"
+region     = "us-central1"
+
+# ── API URL (set after first Cloud Run deploy) ────────────────────────────────
+# Leave blank on first apply. After deploy-api.yml runs, copy the Cloud Run URL
+# here and run terraform apply again to wire the Cloud Scheduler job.
+api_url = ""
+
+# ── Dynatrace ─────────────────────────────────────────────────────────────────
+# Platform Token from your Dynatrace tenant:
+#   Settings → Access tokens → Generate new token
+#   Required scopes: mcp-gateway:servers:invoke, mcp-gateway:servers:read
+dt_api_token = "<your-dynatrace-platform-token>"
+
+# ── API secret key ────────────────────────────────────────────────────────────
+# Generate a random secret:
+#   python -c "import secrets; print(secrets.token_hex(32))"
+api_secret_key = "<output-of-the-command-above>"

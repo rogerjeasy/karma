@@ -1,1 +1,84 @@
+# ── Secrets & environment ────────────────────────────────────────────────────
 .env
+.env.local
+.env.*.local
+*.env
+!.env.example
+!.env.local.example
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+coverage.xml
+*.cover
+*.log
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+
+# ── Node / Next.js ───────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+.turbo/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+*.tsbuildinfo
+
+# ── Terraform ────────────────────────────────────────────────────────────────
+infrastructure/terraform/.terraform/
+infrastructure/terraform/.terraform.lock.hcl
+infrastructure/terraform/terraform.tfstate
+infrastructure/terraform/terraform.tfstate.backup
+infrastructure/terraform/terraform.tfvars
+*.tfvars
+!*.tfvars.example
+
+# ── Docker ───────────────────────────────────────────────────────────────────
+.dockerignore
+
+# ── Google Cloud credentials (never commit these) ────────────────────────────
+*-service-account*.json
+*-credentials*.json
+gcloud-key*.json
+application_default_credentials.json
+
+# ── IDE & OS ─────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ── Demo snapshots (can be large) ────────────────────────────────────────────
+scripts/snapshots/
+synthetic-env/data/
+
+# ── Docs images (committed separately via Git LFS if large) ──────────────────
+# docs/images/*.png  ← keep tracked; remove this line to use LFS instead

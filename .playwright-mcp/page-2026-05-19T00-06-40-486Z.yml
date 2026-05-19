@@ -1,0 +1,100 @@
+- generic:
+  - generic:
+    - complementary:
+      - generic:
+        - generic:
+          - img
+        - generic:
+          - generic: Karma
+          - generic: Reincarnation Agent
+        - button:
+          - img
+      - navigation:
+        - paragraph: Main menu
+        - link:
+          - /url: /dashboard
+          - img
+          - text: Overview
+        - link:
+          - /url: /dashboard/services
+          - img
+          - text: Services
+          - img
+        - link:
+          - /url: /dashboard/ghosts
+          - img
+          - text: Ghosts
+        - link:
+          - /url: /dashboard/timeline
+          - img
+          - text: Timeline
+        - paragraph: System
+        - generic:
+          - img
+          - generic: Dynatrace MCP
+          - img
+      - generic:
+        - generic:
+          - generic:
+            - paragraph: Demo Mode
+            - paragraph: API not connected
+    - generic:
+      - banner:
+        - button:
+          - img
+        - generic:
+          - img
+          - generic: Karma
+        - generic:
+          - generic: Services
+      - main:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - heading [level=1]: Services
+                - paragraph: Manage deprecated services under observation and track their replacement status.
+              - button:
+                - img
+                - text: Register service
+            - generic:
+              - generic:
+                - img
+              - heading [level=3]: No services registered
+              - paragraph: Register your first service to begin learning its implicit contracts and detect silent regressions.
+              - button:
+                - img
+                - text: Register a service
+  - button "Open Next.js Dev Tools" [ref=e81] [cursor=pointer]:
+    - img [ref=e82]
+  - alert
+  - dialog "Register a service" [ref=e86]:
+    - generic [ref=e87]:
+      - heading "Register a service" [level=2] [ref=e88]
+      - paragraph [ref=e89]: Add a service slated for deprecation. Karma will begin learning its implicit contracts during the observation window.
+    - generic [ref=e90]:
+      - generic [ref=e91]:
+        - generic [ref=e92]:
+          - generic [ref=e93]:
+            - text: Service name
+            - generic [ref=e94]: (e.g. svc-payments-v2)
+          - textbox "svc-payments-v2" [active] [ref=e95]
+        - generic [ref=e96]:
+          - generic [ref=e97]:
+            - text: Dynatrace entity ID
+            - generic [ref=e98]: (SERVICE-…)
+          - textbox "SERVICE-XXXXXXXXXXXXXXXX" [ref=e99]
+        - generic [ref=e100]:
+          - text: Deprecation date
+          - textbox [ref=e101]
+        - generic [ref=e102]:
+          - generic [ref=e103]:
+            - text: Learning window
+            - generic [ref=e104]: (1–30 days)
+          - spinbutton [ref=e105]: "14"
+      - generic [ref=e106]:
+        - button "Cancel" [ref=e107] [cursor=pointer]
+        - button "Register and begin learning" [ref=e108] [cursor=pointer]
+    - button "Close" [ref=e109] [cursor=pointer]:
+      - img [ref=e110]
+      - generic [ref=e113]: Close

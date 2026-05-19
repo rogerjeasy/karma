@@ -1,0 +1,264 @@
+- generic [ref=e3]:
+  - generic:
+    - img
+  - generic [ref=e4]:
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - heading "Karma API 0.1.0 OAS 3.1" [level=1] [ref=e9]:
+          - text: Karma API
+          - generic [ref=e10]:
+            - generic [ref=e12]: 0.1.0
+            - generic [ref=e14]: OAS 3.1
+        - link "/openapi.json" [ref=e15] [cursor=pointer]:
+          - /url: /openapi.json
+          - generic [ref=e16]: /openapi.json
+      - paragraph [ref=e19]: API gateway for the Karma reincarnation agent system
+    - generic [ref=e22]:
+      - generic [ref=e24]:
+        - heading "services Collapse operation" [level=3] [ref=e25] [cursor=pointer]:
+          - link "services" [ref=e26]:
+            - /url: "#/services"
+          - button "Collapse operation" [expanded] [ref=e27]:
+            - img [ref=e28]
+        - generic [ref=e31]:
+          - generic [ref=e34] [cursor=pointer]:
+            - button "GET /services List Services" [ref=e35]:
+              - generic [ref=e36]: GET
+              - generic [ref=e37]:
+                - link "/services" [ref=e39]:
+                  - /url: "#/services/list_services_services_get"
+                - generic [ref=e40]: List Services
+            - generic "Copy to clipboard"
+            - button "get /services" [ref=e43]:
+              - img [ref=e44]
+          - generic [ref=e48] [cursor=pointer]:
+            - button "POST /services Register Service" [ref=e49]:
+              - generic [ref=e50]: POST
+              - generic [ref=e51]:
+                - link "/services" [ref=e53]:
+                  - /url: "#/services/register_service_services_post"
+                - generic [ref=e54]: Register Service
+            - generic "Copy to clipboard"
+            - button "post /services" [ref=e57]:
+              - img [ref=e58]
+          - generic [ref=e62] [cursor=pointer]:
+            - 'button "GET /services/{service_id} Get Service" [ref=e63]':
+              - generic [ref=e64]: GET
+              - generic [ref=e65]:
+                - 'link "/services/{service_id}" [ref=e67]':
+                  - /url: "#/services/get_service_services__service_id__get"
+                  - generic [ref=e68]:
+                    - text: /services
+                    - text: "/{service_id}"
+                - generic [ref=e69]: Get Service
+            - generic "Copy to clipboard"
+            - 'button "get /services/{service_id}" [ref=e72]':
+              - img [ref=e73]
+          - generic [ref=e77] [cursor=pointer]:
+            - 'button "POST /services/{service_id}/learn Trigger Learning" [ref=e78]':
+              - generic [ref=e79]: POST
+              - generic [ref=e80]:
+                - 'link "/services/{service_id}/learn" [ref=e82]':
+                  - /url: "#/services/trigger_learning_services__service_id__learn_post"
+                  - generic [ref=e83]:
+                    - text: /services
+                    - text: "/{service_id}"
+                    - text: /learn
+                - generic [ref=e84]: Trigger Learning
+            - generic "Copy to clipboard"
+            - 'button "post /services/{service_id}/learn" [ref=e87]':
+              - img [ref=e88]
+      - generic [ref=e91]:
+        - heading "contracts Collapse operation" [level=3] [ref=e92] [cursor=pointer]:
+          - link "contracts" [ref=e93]:
+            - /url: "#/contracts"
+          - button "Collapse operation" [expanded] [ref=e94]:
+            - img [ref=e95]
+        - generic [ref=e101] [cursor=pointer]:
+          - 'button "GET /contracts/{service_id} List Contracts" [ref=e102]':
+            - generic [ref=e103]: GET
+            - generic [ref=e104]:
+              - 'link "/contracts/{service_id}" [ref=e106]':
+                - /url: "#/contracts/list_contracts_contracts__service_id__get"
+                - generic [ref=e107]:
+                  - text: /contracts
+                  - text: "/{service_id}"
+              - generic [ref=e108]: List Contracts
+          - generic "Copy to clipboard"
+          - 'button "get /contracts/{service_id}" [ref=e111]':
+            - img [ref=e112]
+      - generic [ref=e115]:
+        - heading "ghosts Collapse operation" [level=3] [ref=e116] [cursor=pointer]:
+          - link "ghosts" [ref=e117]:
+            - /url: "#/ghosts"
+          - button "Collapse operation" [expanded] [ref=e118]:
+            - img [ref=e119]
+        - generic [ref=e122]:
+          - generic [ref=e125] [cursor=pointer]:
+            - button "GET /ghosts List Ghost Reports" [ref=e126]:
+              - generic [ref=e127]: GET
+              - generic [ref=e128]:
+                - link "/ghosts" [ref=e130]:
+                  - /url: "#/ghosts/list_ghost_reports_ghosts_get"
+                - generic [ref=e131]: List Ghost Reports
+            - generic "Copy to clipboard"
+            - button "get /ghosts" [ref=e134]:
+              - img [ref=e135]
+          - generic [ref=e139] [cursor=pointer]:
+            - 'button "GET /ghosts/{report_id} Get Ghost Report" [ref=e140]':
+              - generic [ref=e141]: GET
+              - generic [ref=e142]:
+                - 'link "/ghosts/{report_id}" [ref=e144]':
+                  - /url: "#/ghosts/get_ghost_report_ghosts__report_id__get"
+                  - generic [ref=e145]:
+                    - text: /ghosts
+                    - text: "/{report_id}"
+                - generic [ref=e146]: Get Ghost Report
+            - generic "Copy to clipboard"
+            - 'button "get /ghosts/{report_id}" [ref=e149]':
+              - img [ref=e150]
+      - generic [ref=e153]:
+        - heading "cutover Collapse operation" [level=3] [ref=e154] [cursor=pointer]:
+          - link "cutover" [ref=e155]:
+            - /url: "#/cutover"
+          - button "Collapse operation" [expanded] [ref=e156]:
+            - img [ref=e157]
+        - generic [ref=e160]:
+          - generic [ref=e163] [cursor=pointer]:
+            - 'button "POST /cutover/{service_id} Mark Cutover" [ref=e164]':
+              - generic [ref=e165]: POST
+              - generic [ref=e166]:
+                - 'link "/cutover/{service_id}" [ref=e168]':
+                  - /url: "#/cutover/mark_cutover_cutover__service_id__post"
+                  - generic [ref=e169]:
+                    - text: /cutover
+                    - text: "/{service_id}"
+                - generic [ref=e170]: Mark Cutover
+            - generic "Copy to clipboard"
+            - 'button "post /cutover/{service_id}" [ref=e173]':
+              - img [ref=e174]
+          - generic [ref=e178] [cursor=pointer]:
+            - button "POST /cutover/watchers/run-now Run Watcher Now" [ref=e179]:
+              - generic [ref=e180]: POST
+              - generic [ref=e181]:
+                - link "/cutover/watchers/run-now" [ref=e183]:
+                  - /url: "#/cutover/run_watcher_now_cutover_watchers_run_now_post"
+                  - generic [ref=e184]:
+                    - text: /cutover
+                    - text: /watchers
+                    - text: /run-now
+                - generic [ref=e185]: Run Watcher Now
+            - generic "Copy to clipboard"
+            - button "post /cutover/watchers/run-now" [ref=e188]:
+              - img [ref=e189]
+      - generic [ref=e192]:
+        - heading "stream Collapse operation" [level=3] [ref=e193] [cursor=pointer]:
+          - link "stream" [ref=e194]:
+            - /url: "#/stream"
+          - button "Collapse operation" [expanded] [ref=e195]:
+            - img [ref=e196]
+        - generic [ref=e202] [cursor=pointer]:
+          - button "GET /stream/ghosts Stream Ghosts" [ref=e203]:
+            - generic [ref=e204]: GET
+            - generic [ref=e205]:
+              - link "/stream/ghosts" [ref=e207]:
+                - /url: "#/stream/stream_ghosts_stream_ghosts_get"
+                - generic [ref=e208]:
+                  - text: /stream
+                  - text: /ghosts
+              - generic [ref=e209]: Stream Ghosts
+          - generic "Copy to clipboard"
+          - button "get /stream/ghosts" [ref=e212]:
+            - img [ref=e213]
+      - generic [ref=e216]:
+        - heading "meta Collapse operation" [level=3] [ref=e217] [cursor=pointer]:
+          - link "meta" [ref=e218]:
+            - /url: "#/meta"
+          - button "Collapse operation" [expanded] [ref=e219]:
+            - img [ref=e220]
+        - generic [ref=e226] [cursor=pointer]:
+          - button "GET /health Health" [ref=e227]:
+            - generic [ref=e228]: GET
+            - generic [ref=e229]:
+              - link "/health" [ref=e231]:
+                - /url: "#/meta/health_health_get"
+              - generic [ref=e232]: Health
+          - generic "Copy to clipboard"
+          - button "get /health" [ref=e235]:
+            - img [ref=e236]
+    - generic [ref=e240]:
+      - heading "Schemas" [level=4] [ref=e241] [cursor=pointer]:
+        - button "Schemas" [expanded] [ref=e242]:
+          - generic [ref=e243]: Schemas
+          - img [ref=e244]
+      - generic [ref=e246]:
+        - article [ref=e247]:
+          - generic [ref=e248]:
+            - button "ContractResponse" [ref=e249] [cursor=pointer]:
+              - generic [ref=e251]: ContractResponse
+              - img [ref=e253]
+            - button "Expand all" [ref=e255] [cursor=pointer]
+            - strong [ref=e256]: object
+        - article [ref=e257]:
+          - generic [ref=e258]:
+            - button "CutoverRequest" [ref=e259] [cursor=pointer]:
+              - generic [ref=e261]: CutoverRequest
+              - img [ref=e263]
+            - button "Expand all" [ref=e265] [cursor=pointer]
+            - strong [ref=e266]: object
+        - article [ref=e267]:
+          - generic [ref=e268]:
+            - button "CutoverResponse" [ref=e269] [cursor=pointer]:
+              - generic [ref=e271]: CutoverResponse
+              - img [ref=e273]
+            - button "Expand all" [ref=e275] [cursor=pointer]
+            - strong [ref=e276]: object
+        - article [ref=e277]:
+          - generic [ref=e278]:
+            - button "GhostReportResponse" [ref=e279] [cursor=pointer]:
+              - generic [ref=e281]: GhostReportResponse
+              - img [ref=e283]
+            - button "Expand all" [ref=e285] [cursor=pointer]
+            - strong [ref=e286]: object
+        - article [ref=e287]:
+          - generic [ref=e288]:
+            - button "HTTPValidationError" [ref=e289] [cursor=pointer]:
+              - generic [ref=e291]: HTTPValidationError
+              - img [ref=e293]
+            - button "Expand all" [ref=e295] [cursor=pointer]
+            - strong [ref=e296]: object
+        - article [ref=e297]:
+          - generic [ref=e298]:
+            - button "HealthResponse" [ref=e299] [cursor=pointer]:
+              - generic [ref=e301]: HealthResponse
+              - img [ref=e303]
+            - button "Expand all" [ref=e305] [cursor=pointer]
+            - strong [ref=e306]: object
+        - article [ref=e307]:
+          - generic [ref=e308]:
+            - button "ServiceRegistration" [ref=e309] [cursor=pointer]:
+              - generic [ref=e311]: ServiceRegistration
+              - img [ref=e313]
+            - button "Expand all" [ref=e315] [cursor=pointer]
+            - strong [ref=e316]: object
+        - article [ref=e317]:
+          - generic [ref=e318]:
+            - button "ServiceResponse" [ref=e319] [cursor=pointer]:
+              - generic [ref=e321]: ServiceResponse
+              - img [ref=e323]
+            - button "Expand all" [ref=e325] [cursor=pointer]
+            - strong [ref=e326]: object
+        - article [ref=e327]:
+          - generic [ref=e328]:
+            - button "ValidationError" [ref=e329] [cursor=pointer]:
+              - generic [ref=e331]: ValidationError
+              - img [ref=e333]
+            - button "Expand all" [ref=e335] [cursor=pointer]
+            - strong [ref=e336]: object
+        - article [ref=e337]:
+          - generic [ref=e338]:
+            - button "WatcherRunRequest" [ref=e339] [cursor=pointer]:
+              - generic [ref=e341]: WatcherRunRequest
+              - img [ref=e343]
+            - button "Expand all" [ref=e345] [cursor=pointer]
+            - strong [ref=e346]: object

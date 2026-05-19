@@ -1,0 +1,15 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - img [ref=e8]
+    - generic [ref=e11]:
+      - heading "Karma" [level=1] [ref=e12]
+      - paragraph [ref=e13]: The Reincarnation Agent for Deprecated Services
+  - generic [ref=e14]:
+    - generic [ref=e15]:
+      - heading "Welcome back" [level=2] [ref=e16]
+      - paragraph [ref=e17]: Monitor service migrations and catch contract violations before they reach production.
+    - button "Continue with Google" [ref=e18] [cursor=pointer]:
+      - img [ref=e19]
+      - text: Continue with Google
+    - generic [ref=e28]: Secure · Private · No password required
+  - paragraph [ref=e29]: Google Cloud Rapid Agent Hackathon · Dynatrace Track

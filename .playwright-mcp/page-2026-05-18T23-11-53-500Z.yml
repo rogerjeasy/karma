@@ -1,0 +1,10 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - heading "Karma" [level=1] [ref=e6]
+    - paragraph [ref=e7]: The Reincarnation Agent for Deprecated Services
+  - generic [ref=e8]:
+    - paragraph [ref=e9]: “No ghosts yet. Register a service slated for deprecation to begin learning.”
+    - button "Continue with Google" [ref=e10] [cursor=pointer]:
+      - img [ref=e11]
+      - text: Continue with Google
+  - paragraph [ref=e16]: Google Cloud Rapid Agent Hackathon — Dynatrace Track

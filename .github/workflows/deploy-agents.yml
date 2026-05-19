@@ -1,0 +1,113 @@
+name: Deploy Agents → Agent Engine
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "agents/**"
+      - ".github/workflows/deploy-agents.yml"
+  workflow_dispatch:
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_LOCATION: ${{ vars.GCP_LOCATION }}
+  GAR_LOCATION: ${{ vars.GCP_LOCATION }}
+  GAR_REPOSITORY: karma-images
+  IMAGE_NAME: karma-agents
+
+permissions:
+  contents: read
+  id-token: write   # required for OIDC → Workload Identity Federation
+
+jobs:
+  test:
+    name: Test agents
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: agents
+        run: pip install -e ".[dev]"
+
+      - name: Run tests
+        working-directory: agents
+        run: pytest tests/ -v --tb=short
+
+      - name: Lint
+        working-directory: agents
+        run: |
+          ruff check karma/
+          mypy karma/ --ignore-missing-imports
+
+  deploy:
+    name: Deploy to Agent Engine
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev --quiet
+
+      - name: Build and push image
+        working-directory: agents
+        run: |
+          IMAGE_TAG=${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker build -t "$IMAGE_TAG" .
+          docker push "$IMAGE_TAG"
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deploy dependencies
+        run: pip install google-cloud-aiplatform google-adk
+
+      - name: Deploy AdkApp to Agent Engine
+        working-directory: agents
+        env:
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+        run: |
+          python - <<'EOF'
+          import os
+          import vertexai
+          from vertexai.preview import reasoning_engines
+
+          vertexai.init(
+              project=os.environ["GCP_PROJECT_ID"],
+              location=os.environ["GCP_LOCATION"],
+          )
+
+          # Import the AdkApp from the built image (update-or-create pattern)
+          from karma.app import app as karma_app
+
+          resource_name = os.environ.get("AGENT_ENGINE_RESOURCE_NAME", "")
+          if resource_name:
+              engine = reasoning_engines.ReasoningEngine(resource_name)
+              engine.update(karma_app)
+              print(f"Updated: {engine.resource_name}")
+          else:
+              engine = reasoning_engines.ReasoningEngine.create(
+                  karma_app,
+                  requirements=["google-adk>=1.0.0"],
+                  display_name="Karma Agent System",
+                  description="Reincarnation agent for deprecated services",
+              )
+              print(f"Created: {engine.resource_name}")
+          EOF

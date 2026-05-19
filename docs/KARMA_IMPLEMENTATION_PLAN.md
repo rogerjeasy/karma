@@ -5,7 +5,7 @@
 > **Submission deadline:** Thursday, June 11, 2026, 2:00 PM PT
 > **Plan date:** Monday, May 18, 2026 (24 days remaining)
 > **Builder:** Roger Jeasy Bavibidila (`@rogerjeasy`)
-> **Repo created:** `github.com/rogerjeasy/karma`
+> **Repo created:** `https://github.com/rogerjeasy/karma.git`
 
 ---
 
@@ -359,7 +359,7 @@ Cloud Run is for the **FastAPI gateway** (HTTP + SSE for the dashboard), not for
 | Partner integration | **Dynatrace MCP server (hosted, remote)** at `https://{tenant}.apps.dynatrace.com/platform-reserved/mcp-gateway/v0.1/servers/dynatrace-mcp/mcp` with Platform Token bearer auth | Mandatory Partner MCP; hosted variant means no infra to manage; Platform Token is simpler than OAuth |
 | API gateway | **FastAPI** | Roger's strongest stack; OpenAPI docs for free |
 | Application DB | **Firestore** | Roger's pattern; serverless; SSE-friendly via Firestore listeners |
-| Frontend | **Next.js 15 + TypeScript + Tailwind + ShadCN/UI** | Roger's strongest stack |
+| Frontend | **Next.js 16 + TypeScript + Tailwind + ShadCN/UI** | Roger's strongest stack |
 | Auth | **Firebase Auth** with Google sign-in only | Frictionless for judges; no password forms |
 | Frontend deployment | **Cloud Run** (preferred over Vercel) | Keeps the entire stack on Google Cloud — judges notice this |
 | Synthetic services | **3× Python FastAPI on Cloud Run**, instrumented with **OpenTelemetry → Dynatrace** | Fastest path; OTel is the standard ingestion channel; no GKE complexity |

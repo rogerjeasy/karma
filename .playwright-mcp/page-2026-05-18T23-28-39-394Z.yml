@@ -1,0 +1,127 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - img [ref=e6]
+        - generic [ref=e8]:
+          - generic [ref=e9]: Karma
+          - generic [ref=e10]: Reincarnation Agent
+        - button "Close sidebar" [active] [ref=e11] [cursor=pointer]:
+          - img [ref=e12]
+      - navigation [ref=e15]:
+        - paragraph [ref=e16]: Main menu
+        - link "Overview" [ref=e17] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=e18]
+          - text: Overview
+          - img [ref=e23]
+        - link "Services" [ref=e25] [cursor=pointer]:
+          - /url: /dashboard/services
+          - img [ref=e26]
+          - text: Services
+        - link "Ghosts" [ref=e29] [cursor=pointer]:
+          - /url: /dashboard/ghosts
+          - img [ref=e30]
+          - text: Ghosts
+        - link "Timeline" [ref=e32] [cursor=pointer]:
+          - /url: /dashboard/timeline
+          - img [ref=e33]
+          - text: Timeline
+        - paragraph [ref=e35]: System
+        - generic [ref=e36]:
+          - img [ref=e37]
+          - generic [ref=e39]: Dynatrace MCP
+          - img [ref=e40]
+      - generic [ref=e47]:
+        - paragraph [ref=e48]: Demo Mode
+        - paragraph [ref=e49]: API not connected
+    - generic [ref=e50]:
+      - banner [ref=e51]:
+        - button "Open menu" [ref=e52] [cursor=pointer]:
+          - img [ref=e53]
+        - generic [ref=e54]:
+          - img [ref=e55]
+          - generic [ref=e57]: Karma
+        - generic [ref=e59]: Overview
+      - main [ref=e60]:
+        - generic [ref=e62]:
+          - generic [ref=e63]:
+            - generic [ref=e64]:
+              - heading "Overview" [level=1] [ref=e65]
+              - paragraph [ref=e66]: Services under observation, ghost activity, and discovered contracts.
+            - link "Register service" [ref=e67] [cursor=pointer]:
+              - /url: /dashboard/services
+              - button "Register service" [ref=e68]:
+                - img
+                - text: Register service
+          - generic [ref=e69]:
+            - link "0 Total Services" [ref=e159] [cursor=pointer]:
+              - /url: /dashboard/services
+              - generic [ref=e72]:
+                - generic [ref=e73]:
+                  - img [ref=e75]
+                  - img [ref=e78]
+                - generic [ref=e80]:
+                  - paragraph [ref=e160]: "0"
+                  - paragraph [ref=e82]: Total Services
+            - link "0 Active Ghosts" [ref=e161] [cursor=pointer]:
+              - /url: /dashboard/ghosts
+              - generic [ref=e85]:
+                - generic [ref=e86]:
+                  - img [ref=e88]
+                  - img [ref=e90]
+                - generic [ref=e92]:
+                  - paragraph [ref=e162]: "0"
+                  - paragraph [ref=e94]: Active Ghosts
+            - link "0 Contracts Learned" [ref=e163] [cursor=pointer]:
+              - /url: /dashboard/timeline
+              - generic [ref=e97]:
+                - generic [ref=e98]:
+                  - img [ref=e100]
+                  - img [ref=e105]
+                - generic [ref=e107]:
+                  - paragraph [ref=e164]: "0"
+                  - paragraph [ref=e109]: Contracts Learned
+            - link "0 In Learning Phase" [ref=e165] [cursor=pointer]:
+              - /url: /dashboard/services
+              - generic [ref=e112]:
+                - generic [ref=e113]:
+                  - img [ref=e115]
+                  - img [ref=e117]
+                - generic [ref=e119]:
+                  - paragraph [ref=e166]: "0"
+                  - paragraph [ref=e121]: In Learning Phase
+          - generic [ref=e122]:
+            - generic [ref=e123]:
+              - img [ref=e126]
+              - heading "No ghosts yet" [level=3] [ref=e129]
+              - paragraph [ref=e130]: Register a deprecated service to start the learning phase and automatically discover implicit contracts.
+              - generic [ref=e131]:
+                - link "Register a service" [ref=e132] [cursor=pointer]:
+                  - /url: /dashboard/services
+                  - button "Register a service" [ref=e133]:
+                    - img
+                    - text: Register a service
+                - link "View contracts" [ref=e134] [cursor=pointer]:
+                  - /url: /dashboard/timeline
+                  - button "View contracts" [ref=e135]:
+                    - img
+                    - text: View contracts
+            - generic [ref=e136]:
+              - heading "Service Phases" [level=3] [ref=e137]
+              - generic [ref=e138]:
+                - generic [ref=e141]:
+                  - paragraph [ref=e142]: Registered
+                  - paragraph [ref=e143]: Service is queued for deprecation tracking.
+                - generic [ref=e146]:
+                  - paragraph [ref=e147]: Learning
+                  - paragraph [ref=e148]: Agent is observing traffic and extracting implicit contracts.
+                - generic [ref=e151]:
+                  - paragraph [ref=e152]: Haunting
+                  - paragraph [ref=e153]: Replacement service is live; agent is comparing behaviour.
+                - generic [ref=e156]:
+                  - paragraph [ref=e157]: Completed
+                  - paragraph [ref=e158]: Migration validated. No further action required.
+  - button "Open Next.js Dev Tools" [ref=e172] [cursor=pointer]:
+    - img [ref=e173]
+  - alert [ref=e176]
