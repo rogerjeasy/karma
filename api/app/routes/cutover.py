@@ -1,8 +1,9 @@
 """Cutover route — marks service as replaced and activates the Watcher."""
 from __future__ import annotations
 
+import datetime as dt
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 
 import structlog
@@ -21,7 +22,7 @@ async def mark_cutover(service_id: str, payload: CutoverRequest) -> CutoverRespo
     if doc is None:
         raise HTTPException(status_code=404, detail="Service not found")
 
-    cutover_time = payload.cutover_time or datetime.now(timezone.utc)
+    cutover_time = payload.cutover_time or datetime.now(dt.UTC)
     log = logger.bind(service_id=service_id, replacement=payload.replacement_service_id)
     log.info("cutover_triggered")
 
@@ -120,7 +121,7 @@ def _find_contract(contracts: list[dict[str, Any]], contract_id: str) -> dict[st
 
 
 def _violation_window() -> dict[str, str]:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(dt.UTC)
     return {
         "start": (now - timedelta(minutes=15)).isoformat(),
         "end": now.isoformat(),

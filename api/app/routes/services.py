@@ -1,8 +1,9 @@
 """Service registration and management routes."""
 from __future__ import annotations
 
+import datetime as dt
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 import structlog
 from fastapi import APIRouter, HTTPException, status
@@ -42,7 +43,7 @@ async def register_service(payload: ServiceRegistration) -> ServiceResponse:
     await firestore_client.update_service_phase(service_id, "learning")
     log.info("service_registered_learning_started")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(dt.UTC)
     return ServiceResponse(
         service_id=service_id,
         service_name=payload.service_name,
@@ -92,8 +93,8 @@ def _doc_to_response(doc: dict) -> ServiceResponse:
         deprecation_date=_parse_dt(doc["deprecation_date"]),
         replacement_service_id=doc.get("replacement_service_id"),
         phase=doc.get("phase", "registered"),
-        created_at=_parse_dt(doc.get("created_at", datetime.now(timezone.utc))),
-        updated_at=_parse_dt(doc.get("updated_at", datetime.now(timezone.utc))),
+        created_at=_parse_dt(doc.get("created_at", datetime.now(dt.UTC))),
+        updated_at=_parse_dt(doc.get("updated_at", datetime.now(dt.UTC))),
     )
 
 

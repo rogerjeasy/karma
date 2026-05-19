@@ -7,9 +7,10 @@ asyncio.Queue.
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
 import json
-from datetime import datetime, timezone
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
+from datetime import datetime
 
 import structlog
 from fastapi import APIRouter, Request
@@ -33,7 +34,7 @@ async def stream_ghosts(request: Request) -> EventSourceResponse:
 
     async def event_generator() -> AsyncGenerator[dict, None]:
         # Send a heartbeat immediately so the client knows the connection is live
-        yield {"event": "ping", "data": json.dumps({"ts": datetime.now(timezone.utc).isoformat()})}
+        yield {"event": "ping", "data": json.dumps({"ts": datetime.now(dt.UTC).isoformat()})}
 
         try:
             while True:
@@ -41,7 +42,7 @@ async def stream_ghosts(request: Request) -> EventSourceResponse:
                     break
                 try:
                     message = await asyncio.wait_for(queue.get(), timeout=25.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Send a keepalive comment every 25s so proxies don't drop the connection
                     yield {"event": "ping", "data": "{}"}
                     continue
@@ -76,8 +77,6 @@ def start_firestore_listener() -> None:
     loop = asyncio.get_event_loop()
 
     def on_snapshot(col_snapshot: object, changes: object, read_time: object) -> None:
-        from google.cloud.firestore_v1 import DocumentChange
-
         for change in changes:  # type: ignore[attr-defined]
             if change.type.name == "ADDED":
                 doc = change.document.to_dict()
