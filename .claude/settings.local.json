@@ -78,7 +78,10 @@
       "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -m pip install \"mcp>=1.0.0\" -q)",
       "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -c \"from google.adk.tools import MCPToolset, StdioServerParameters, StreamableHTTPServerParams; print\\('ok'\\)\")",
       "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -m mypy karma/ --ignore-missing-imports)",
-      "Bash(gcloud run services describe *)"
+      "Bash(gcloud run services describe *)",
+      "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -m pip index versions \"google-cloud-aiplatform\")",
+      "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -m pip index versions \"google-adk\")",
+      "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -m pip install \"google-cloud-aiplatform>=1.90.0\" -q)"
     ]
   }
 }
