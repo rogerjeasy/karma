@@ -34,13 +34,6 @@ class Settings(BaseSettings):
             raise ValueError("GCP_PROJECT_ID must be set in the root .env file")
         return v
 
-    @field_validator("api_secret_key", mode="after")
-    @classmethod
-    def _require_secret_key(cls, v: str) -> str:
-        if not v:
-            raise ValueError("API_SECRET_KEY must be set in the root .env file")
-        return v
-
     @property
     def cors_origins(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",")]
