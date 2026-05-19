@@ -8,7 +8,8 @@ Collections:
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import datetime as dt
+from datetime import datetime
 from typing import Any
 
 import structlog
@@ -35,7 +36,10 @@ def get_db() -> firestore.AsyncClient:
         except DefaultCredentialsError as exc:
             raise HTTPException(
                 status_code=503,
-                detail="GCP credentials not configured. Set GOOGLE_APPLICATION_CREDENTIALS or run 'gcloud auth application-default login'.",
+                detail=(
+                    "GCP credentials not configured. Set GOOGLE_APPLICATION_CREDENTIALS"
+                    " or run 'gcloud auth application-default login'."
+                ),
             ) from exc
     return _db
 
@@ -44,7 +48,7 @@ def get_db() -> firestore.AsyncClient:
 
 async def create_service(service_id: str, data: dict[str, Any]) -> None:
     db = get_db()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(dt.UTC)
     await db.collection("services").document(service_id).set(
         {**data, "created_at": now, "updated_at": now, "phase": "registered"}
     )
@@ -64,7 +68,7 @@ async def list_services() -> list[dict[str, Any]]:
 
 async def update_service_phase(service_id: str, phase: str, extra: dict | None = None) -> None:
     db = get_db()
-    payload: dict[str, Any] = {"phase": phase, "updated_at": datetime.now(timezone.utc)}
+    payload: dict[str, Any] = {"phase": phase, "updated_at": datetime.now(dt.UTC)}
     if extra:
         payload.update(extra)
     await db.collection("services").document(service_id).update(payload)

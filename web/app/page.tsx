@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   Ghost, Zap, Activity, Bell, ChevronRight, AlertOctagon,
   Server, Code2, Cpu, Brain, GitMerge, CheckCircle2,
-  ArrowRight, ArrowDown, Menu, X, Sparkles, Shield,
+  ArrowRight, Menu, X, Sparkles, Shield,
   TrendingUp, Layers, ChevronDown,
 } from "lucide-react";
 
@@ -580,7 +580,7 @@ function GhostSection() {
             <span className="text-[11.5px] font-semibold text-primary">The Ghost Lifecycle</span>
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight">
-            Deprecated services don't die.
+            Deprecated services don&apos;t die.
             <br />
             <span className="gradient-text">They haunt you.</span>
           </h2>
@@ -663,7 +663,7 @@ function GhostSection() {
             <Ghost className="h-6 w-6 text-muted-foreground/25 animate-float-slow" style={{ animationDelay: "1.5s" } as React.CSSProperties} />
           </div>
           <p className="text-sm sm:text-base font-semibold text-foreground">
-            "In the deep, every ghost that goes undetected becomes a liability."
+            &ldquo;In the deep, every ghost that goes undetected becomes a liability.&rdquo;
           </p>
           <p className="text-xs sm:text-sm text-muted-foreground">
             Karma ensures no ghost haunts your production system unchallenged.

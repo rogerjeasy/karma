@@ -1,7 +1,7 @@
 """Contract retrieval routes."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from app import firestore_client
 from app.models import ContractResponse

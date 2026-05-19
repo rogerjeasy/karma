@@ -6,7 +6,7 @@ and starts the Firestore SSE listener on startup.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 import structlog
 from fastapi import FastAPI, Request
@@ -49,7 +49,12 @@ def create_app() -> FastAPI:
             logger.warning("gcp_credentials_unavailable", path=request.url.path, error=str(exc))
             return JSONResponse(
                 status_code=503,
-                content={"detail": "GCP credentials not configured. Set GOOGLE_APPLICATION_CREDENTIALS or run 'gcloud auth application-default login'."},
+                content={
+                    "detail": (
+                        "GCP credentials not configured. Set GOOGLE_APPLICATION_CREDENTIALS"
+                        " or run 'gcloud auth application-default login'."
+                    )
+                },
             )
 
     application.add_middleware(

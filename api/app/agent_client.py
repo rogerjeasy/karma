@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import structlog
 import vertexai
-from google.cloud.aiplatform_v1beta1 import ReasoningEngineServiceClient
 
 from app.config import settings
 

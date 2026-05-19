@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity } from "lucide-react";
 import { ContractTimeline } from "@/components/ContractTimeline";
-import { Button } from "@/components/ui/button";
 import type { ContractResponse, ServiceResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 

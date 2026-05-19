@@ -29,7 +29,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 SERVICE_NAME = "svc-reporting"
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
 PAYMENTS_URL = os.getenv("PAYMENTS_URL", "http://svc-payments-v3:8080")
 OTEL_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318/v1/traces")
 DT_API_TOKEN = os.getenv("DT_API_TOKEN", "")
@@ -76,7 +76,10 @@ async def get_charges_summary() -> dict:
 
     with _tracer.start_as_current_span("reporting.get_charges_summary") as span:  # type: ignore[union-attr]
         # Try Redis cache first
-        cached = await _redis.get("recent_charges:summary")  # type: ignore[union-attr]
+        try:
+            cached = await _redis.get("recent_charges:summary")  # type: ignore[union-attr]
+        except Exception:
+            cached = None
 
         if cached:
             span.set_attribute("cache.hit", True)

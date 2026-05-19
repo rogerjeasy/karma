@@ -1,7 +1,6 @@
 import { formatDistanceToNow } from "date-fns";
 import { CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import type { ContractResponse, ContractCategory } from "@/lib/types";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface ContractTimelineProps {
