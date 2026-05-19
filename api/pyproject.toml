@@ -6,7 +6,6 @@ build-backend = "hatchling.build"
 name = "karma-api"
 version = "0.1.0"
 description = "Karma — FastAPI gateway for the Karma agent system"
-readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
 dependencies = [
