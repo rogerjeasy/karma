@@ -1,0 +1,29 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: karma-svc-payments-v3
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "5"
+    spec:
+      containers:
+        - image: us-central1-docker.pkg.dev/skillbridge-76a4c/karma-images/svc-payments-v3:latest
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: "1"
+          env:
+            - name: DT_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: dt-api-token
+                  key: latest
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "https://$(DT_TENANT_ID).live.dynatrace.com/api/v2/otlp/v1/traces"

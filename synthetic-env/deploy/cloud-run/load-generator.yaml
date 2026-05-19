@@ -1,0 +1,22 @@
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: karma-load-generator
+spec:
+  template:
+    spec:
+      template:
+        spec:
+          containers:
+            - image: us-central1-docker.pkg.dev/skillbridge-76a4c/karma-images/load-generator:latest
+              resources:
+                limits:
+                  memory: 256Mi
+                  cpu: "1"
+              env:
+                - name: PAYMENTS_URL
+                  value: "https://karma-svc-payments-v2-<hash>-uc.a.run.app"
+                - name: REPORTING_URL
+                  value: "https://karma-svc-reporting-<hash>-uc.a.run.app"
+          maxRetries: 0
+          timeoutSeconds: "86400"

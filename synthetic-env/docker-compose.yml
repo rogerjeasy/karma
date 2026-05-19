@@ -1,0 +1,75 @@
+version: "3.9"
+
+# Local development environment for the Karma demo synthetic services.
+# Run: docker compose up
+# Services:
+#   svc-payments-v2  on localhost:8010
+#   svc-payments-v3  on localhost:8011
+#   svc-reporting    on localhost:8012
+#   redis            on localhost:6379
+#
+# Both payment services run simultaneously so you can:
+#   - Send traffic to v2 during the "learning" phase
+#   - Switch traffic to v3 after "cutover" (edit PAYMENTS_URL in load-generator)
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  svc-payments-v2:
+    build: ./svc-payments-v2
+    ports:
+      - "8010:8080"
+    environment:
+      REDIS_URL: redis://redis:6379
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318/v1/traces}
+      DT_API_TOKEN: ${DT_API_TOKEN:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  svc-payments-v3:
+    build: ./svc-payments-v3
+    ports:
+      - "8011:8080"
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318/v1/traces}
+      DT_API_TOKEN: ${DT_API_TOKEN:-}
+
+  svc-reporting:
+    build: ./svc-reporting
+    ports:
+      - "8012:8080"
+    environment:
+      REDIS_URL: redis://redis:6379
+      # Point to v2 during learning phase; change to svc-payments-v3:8080 after cutover
+      PAYMENTS_URL: http://svc-payments-v2:8080
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318/v1/traces}
+      DT_API_TOKEN: ${DT_API_TOKEN:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  load-generator:
+    build: ./load-generator
+    profiles: ["load"]  # only start with: docker compose --profile load up
+    environment:
+      PAYMENTS_URL: http://svc-payments-v2:8080
+      REPORTING_URL: http://svc-reporting:8080
+    depends_on:
+      - svc-payments-v2
+      - svc-reporting
+    command:
+      - run
+      - --env
+      - PAYMENTS_URL=http://svc-payments-v2:8080
+      - --env
+      - REPORTING_URL=http://svc-reporting:8080
+      - /scripts/script.js
