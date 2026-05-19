@@ -63,6 +63,7 @@ jobs:
           image: ${{ env.IMAGE_TAG }}
           flags: >
             --allow-unauthenticated
+            --service-account=karma-runner@skillbridge-76a4c.iam.gserviceaccount.com
             --memory=256Mi
             --cpu=1
             --set-secrets=DT_API_TOKEN=dt-api-token:latest

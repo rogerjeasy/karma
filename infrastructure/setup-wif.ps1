@@ -59,6 +59,10 @@ foreach ($role in $roles) {
 }
 gcloud iam service-accounts add-iam-policy-binding $SA_EMAIL --member="serviceAccount:$SA_EMAIL" --role="roles/iam.serviceAccountUser" --project=$PROJECT | Out-Null
 ok "roles/iam.serviceAccountUser (self-binding)"
+# Allow deployer to act-as the karma-runner Cloud Run runtime SA
+$RUNNER_SA = "karma-runner@$PROJECT.iam.gserviceaccount.com"
+gcloud iam service-accounts add-iam-policy-binding $RUNNER_SA --member="serviceAccount:$SA_EMAIL" --role="roles/iam.serviceAccountUser" --project=$PROJECT | Out-Null
+ok "roles/iam.serviceAccountUser on karma-runner (actAs for Cloud Run deploy)"
 
 # ── Step 3: Create Workload Identity Pool ─────────────────────────────────────
 info "Step 3: Create Workload Identity Pool"

@@ -319,6 +319,7 @@ class TestCutover:
         haunting_service = {**MOCK_SERVICE, "phase": "haunting", "replacement_service_id": "SERVICE-V3"}
         with (
             patch("app.firestore_client.list_services", new_callable=AsyncMock, return_value=[haunting_service]),
+            patch("app.firestore_client.list_contracts_for_service", new_callable=AsyncMock, return_value=[MOCK_CONTRACT]),
             patch("app.agent_client.trigger_watcher", new_callable=AsyncMock, return_value={"status": "ok"}),
             patch("app.main.stream.start_firestore_listener"),
         ):
