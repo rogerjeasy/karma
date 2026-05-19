@@ -11,6 +11,7 @@ resource "google_project_service" "apis" {
     "secretmanager.googleapis.com",
     "redis.googleapis.com",
     "iam.googleapis.com",
+    "storage.googleapis.com",
   ])
 
   project            = var.project_id
@@ -122,9 +123,27 @@ resource "google_project_iam_member" "karma_runner_roles" {
     "roles/aiplatform.user",
     "roles/secretmanager.secretAccessor",
     "roles/pubsub.publisher",
+    "roles/storage.objectAdmin",
   ])
 
   project = var.project_id
   role    = each.value
   member  = "serviceAccount:${google_service_account.karma_runner.email}"
+}
+
+# ── GCS staging bucket — Agent Engine upload staging ─────────────────────────
+
+resource "google_storage_bucket" "agent_staging" {
+  project                     = var.project_id
+  name                        = "${var.project_id}-agent-staging"
+  location                    = var.region
+  uniform_bucket_level_access = true
+  force_destroy               = true
+
+  lifecycle_rule {
+    condition { age = 7 }
+    action    { type = "Delete" }
+  }
+
+  depends_on = [google_project_service.apis]
 }

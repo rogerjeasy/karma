@@ -102,9 +102,11 @@ jobs:
           from vertexai import agent_engines
           from vertexai.agent_engines import AdkApp
 
+          project = os.environ["GCP_PROJECT_ID"]
           vertexai.init(
-              project=os.environ["GCP_PROJECT_ID"],
+              project=project,
               location=os.environ["GCP_LOCATION"],
+              staging_bucket=f"gs://{project}-agent-staging",
           )
 
           from karma.app import app as coordinator_agent
