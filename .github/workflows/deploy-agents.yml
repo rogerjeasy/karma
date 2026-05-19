@@ -115,7 +115,6 @@ jobs:
           requirements = [
               "google-adk>=1.0.0",
               "google-cloud-aiplatform>=1.90.0",
-              "vertexai>=1.90.0",
               "pydantic>=2.7.0",
               "pydantic-settings>=2.3.0",
               "google-cloud-firestore>=2.19.0",
