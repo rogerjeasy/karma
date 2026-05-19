@@ -81,7 +81,7 @@ jobs:
       - name: Install deploy dependencies
         working-directory: agents
         run: |
-          pip install uv build
+          pip install uv build hatchling
           python -m build --wheel --no-isolation --outdir dist
           uv pip install dist/karma_agents*.whl google-cloud-aiplatform --system
 
