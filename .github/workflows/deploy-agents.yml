@@ -99,7 +99,7 @@ jobs:
         run: |
           pip install uv build hatchling
           python -m build --wheel --no-isolation --outdir dist
-          uv pip install dist/karma_agents*.whl google-cloud-aiplatform --system
+          uv pip install dist/karma_agents*.whl "google-cloud-aiplatform[agent_engines]" --system
 
       - name: Deploy AdkApp to Agent Engine
         working-directory: agents
