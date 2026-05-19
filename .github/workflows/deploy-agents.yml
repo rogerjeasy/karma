@@ -33,7 +33,9 @@ jobs:
 
       - name: Install dependencies
         working-directory: agents
-        run: pip install -e ".[dev]"
+        run: |
+          pip install uv
+          uv pip install -e ".[dev]" --system
 
       - name: Run tests
         working-directory: agents
@@ -79,9 +81,9 @@ jobs:
       - name: Install deploy dependencies
         working-directory: agents
         run: |
-          pip install build
+          pip install uv build
           python -m build --wheel --no-isolation --outdir dist
-          pip install dist/karma_agents*.whl google-cloud-aiplatform
+          uv pip install dist/karma_agents*.whl google-cloud-aiplatform --system
 
       - name: Deploy AdkApp to Agent Engine
         working-directory: agents
