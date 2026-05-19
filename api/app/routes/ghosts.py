@@ -1,6 +1,8 @@
 """Ghost report retrieval routes."""
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, Query
 
 from app import firestore_client
@@ -26,7 +28,7 @@ async def get_ghost_report(report_id: str) -> GhostReportResponse:
     return _doc_to_response(doc)
 
 
-def _doc_to_response(doc: dict) -> GhostReportResponse:
+def _doc_to_response(doc: dict[str, Any]) -> GhostReportResponse:
     from datetime import datetime
     return GhostReportResponse(
         report_id=doc["report_id"],

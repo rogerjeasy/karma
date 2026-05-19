@@ -4,6 +4,7 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 from datetime import datetime
+from typing import Any
 
 import structlog
 from fastapi import APIRouter, HTTPException, status
@@ -71,7 +72,7 @@ async def get_service(service_id: str) -> ServiceResponse:
 
 
 @router.post("/{service_id}/learn", status_code=status.HTTP_202_ACCEPTED)
-async def trigger_learning(service_id: str, hint: str | None = None) -> dict:
+async def trigger_learning(service_id: str, hint: str | None = None) -> dict[str, Any]:
     doc = await firestore_client.get_service(service_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Service not found")
@@ -85,7 +86,7 @@ async def trigger_learning(service_id: str, hint: str | None = None) -> dict:
     return {"status": "accepted", "service_id": service_id}
 
 
-def _doc_to_response(doc: dict) -> ServiceResponse:
+def _doc_to_response(doc: dict[str, Any]) -> ServiceResponse:
     return ServiceResponse(
         service_id=doc["service_id"],
         service_name=doc["service_name"],

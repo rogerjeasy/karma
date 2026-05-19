@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { Route } from "next";
 import Link from "next/link";
 import {
   Server, Ghost, FileCode2, Activity,
@@ -108,7 +109,7 @@ export default function DashboardPage() {
         {cards.map((card) => (
           <Link
             key={card.label}
-            href={card.href}
+            href={card.href as Route}
             className={cn(
               "group relative overflow-hidden rounded-xl border border-border bg-card p-5",
               "transition-all duration-250 hover:-translate-y-0.5 hover:border-border/70",

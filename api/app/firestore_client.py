@@ -63,10 +63,12 @@ async def get_service(service_id: str) -> dict[str, Any] | None:
 async def list_services() -> list[dict[str, Any]]:
     db = get_db()
     docs = db.collection("services").stream()
-    return [doc.to_dict() async for doc in docs]
+    return [d async for doc in docs if (d := doc.to_dict()) is not None]
 
 
-async def update_service_phase(service_id: str, phase: str, extra: dict | None = None) -> None:
+async def update_service_phase(
+    service_id: str, phase: str, extra: dict[str, Any] | None = None
+) -> None:
     db = get_db()
     payload: dict[str, Any] = {"phase": phase, "updated_at": datetime.now(dt.UTC)}
     if extra:
@@ -88,7 +90,7 @@ async def list_contracts_for_service(service_id: str) -> list[dict[str, Any]]:
     query = db.collection("contracts").where(
         filter=FieldFilter("karma_service_id", "==", service_id)
     )
-    return [doc.to_dict() async for doc in query.stream()]
+    return [d async for doc in query.stream() if (d := doc.to_dict()) is not None]
 
 
 # ── Ghost reports ─────────────────────────────────────────────────────────────
@@ -108,7 +110,7 @@ async def list_ghost_reports(
     ).limit(limit)
     if service_id:
         query = query.where(filter=FieldFilter("karma_service_id", "==", service_id))
-    return [doc.to_dict() async for doc in query.stream()]
+    return [d async for doc in query.stream() if (d := doc.to_dict()) is not None]
 
 
 async def get_ghost_report(report_id: str) -> dict[str, Any] | None:

@@ -51,7 +51,8 @@
       "Bash(python *)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\User\\\\Documents\\\\karma\" -Recurse -Directory)",
       "Bash(Select-Object -ExpandProperty FullName)",
-      "Bash(Sort-Object)"
+      "Bash(Sort-Object)",
+      "Bash(echo \"EXIT:$?\")"
     ]
   }
 }

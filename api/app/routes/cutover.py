@@ -45,7 +45,7 @@ async def mark_cutover(service_id: str, payload: CutoverRequest) -> CutoverRespo
 
 
 @router.post("/watchers/run-now", status_code=status.HTTP_202_ACCEPTED)
-async def run_watcher_now(payload: WatcherRunRequest) -> dict:
+async def run_watcher_now(payload: WatcherRunRequest) -> dict[str, Any]:
     """Trigger an immediate watcher run. Fetches contracts, checks them, then
     triggers Forensic for every violation that needs investigation."""
     from app import agent_client

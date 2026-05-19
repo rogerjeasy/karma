@@ -11,6 +11,7 @@ import datetime as dt
 import json
 from collections.abc import AsyncGenerator
 from datetime import datetime
+from typing import Any
 
 import structlog
 from fastapi import APIRouter, Request
@@ -22,17 +23,17 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/stream", tags=["stream"])
 
 # Active SSE queues — one per connected client
-_queues: list[asyncio.Queue[dict | None]] = []
+_queues: list[asyncio.Queue[dict[str, Any] | None]] = []
 
 
 @router.get("/ghosts")
 async def stream_ghosts(request: Request) -> EventSourceResponse:
     """SSE endpoint. Clients connect and receive ghost reports as they arrive."""
-    queue: asyncio.Queue[dict | None] = asyncio.Queue()
+    queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
     _queues.append(queue)
     logger.info("sse_client_connected", total_clients=len(_queues))
 
-    async def event_generator() -> AsyncGenerator[dict, None]:
+    async def event_generator() -> AsyncGenerator[dict[str, Any], None]:
         # Send a heartbeat immediately so the client knows the connection is live
         yield {"event": "ping", "data": json.dumps({"ts": datetime.now(dt.UTC).isoformat()})}
 
@@ -58,7 +59,7 @@ async def stream_ghosts(request: Request) -> EventSourceResponse:
     return EventSourceResponse(event_generator())
 
 
-async def broadcast_ghost_report(report: dict) -> None:
+async def broadcast_ghost_report(report: dict[str, Any]) -> None:
     """Called by the ghost report handler when a new report is saved.
 
     Pushes the report to all connected SSE clients.
@@ -76,13 +77,15 @@ def start_firestore_listener() -> None:
     db = get_db()
     loop = asyncio.get_event_loop()
 
+    def _dispatch(doc: dict[str, Any]) -> None:
+        asyncio.ensure_future(broadcast_ghost_report(doc))
+
     def on_snapshot(col_snapshot: object, changes: object, read_time: object) -> None:
         for change in changes:  # type: ignore[attr-defined]
             if change.type.name == "ADDED":
-                doc = change.document.to_dict()
-                loop.call_soon_threadsafe(
-                    lambda d=doc: asyncio.ensure_future(broadcast_ghost_report(d))
-                )
+                doc: dict[str, Any] | None = change.document.to_dict()
+                if doc is not None:
+                    loop.call_soon_threadsafe(_dispatch, doc)
 
-    db.collection("ghost_reports").on_snapshot(on_snapshot)
+    db.collection("ghost_reports").on_snapshot(on_snapshot)  # type: ignore[no-untyped-call]
     logger.info("firestore_sse_listener_started")
