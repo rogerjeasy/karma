@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rogerjeasy/karma/agents/karma/prompts/contract_schema.json",
+  "title": "ImplicitContract",
+  "description": "A single implicit behavioral contract discovered from a service's telemetry",
+  "type": "object",
+  "required": [
+    "service_id", "category", "subcategory", "description",
+    "evidence", "confidence", "learning_window", "violation_predicate"
+  ],
+  "properties": {
+    "service_id": {
+      "type": "string",
+      "description": "Dynatrace entity ID of the observed service"
+    },
+    "category": {
+      "type": "string",
+      "enum": ["latency", "error_semantics", "throughput", "side_effect", "timing", "dependency", "resource", "sequencing"],
+      "description": "One of the eight implicit contract categories"
+    },
+    "subcategory": {
+      "type": "string",
+      "description": "Fine-grained label within the category, e.g. 'cache_warming', 'p95_endpoint_band', 'idempotency_response'"
+    },
+    "description": {
+      "type": "string",
+      "description": "Factual, present-tense observation. Example: 'Service writes recent_charges:summary to Redis every ~30s. Downstream svc-reporting reads these keys directly.'"
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Supporting evidence — must include at least one dql_query entry",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["type", "dql", "sample_count", "timespan"],
+            "properties": {
+              "type": { "const": "dql_query" },
+              "dql": { "type": "string" },
+              "sample_count": { "type": "integer", "minimum": 1 },
+              "timespan": { "type": "string" },
+              "result_summary": { "type": "string" }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": ["type", "pattern", "frequency", "sample_count"],
+            "properties": {
+              "type": { "const": "trace_pattern" },
+              "pattern": { "type": "string" },
+              "frequency": { "type": "string" },
+              "sample_count": { "type": "integer", "minimum": 1 }
+            },
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "downstream_dependents": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Dynatrace entity IDs of services that depend on this contract. Use get-entity-id to resolve names to IDs, or get-entity-name to resolve IDs to names."
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Your confidence in this contract based on evidence quality and volume. Below 0.75 = do not propose."
+    },
+    "learning_window": {
+      "type": "object",
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "string", "format": "date-time" },
+        "end":   { "type": "string", "format": "date-time" }
+      }
+    },
+    "violation_predicate": {
+      "type": "object",
+      "required": ["type", "test_dql", "threshold", "tolerance_window_seconds"],
+      "description": "The machine-checkable condition that, if FALSE for the new service, indicates a violation",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["absence", "threshold_breach", "distribution_shift", "pattern_mismatch"]
+        },
+        "test_dql": {
+          "type": "string",
+          "description": "DQL run against the NEW service. The predicate PASSES if this query returns data meeting the threshold."
+        },
+        "threshold": {
+          "type": "string",
+          "description": "Human-readable pass condition, e.g. 'count >= 1 over any 5-minute window'"
+        },
+        "tolerance_window_seconds": {
+          "type": "integer",
+          "minimum": 60,
+          "description": "Seconds the predicate must fail continuously before triggering Forensic. Minimum 300 for side_effect and timing contracts."
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}
