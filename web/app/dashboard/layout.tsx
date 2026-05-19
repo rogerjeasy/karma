@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import type { Route } from "next";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -161,7 +162,7 @@ function NavLink({ item }: { item: NavItem }) {
 
   return (
     <Link
-      href={item.href}
+      href={item.href as Route}
       className={cn(
         "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150",
         active

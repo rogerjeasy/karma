@@ -110,7 +110,8 @@ def _extract_violations(result: dict[str, Any]) -> list[dict[str, Any]]:
     if result.get("status") != "ok":
         return []
     # Agent Engine wraps output: {"status": "ok", "result": <coordinator output>}
-    # Coordinator wraps: {"task": "...", "agent": "watcher", "status": "completed", "result": <watcher output>}
+    # Coordinator wraps: {"task": "...", "agent": "watcher", "status": "completed",
+    #                     "result": <watcher output>}
     agent_out = result.get("result", {})
     watcher_out = agent_out.get("result", agent_out)
     return watcher_out.get("violations", []) if isinstance(watcher_out, dict) else []

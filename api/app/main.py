@@ -5,8 +5,8 @@ and starts the Firestore SSE listener on startup.
 """
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI, Request
