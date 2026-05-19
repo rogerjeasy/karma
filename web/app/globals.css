@@ -1,0 +1,148 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:wght@400;500&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * KARMA — "Bioluminescent Abyss" Design System
+ *
+ * Concept: deprecated services sink to the ocean floor like dying organisms.
+ * Their ghosts glow with bioluminescence in the deep dark.
+ * New services are reborn — life emerging from the abyss.
+ *
+ * Background : deep ocean-tinted near-black  (not generic grey, not purple)
+ * Primary    : electric aquamarine            (bioluminescent glow)
+ * Destructive: vivid coral-red               (danger signal in the deep)
+ * Success    : phosphorescent emerald         (life returning)
+ * Warning    : amber                          (caution light)
+ */
+
+@layer base {
+  :root {
+    /* ── Surfaces ─────────────────────────────────────────────────── */
+    --background:         186 55%  4%;    /* #031110 — abyssal ocean dark   */
+    --foreground:         180 12% 96%;    /* #F2F8F7 — seafoam white         */
+    --card:               185 48%  6.5%; /* #071A19 — deep-sea card         */
+    --card-foreground:    180  8% 93%;   /* #EBF3F2                         */
+    --popover:            185 45%  7.5%; /* #091E1D — floating panel        */
+    --popover-foreground: 180  8% 93%;
+
+    /* ── Primary — bioluminescent aquamarine ──────────────────────── */
+    --primary:            170 100% 42%;  /* #00D4A8 — electric aquamarine   */
+    --primary-foreground: 186 55%  4%;   /* same as bg — for contrast       */
+
+    /* ── Secondary ────────────────────────────────────────────────── */
+    --secondary:          186 28% 11%;   /* #0F1F1E                         */
+    --secondary-foreground:180  8% 84%;  /* #D3E3E1                         */
+
+    /* ── Muted ─────────────────────────────────────────────────────── */
+    --muted:              186 22% 13%;   /* #132422                         */
+    --muted-foreground:   186 10% 50%;   /* #6E8988 — ocean grey            */
+
+    /* ── Accent (hover surfaces) ─────────────────────────────────── */
+    --accent:             186 22% 13%;
+    --accent-foreground:  180  8% 90%;
+
+    /* ── Destructive — deep-danger coral ─────────────────────────── */
+    --destructive:          5 88% 56%;   /* #F43022 — vivid coral-red       */
+    --destructive-foreground:0  0% 98%;
+
+    /* ── Borders & inputs ─────────────────────────────────────────── */
+    --border:             186 30% 14%;   /* #122423                         */
+    --input:              186 40%  8.5%; /* #091A19                         */
+    --ring:               170 100% 42%;  /* same as primary                 */
+
+    /* ── Radius ─────────────────────────────────────────────────────  */
+    --radius:             0.75rem;
+
+    /* ── Semantic tokens ─────────────────────────────────────────── */
+    --success:            152 80% 40%;   /* #14C46A — phosphorescent green  */
+    --warning:             38 95% 52%;   /* #F9AB12 — amber                 */
+    --info:               199 90% 50%;   /* #08B8F0 — electric sky-blue     */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border box-border;
+  }
+
+  html {
+    @apply scroll-smooth;
+    -webkit-text-size-adjust: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased leading-relaxed;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply tracking-tight leading-tight font-semibold;
+  }
+
+  code, pre, kbd, samp {
+    @apply font-mono;
+  }
+
+  /* ── Premium scrollbar ──────────────────────────────────────── */
+  ::-webkit-scrollbar        { @apply w-1.5 h-1.5; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { @apply bg-border rounded-full transition-colors; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-muted-foreground/35; }
+
+  /* ── Selection — teal tint ───────────────────────────────────── */
+  ::selection { @apply bg-primary/20 text-foreground; }
+}
+
+@layer components {
+  /* ── Inputs ─────────────────────────────────────────────────── */
+  .input-base {
+    @apply w-full rounded-lg border border-border bg-input px-3.5 py-2.5 text-sm
+           text-foreground placeholder:text-muted-foreground/55
+           transition-all duration-200
+           focus:outline-none focus:ring-2 focus:ring-ring/40 focus:border-primary/50
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* ── Gradient text — aquamarine aurora ──────────────────────── */
+  .gradient-text {
+    background: linear-gradient(135deg, #67e8f9 0%, #34d399 40%, #a7f3d0 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── Glass card ─────────────────────────────────────────────── */
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-md border border-border/60;
+  }
+}
+
+/* ── Ghost pulse — signature violation flash ─────────────────── */
+.ghost-pulse-overlay {
+  animation: ghost-pulse 2.4s ease-in-out;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-6px); }
+}
+
+/* ── Radix Dialog animations ─────────────────────────────────── */
+[data-radix-dialog-overlay][data-state="open"]  { animation: fadeIn  150ms ease; }
+[data-radix-dialog-overlay][data-state="closed"] { animation: fadeOut 100ms ease; }
+[data-radix-dialog-content][data-state="open"]   { animation: slideUp 200ms cubic-bezier(0.16,1,0.3,1); }
+[data-radix-dialog-content][data-state="closed"] { animation: slideDown 150ms ease; }
+
+@keyframes fadeIn    { from { opacity:0 } to { opacity:1 } }
+@keyframes fadeOut   { from { opacity:1 } to { opacity:0 } }
+@keyframes slideUp   {
+  from { opacity:0; transform:translate(-50%,-48%) scale(0.96); }
+  to   { opacity:1; transform:translate(-50%,-50%) scale(1); }
+}
+@keyframes slideDown {
+  from { opacity:1; transform:translate(-50%,-50%) scale(1); }
+  to   { opacity:0; transform:translate(-50%,-48%) scale(0.96); }
+}
