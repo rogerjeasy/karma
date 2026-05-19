@@ -52,7 +52,17 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\User\\\\Documents\\\\karma\" -Recurse -Directory)",
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(Sort-Object)",
-      "Bash(echo \"EXIT:$?\")"
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(bash *)",
+      "Bash(pyenv versions *)",
+      "Read(//usr/**)",
+      "Bash(/c/Users/User/AppData/Local/Programs/Python/Python*/python.exe --version)",
+      "Bash(echo 'FAKE_KEY = \"AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ12345678\"')",
+      "Bash(cp /tmp/test_secret.py ./test_secret.py)",
+      "Bash(git add *)",
+      "Bash(git rm *)",
+      "Bash(cp api/app/routes/contracts.py /tmp/contracts_backup.py)",
+      "Bash(cp /tmp/contracts_backup.py api/app/routes/contracts.py)"
     ]
   }
 }

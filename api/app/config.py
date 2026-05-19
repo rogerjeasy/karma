@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from pydantic import field_validator
@@ -31,7 +32,7 @@ class Settings(BaseSettings):
     @classmethod
     def _require_gcp_project(cls, v: str) -> str:
         if not v:
-            raise ValueError("GCP_PROJECT_ID must be set in the root .env file")
+            logging.warning("GCP_PROJECT_ID is not set — some features will be disabled")
         return v
 
     @property

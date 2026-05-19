@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+# .githooks/pre-commit
+#
+# Runs before every commit. Blocks if any check fails.
+# One-time install:  git config core.hooksPath .githooks
+# Emergency bypass:  git commit --no-verify  (document the reason in the PR)
+
+FAIL=0
+ROOT="$(git rev-parse --show-toplevel)"
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
+header() { printf "\n${BOLD}${YELLOW}▶ %s${NC}\n" "$1"; }
+ok()     { printf "  ${GREEN}✓${NC} %s\n" "$1"; }
+err()    { printf "  ${RED}✗${NC} %s\n" "$1"; FAIL=$((FAIL+1)); }
+
+# ── Detect Python (try each candidate; use the first one that actually runs) ───
+PYTHON=""
+for _py in python python3 python3.12 python3.11; do
+    if command -v "$_py" &>/dev/null 2>&1 && "$_py" -c "" &>/dev/null 2>&1; then
+        PYTHON="$_py"
+        break
+    fi
+done
+
+# ── Staged file categories ─────────────────────────────────────────────────────
+staged_all=$(git diff --cached --name-only --diff-filter=ACMR)
+staged_api=$(printf '%s\n' "$staged_all" | grep -E '^api/.*\.py$' || true)
+staged_web=$(printf '%s\n' "$staged_all" | grep -E '^web/.*\.(ts|tsx|js|jsx)$' \
+             | grep -v node_modules || true)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 1. Secret & credential scanning  (always runs, on all staged files)
+# ══════════════════════════════════════════════════════════════════════════════
+header "Secret scanning"
+
+if [ -z "$PYTHON" ]; then
+    printf "  ⚠ Python not found — secret scan skipped\n"
+else
+PYTHONIOENCODING=utf-8 "$PYTHON" - <<'PYEOF'
+import re, subprocess, sys, os
+
+# ── Patterns that indicate a hardcoded real credential ──────────────────────
+PATTERNS = [
+    (r'AKIA[0-9A-Z]{16}',
+     'AWS Access Key ID'),
+    (r'AIzaSy[0-9A-Za-z\-_]{33}',
+     'GCP / Firebase API Key'),
+    (r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY',
+     'Private key block'),
+    (r'ghp_[0-9a-zA-Z]{36}',
+     'GitHub Personal Access Token'),
+    (r'ghs_[0-9a-zA-Z]{36}',
+     'GitHub Actions token'),
+    (r'dt0[a-zA-Z]\d{2}\.[A-Z0-9]{24}',
+     'Dynatrace API token'),
+    # Hardcoded literal value assigned to a credential field (≥12 chars, no template markers)
+    (r'(?i)(?:password|passwd|secret|api[_-]?key|access[_-]?token|private[_-]?key)'
+     r'\s*[:=]\s*["\'](?!\$|\{|%|<|\*|your[_-]?)[^"\']{12,}["\']',
+     'Possible hardcoded credential'),
+]
+
+SKIP_EXTS  = {'.lock', '.sum', '.png', '.jpg', '.jpeg', '.gif', '.ico',
+              '.woff', '.woff2', '.ttf', '.eot', '.map', '.bin', '.pyc', '.svg'}
+SKIP_FILES = {'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'poetry.lock'}
+SKIP_DIRS  = {'.claude'}  # Claude Code internal tooling — may contain example patterns
+
+staged = subprocess.run(
+    ['git', 'diff', '--cached', '--name-only', '--diff-filter=ACMR'],
+    capture_output=True, text=True,
+).stdout.splitlines()
+
+hits = []
+for path in staged:
+    base = os.path.basename(path)
+    _, ext = os.path.splitext(path)
+    parts = path.replace('\\', '/').split('/')
+    if ext in SKIP_EXTS or base in SKIP_FILES or any(p in SKIP_DIRS for p in parts):
+        continue
+    # Block raw .env files; allow .env.example / .env.sample / .env.template
+    if base == '.env' or (
+        re.match(r'^\.env\..+', base) and
+        not any(s in base for s in ('example', 'sample', 'template'))
+    ):
+        hits.append((path, 0, '.env file must not be committed'))
+        continue
+
+    blob = subprocess.run(
+        ['git', 'show', f':{path}'],
+        capture_output=True, text=True, errors='replace',
+    )
+    if blob.returncode != 0:
+        continue
+
+    for lineno, line in enumerate(blob.stdout.splitlines(), 1):
+        for pat, label in PATTERNS:
+            if re.search(pat, line):
+                preview = line.strip()[:120]
+                hits.append((path, lineno, label, preview))
+                break  # one hit per line is enough
+
+if hits:
+    for item in hits:
+        path, lineno, label = item[0], item[1], item[2]
+        loc = f'{path}:{lineno}' if lineno else path
+        print(f'  \033[31m✗\033[0m {loc}  [{label}]')
+        if len(item) == 4 and item[3]:
+            print(f'    → {item[3]}')
+    sys.exit(1)
+
+print('  \033[32m✓\033[0m No secrets detected')
+PYEOF
+  SECRET_STATUS=$?
+  [ "$SECRET_STATUS" -ne 0 ] && FAIL=$((FAIL+1))
+fi
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 2. Python lint — ruff  (only when api/ Python files are staged)
+# ══════════════════════════════════════════════════════════════════════════════
+if [ -n "$staged_api" ]; then
+    if [ -z "$PYTHON" ]; then
+        printf "\n⚠ Python not found — skipping ruff + mypy\n"
+    else
+        header "Python lint (ruff)"
+        if (cd "$ROOT/api" && "$PYTHON" -m ruff check app/ 2>&1); then
+            ok "ruff"
+        else
+            err "ruff  →  cd api && python -m ruff check app/ --fix"
+        fi
+
+        # ── 3. Python types — mypy ───────────────────────────────────────────
+        header "Python types (mypy)"
+        if (cd "$ROOT/api" && "$PYTHON" -m mypy app/ 2>&1); then
+            ok "mypy"
+        else
+            err "mypy  →  cd api && python -m mypy app/"
+        fi
+    fi
+fi
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 4. Web lint — ESLint  (only when web/ TS/JS files are staged)
+# ══════════════════════════════════════════════════════════════════════════════
+if [ -n "$staged_web" ]; then
+    if [ ! -d "$ROOT/web/node_modules" ]; then
+        printf "\n⚠ web/node_modules missing — run 'npm ci' in web/ to enable web checks\n"
+    else
+        header "Web lint (ESLint)"
+        if (cd "$ROOT/web" && npm run lint --silent 2>&1); then
+            ok "ESLint"
+        else
+            err "ESLint  →  cd web && npm run lint"
+        fi
+
+        # ── 5. Web types — TypeScript ────────────────────────────────────────
+        header "Web types (TypeScript)"
+        if (cd "$ROOT/web" && npm run type-check --silent 2>&1); then
+            ok "TypeScript"
+        else
+            err "TypeScript  →  cd web && npm run type-check"
+        fi
+    fi
+fi
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Summary
+# ══════════════════════════════════════════════════════════════════════════════
+printf "\n"
+if [ "$FAIL" -gt 0 ]; then
+    printf "${BOLD}${RED}✗ %d pre-commit check(s) failed — commit blocked.${NC}\n" "$FAIL"
+    printf "  Fix the issues above, re-stage your files, and commit again.\n"
+    printf "  ${YELLOW}Emergency bypass:${NC} git commit --no-verify\n\n"
+    exit 1
+fi
+printf "${BOLD}${GREEN}✓ All pre-commit checks passed.${NC}\n\n"
+exit 0

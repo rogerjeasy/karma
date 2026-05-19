@@ -7,13 +7,10 @@ from __future__ import annotations
 from typing import Any
 
 import structlog
-import vertexai
 
 from app.config import settings
 
 logger = structlog.get_logger(__name__)
-
-vertexai.init(project=settings.gcp_project_id, location=settings.gcp_location)
 
 
 async def trigger_learning(
@@ -82,8 +79,10 @@ async def _invoke_agent(task: str, payload: dict[str, Any]) -> dict[str, Any]:
     log.info("invoking_agent")
 
     try:
+        import vertexai
         from vertexai.preview import reasoning_engines
 
+        vertexai.init(project=settings.gcp_project_id, location=settings.gcp_location)
         engine = reasoning_engines.ReasoningEngine(resource_name)
         result = engine.query(input={"task": task, **payload})  # type: ignore[attr-defined]
         log.info("agent_invoked", status="ok")
