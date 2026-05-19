@@ -62,6 +62,22 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
+      - name: Ensure agent staging bucket exists
+        run: |
+          BUCKET="gs://${{ env.GCP_PROJECT_ID }}-agent-staging"
+          if gcloud storage buckets create "$BUCKET" \
+               --project="${{ env.GCP_PROJECT_ID }}" \
+               --location="${{ env.GCP_LOCATION }}" \
+               --uniform-bucket-level-access 2>/dev/null; then
+            echo "Created bucket: $BUCKET"
+          elif gcloud storage ls "$BUCKET" > /dev/null 2>&1; then
+            echo "Bucket already exists: $BUCKET"
+          else
+            echo "ERROR: cannot create or access $BUCKET" >&2
+            echo "Grant the CI service account roles/storage.admin on project ${{ env.GCP_PROJECT_ID }}" >&2
+            exit 1
+          fi
+
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev --quiet
 

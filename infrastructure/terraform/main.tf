@@ -131,6 +131,15 @@ resource "google_project_iam_member" "karma_runner_roles" {
   member  = "serviceAccount:${google_service_account.karma_runner.email}"
 }
 
+# ── IAM — CI service account (GitHub Actions) ────────────────────────────────
+
+resource "google_project_iam_member" "ci_sa_storage_admin" {
+  count   = var.ci_service_account != "" ? 1 : 0
+  project = var.project_id
+  role    = "roles/storage.admin"
+  member  = "serviceAccount:${var.ci_service_account}"
+}
+
 # ── GCS staging bucket — Agent Engine upload staging ─────────────────────────
 
 resource "google_storage_bucket" "agent_staging" {

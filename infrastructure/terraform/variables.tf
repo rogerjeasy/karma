@@ -16,6 +16,12 @@ variable "artifact_registry_repo" {
   default     = "karma-images"
 }
 
+variable "ci_service_account" {
+  type        = string
+  description = "GitHub Actions CI service account email (e.g. github-actions@PROJECT.iam.gserviceaccount.com). Needs storage.admin to create/use the Agent Engine staging bucket."
+  default     = ""
+}
+
 variable "api_url" {
   type        = string
   description = "Cloud Run URL of the karma-api service — set after first deploy, e.g. https://karma-api-xxxx-uc.a.run.app"
