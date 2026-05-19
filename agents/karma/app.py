@@ -18,7 +18,7 @@ vertexai.init(project=settings.gcp_project_id, location=settings.gcp_location)
 _memory_service = VertexAiMemoryBankService(
     project=settings.gcp_project_id,
     location=settings.gcp_location,
-    memory_bank_id=settings.memory_bank_id or None,
+    agent_engine_id=settings.memory_bank_id or None,
 )
 
 _coordinator = create_coordinator_agent()

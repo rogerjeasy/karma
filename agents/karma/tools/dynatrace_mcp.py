@@ -2,7 +2,7 @@
 
 HOW TOOL DISCOVERY WORKS
 ─────────────────────────
-ADK's MCPToolset connects to the Dynatrace hosted MCP gateway and calls
+ADK's McpToolset connects to the Dynatrace hosted MCP gateway and calls
 tools/list at initialisation time, fetching the live tool catalogue from the
 server. The agent then sees exactly what the server exposes — no hardcoded
 tool list, no client-side filtering. If Dynatrace adds or renames a tool,
@@ -10,7 +10,7 @@ agents pick it up automatically on the next deployment.
 
 The TOOL_* constants and *_TOOLS frozensets below are *reference artefacts*
 only — used by docs/DYNATRACE_SETUP.md, the verify-tools script, and system
-prompts, never passed as a runtime filter to MCPToolset.
+prompts, never passed as a runtime filter to McpToolset.
 
 TRANSPORT
 ─────────
@@ -25,9 +25,12 @@ All URLs come from settings (derived from DT_ENV) — nothing is hardcoded.
 from __future__ import annotations
 
 import os
-from typing import Any
 
-from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPServerParams, StdioServerParameters
+from google.adk.tools.mcp_tool.mcp_session_manager import (
+    StreamableHTTPConnectionParams,
+)
+from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
+from mcp import StdioServerParameters
 
 from karma.config import settings
 
@@ -94,8 +97,8 @@ FORENSIC_TOOLS: frozenset[str] = frozenset({
 REQUIRED_TOOLS = ALL_KNOWN_TOOLS
 
 
-def build_dynatrace_toolset() -> MCPToolset:
-    """Return an MCPToolset connected to the live Dynatrace MCP server.
+def build_dynatrace_toolset() -> McpToolset:
+    """Return an McpToolset connected to the live Dynatrace MCP server.
 
     The toolset performs tools/list against the server at initialisation and
     exposes the complete, up-to-date tool catalogue to the agent. No client-
@@ -105,24 +108,34 @@ def build_dynatrace_toolset() -> MCPToolset:
     System prompts on each agent guide which tools are used; the MCP
     connection ensures agents always have access to the full live toolset.
     """
-    endpoint = settings.dt_mcp_endpoint
+    # Avoid calling dt_mcp_endpoint (which asserts DT_ENV) if dt_env is not set.
+    # This lets Agent Engine register the app during deploy without live DT creds;
+    # tool calls will fail at query time if DT_ENV is still missing at runtime.
+    if settings.dt_mcp_url:
+        endpoint = settings.dt_mcp_url
+    elif settings.dt_env:
+        endpoint = settings.dt_mcp_endpoint
+    else:
+        endpoint = ""
 
     if endpoint.startswith("stdio://"):
         return _build_stdio_toolset()
 
-    return _build_http_toolset(endpoint)
+    return _build_http_toolset(
+        endpoint or "https://unconfigured.apps.dynatrace.invalid/mcp"
+    )
 
 
-def _build_http_toolset(endpoint: str) -> MCPToolset:
-    params = StreamableHTTPServerParams(
+def _build_http_toolset(endpoint: str) -> McpToolset:
+    params = StreamableHTTPConnectionParams(
         url=endpoint,
         headers={"Authorization": f"Bearer {settings.dt_api_token}"},
         timeout=30,
     )
-    return MCPToolset(connection_params=params)
+    return McpToolset(connection_params=params)
 
 
-def _build_stdio_toolset() -> MCPToolset:
+def _build_stdio_toolset() -> McpToolset:
     """Local dev fallback via npx @dynatrace-oss/dynatrace-mcp-server."""
     params = StdioServerParameters(
         command="npx",
@@ -133,4 +146,4 @@ def _build_stdio_toolset() -> MCPToolset:
             "DYNATRACE_TOKEN": settings.dt_api_token,
         },
     )
-    return MCPToolset(connection_params=params)
+    return McpToolset(connection_params=params)

@@ -14,7 +14,7 @@ Endpoint: settings.dt_logs_endpoint (derived from DT_ENV — never hardcoded)
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -94,7 +94,7 @@ async def emit_karma_event(
         event_type = f"{KARMA_EVENT_PREFIX}.{event_type}"
 
     event_id = str(uuid.uuid4())
-    timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now(UTC).isoformat()
 
     # Logs Ingest API v2 — array of log records.
     # Flat key-value pairs; "content" is the human-readable body shown in the UI.

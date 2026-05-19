@@ -62,7 +62,22 @@
       "Bash(git add *)",
       "Bash(git rm *)",
       "Bash(cp api/app/routes/contracts.py /tmp/contracts_backup.py)",
-      "Bash(cp /tmp/contracts_backup.py api/app/routes/contracts.py)"
+      "Bash(cp /tmp/contracts_backup.py api/app/routes/contracts.py)",
+      "Bash(C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\shims\\\\python -m pytest tests/ -v --tb=short)",
+      "Bash(where python3.11)",
+      "Bash(pyenv which *)",
+      "Read(//c/Users/User/.pyenv/pyenv-win/**)",
+      "PowerShell(& \"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -m pytest \"C:\\\\Users\\\\User\\\\Documents\\\\karma\\\\agents\\\\tests\" -v --tb=short 2>&1)",
+      "PowerShell(& \"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -m pip install -e \"C:\\\\Users\\\\User\\\\Documents\\\\karma\\\\agents[dev]\" --quiet 2>&1 | Select-Object -Last 5)",
+      "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -m pip install -e \".[dev]\" -q)",
+      "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -m pytest tests/ -v --tb=short)",
+      "Bash(C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe *)",
+      "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -c \"from google.adk.tools.mcp_tool import MCPToolset\")",
+      "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -c \"import google.adk.tools; print\\([x for x in dir\\(google.adk.tools\\) if 'mcp' in x.lower\\(\\) or 'MCP' in x]\\)\")",
+      "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -c \"from google.adk.tools.mcp_tool import mcp_toolset; print\\(dir\\(mcp_toolset\\)\\)\")",
+      "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -m pip install \"mcp>=1.0.0\" -q)",
+      "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -c \"from google.adk.tools import MCPToolset, StdioServerParameters, StreamableHTTPServerParams; print\\('ok'\\)\")",
+      "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -m mypy karma/ --ignore-missing-imports)"
     ]
   }
 }

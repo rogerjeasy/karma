@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from pydantic import field_validator
@@ -80,7 +81,7 @@ class Settings(BaseSettings):
     @classmethod
     def _require_gcp_project(cls, v: str) -> str:
         if not v:
-            raise ValueError("GCP_PROJECT_ID must be set in your .env file")
+            logging.warning("GCP_PROJECT_ID is not set — some features will be disabled")
         return v
 
     @field_validator("dt_mcp_url", mode="before")
@@ -110,7 +111,9 @@ class Settings(BaseSettings):
         """Full MCP gateway URL (platform API, Bearer auth)."""
         if self.dt_mcp_url:
             return self.dt_mcp_url
-        return f"{self.dt_base_url}{_MCP_PATH}"
+        if not self.dt_env:
+            return ""
+        return f"https://{self.dt_env}.apps.dynatrace.com{_MCP_PATH}"
 
     @property
     def dt_logs_endpoint(self) -> str:

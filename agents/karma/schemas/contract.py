@@ -6,14 +6,14 @@ agents/karma/prompts/contract_schema.json is derived from these models.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 
-class ContractCategory(str, Enum):
+class ContractCategory(StrEnum):
     LATENCY = "latency"
     ERROR_SEMANTICS = "error_semantics"
     THROUGHPUT = "throughput"
@@ -24,7 +24,7 @@ class ContractCategory(str, Enum):
     SEQUENCING = "sequencing"
 
 
-class ViolationPredicateType(str, Enum):
+class ViolationPredicateType(StrEnum):
     ABSENCE = "absence"
     THRESHOLD_BREACH = "threshold_breach"
     DISTRIBUTION_SHIFT = "distribution_shift"
@@ -95,7 +95,7 @@ class Contract(BaseModel):
     )
     confidence: float = Field(ge=0.0, le=1.0)
     detected_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(UTC)
     )
     learning_window: LearningWindow
     violation_predicate: ViolationPredicate
@@ -106,7 +106,7 @@ class Contract(BaseModel):
     def is_ready_for_watching(self) -> bool:
         return self.validated and self.false_positive_count == 0
 
-    def to_firestore_dict(self) -> dict:
+    def to_firestore_dict(self) -> dict[str, object]:
         return self.model_dump(mode="json")
 
 
@@ -114,15 +114,15 @@ class ContractViolation(BaseModel):
     violation_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     contract_id: str
     service_id: str
-    detected_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    detected_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     predicate_dql: str
-    raw_dql_result: dict
+    raw_dql_result: dict[str, object]
     downstream_impact_summary: str | None = None
     ghost_report_id: str | None = None
     dynatrace_event_id: str | None = None
     resolved: bool = False
 
-    def to_firestore_dict(self) -> dict:
+    def to_firestore_dict(self) -> dict[str, object]:
         return self.model_dump(mode="json")
 
 
@@ -137,9 +137,9 @@ class GhostReport(BaseModel):
         description="Dynatrace deep-link URLs to supporting evidence"
     )
     remediation_suggestions: list[str]
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     severity: Literal["low", "medium", "high", "critical"] = "medium"
     dynatrace_event_id: str | None = None
 
-    def to_firestore_dict(self) -> dict:
+    def to_firestore_dict(self) -> dict[str, object]:
         return self.model_dump(mode="json")

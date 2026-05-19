@@ -11,10 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Python dependencies first (layer cache)
 COPY pyproject.toml .
-RUN pip install --no-cache-dir -e .
-
-# Copy application code
 COPY karma/ karma/
+RUN pip install --no-cache-dir .
 
 RUN chown -R karma:karma /app
 USER karma

@@ -8,7 +8,7 @@ and ADK can call it without async wrapping.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -48,7 +48,7 @@ def save_ghost_report_to_firestore(
         **report,
         "report_id": report_id,
         "karma_service_id": karma_service_id,
-        "saved_at": datetime.now(timezone.utc).isoformat(),
+        "saved_at": datetime.now(UTC).isoformat(),
     }
     db.collection("ghost_reports").document(report_id).set(doc)
     logger.info(
@@ -89,7 +89,7 @@ def save_contracts_to_firestore(
         database=settings.firestore_database,
     )
     collection = db.collection("contracts")
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     saved_ids: list[str] = []
     skipped = 0

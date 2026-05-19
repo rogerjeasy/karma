@@ -7,14 +7,12 @@ Routes incoming tasks to the appropriate sub-agent based on the task type:
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 from google.adk.agents import Agent
 
 from karma.config import settings
+from karma.forensic import create_forensic_agent
 from karma.learner import create_learner_agent
 from karma.watcher import create_watcher_agent
-from karma.forensic import create_forensic_agent
 
 _COORDINATOR_INSTRUCTION = """
 You are the **Karma Coordinator**, the entry point for the Karma agent system.

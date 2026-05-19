@@ -6,6 +6,9 @@ telemetry. This is what separates engineered contracts from vibe-contracts.
 """
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+from typing import Any
+
 import structlog
 
 from karma.schemas.contract import Contract
@@ -25,7 +28,7 @@ class ContractValidator:
     the old service was actually running — indicating a noisy predicate.
     """
 
-    def __init__(self, execute_dql_fn: object) -> None:
+    def __init__(self, execute_dql_fn: Callable[..., Awaitable[Any]]) -> None:
         self._execute_dql = execute_dql_fn
 
     async def validate(self, contract: Contract) -> Contract:
@@ -53,7 +56,7 @@ class ContractValidator:
         )
 
         try:
-            result = await self._execute_dql(dql=scoped_dql)  # type: ignore[call-arg]
+            result = await self._execute_dql(dql=scoped_dql)
             false_positives = _count_false_positives(result, contract.violation_predicate.threshold)
         except Exception as exc:
             log.warning("validation_dql_failed", error=str(exc))
