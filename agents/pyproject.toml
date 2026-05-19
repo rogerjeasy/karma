@@ -14,6 +14,7 @@ dependencies = [
     "google-adk>=1.0.0",
     "google-cloud-aiplatform>=1.70.0",
     "vertexai>=1.70.0",
+    "mcp>=1.0.0",
 
     # Pydantic for contract schemas
     "pydantic>=2.7.0",

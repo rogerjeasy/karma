@@ -77,7 +77,8 @@
       "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -c \"from google.adk.tools.mcp_tool import mcp_toolset; print\\(dir\\(mcp_toolset\\)\\)\")",
       "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -m pip install \"mcp>=1.0.0\" -q)",
       "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -c \"from google.adk.tools import MCPToolset, StdioServerParameters, StreamableHTTPServerParams; print\\('ok'\\)\")",
-      "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -m mypy karma/ --ignore-missing-imports)"
+      "Bash(\"C:\\\\Users\\\\User\\\\.pyenv\\\\pyenv-win\\\\versions\\\\3.12.7\\\\python.exe\" -m mypy karma/ --ignore-missing-imports)",
+      "Bash(gcloud run services describe *)"
     ]
   }
 }
