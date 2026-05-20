@@ -1,6 +1,7 @@
 """Service registration and management routes."""
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import uuid
 from datetime import datetime
@@ -32,16 +33,17 @@ async def register_service(payload: ServiceRegistration) -> ServiceResponse:
     }
 
     await firestore_client.create_service(service_id, data)
-
-    # Fire-and-forget: kick off learning
-    await agent_client.trigger_learning(
-        service_id=service_id,
-        service_name=payload.service_name,
-        dynatrace_entity_id=payload.dynatrace_entity_id,
-        learning_window_days=payload.learning_window_days,
-    )
-
     await firestore_client.update_service_phase(service_id, "learning")
+
+    # stream_query blocks for 2-5 min — run in background so 201 returns now.
+    asyncio.create_task(
+        agent_client.trigger_learning(
+            service_id=service_id,
+            service_name=payload.service_name,
+            dynatrace_entity_id=payload.dynatrace_entity_id,
+            learning_window_days=payload.learning_window_days,
+        )
+    )
     log.info("service_registered_learning_started")
 
     now = datetime.now(dt.UTC)
@@ -77,11 +79,14 @@ async def trigger_learning(service_id: str, hint: str | None = None) -> dict[str
     if doc is None:
         raise HTTPException(status_code=404, detail="Service not found")
 
-    await agent_client.trigger_learning(
-        service_id=service_id,
-        service_name=doc["service_name"],
-        dynatrace_entity_id=doc["dynatrace_entity_id"],
-        learning_window_days=doc.get("learning_window_days", 14),
+    # stream_query blocks for 2-5 min — run in background so 202 returns now.
+    asyncio.create_task(
+        agent_client.trigger_learning(
+            service_id=service_id,
+            service_name=doc["service_name"],
+            dynatrace_entity_id=doc["dynatrace_entity_id"],
+            learning_window_days=doc.get("learning_window_days", 14),
+        )
     )
     return {"status": "accepted", "service_id": service_id}
 

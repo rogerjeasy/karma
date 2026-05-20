@@ -1,11 +1,14 @@
 """Agent Engine client — sends tasks to the Karma agent system.
 
-Calls the Vertex AI Agent Engine REST API directly instead of using the
-Python SDK's dynamic method discovery, which fails on ADK v1.0 apps that
-register an 'async' operation mode the SDK does not support.
+ADK v1.0 AdkApp exposes stream_query, not query. Calling :query returns
+"Default method query not found". We use the :streamQuery endpoint (v1beta1)
+via httpx streaming, consuming the full event stream so the agent runs to
+completion and writes results (contracts, ghost reports) to Firestore.
 """
 from __future__ import annotations
 
+import contextlib
+import json
 from typing import Any
 
 import httpx
@@ -83,23 +86,43 @@ async def _invoke_agent(task: str, payload: dict[str, Any]) -> dict[str, Any]:
 
     try:
         token = _get_access_token()
+        # ADK v1.0 AdkApp exposes stream_query (not query).
+        # :streamQuery (v1beta1) maps to stream_query() and returns SSE events.
         url = (
             f"https://{settings.gcp_location}-aiplatform.googleapis.com"
-            f"/v1/{resource_name}:query"
+            f"/v1beta1/{resource_name}:streamQuery"
         )
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         }
-        body: dict[str, Any] = {"input": {"task": task, **payload}}
+        # stream_query signature: user_id, message [, session_id]
+        # session_id is optional — ADK creates an ephemeral one automatically.
+        # The coordinator LLM is instructed to inspect the "task" field.
+        body: dict[str, Any] = {
+            "input": {
+                "user_id": "karma-api",
+                "message": json.dumps({"task": task, **payload}),
+            }
+        }
 
-        # Agent Engine calls are long-running (LLM inference) — generous timeout.
-        async with httpx.AsyncClient(timeout=300.0) as client:
-            resp = await client.post(url, json=body, headers=headers)
+        events: list[dict[str, Any]] = []
+        async with httpx.AsyncClient(timeout=300.0) as client, client.stream(
+            "POST", url, json=body, headers=headers
+        ) as resp:
             resp.raise_for_status()
-            result = resp.json()
+            async for line in resp.aiter_lines():
+                line = line.strip()
+                if not line:
+                    continue
+                # Vertex AI SSE lines are prefixed with "data: "
+                if line.startswith("data: "):
+                    line = line[6:]
+                with contextlib.suppress(json.JSONDecodeError):
+                    events.append(json.loads(line))
 
-        log.info("agent_invoked", status="ok")
+        result = _extract_result(events)
+        log.info("agent_invoked", status="ok", event_count=len(events))
         return {"status": "ok", "result": result}
 
     except httpx.HTTPStatusError as exc:
@@ -115,6 +138,37 @@ async def _invoke_agent(task: str, payload: dict[str, Any]) -> dict[str, Any]:
     except Exception as exc:
         log.error("agent_invocation_failed", error=str(exc))
         return {"status": "error", "message": str(exc)}
+
+
+def _extract_result(events: list[dict[str, Any]]) -> dict[str, Any]:
+    """Parse the coordinator's final JSON response out of the ADK event stream.
+
+    ADK events look like:
+      {"author": "karma_coordinator", "content": {"parts": [{"text": "..."}]}, "partial": false}
+
+    We scan in reverse for the last complete (partial=False) event from the
+    coordinator that contains parseable JSON.
+    """
+    for event in reversed(events):
+        if event.get("partial") is not False:
+            continue
+        content = event.get("content") or {}
+        for part in content.get("parts") or []:
+            text = (part.get("text") or "").strip()
+            if not text:
+                continue
+            # Strip markdown code fences (```json ... ```)
+            if text.startswith("```"):
+                lines = text.splitlines()
+                inner = lines[1:-1] if lines[-1].strip() == "```" else lines[1:]
+                text = "\n".join(inner).strip()
+            try:
+                parsed = json.loads(text)
+                if isinstance(parsed, dict):
+                    return parsed
+            except json.JSONDecodeError:
+                pass
+    return {}
 
 
 def _get_access_token() -> str:

@@ -1,6 +1,7 @@
 """Cutover route — marks service as replaced and activates the Watcher."""
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import uuid
 from datetime import datetime, timedelta
@@ -48,8 +49,6 @@ async def mark_cutover(service_id: str, payload: CutoverRequest) -> CutoverRespo
 async def run_watcher_now(payload: WatcherRunRequest) -> dict[str, Any]:
     """Trigger an immediate watcher run. Fetches contracts, checks them, then
     triggers Forensic for every violation that needs investigation."""
-    from app import agent_client
-
     services = await firestore_client.list_services()
     targets = [
         s for s in services
@@ -60,7 +59,15 @@ async def run_watcher_now(payload: WatcherRunRequest) -> dict[str, Any]:
     if not targets:
         return {"status": "no_active_watchers"}
 
-    triggered = []
+    # Watcher → forensic chain takes several minutes per service — run in background.
+    asyncio.create_task(_execute_watcher_chain(targets))
+    return {"status": "accepted", "service_count": len(targets)}
+
+
+async def _execute_watcher_chain(targets: list[dict[str, Any]]) -> None:
+    """Background: run watcher then forensic for each haunting service."""
+    from app import agent_client
+
     for svc in targets:
         karma_service_id = svc["service_id"]
         log = logger.bind(karma_service_id=karma_service_id)
@@ -68,7 +75,6 @@ async def run_watcher_now(payload: WatcherRunRequest) -> dict[str, Any]:
         contracts = await firestore_client.list_contracts_for_service(karma_service_id)
         if not contracts:
             log.info("watcher_skipped_no_contracts")
-            triggered.append({"service_id": karma_service_id, "result": {"status": "no_contracts"}})
             continue
 
         log.info("watcher_running", contract_count=len(contracts))
@@ -99,10 +105,6 @@ async def run_watcher_now(payload: WatcherRunRequest) -> dict[str, Any]:
                 violation_window=_violation_window(),
                 karma_service_id=karma_service_id,
             )
-
-        triggered.append({"service_id": karma_service_id, "result": watcher_result})
-
-    return {"status": "accepted", "triggered": triggered}
 
 
 def _extract_violations(result: dict[str, Any]) -> list[dict[str, Any]]:
