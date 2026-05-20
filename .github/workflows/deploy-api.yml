@@ -91,4 +91,7 @@ jobs:
             --set-secrets=DT_API_TOKEN=dt-api-token:latest,API_SECRET_KEY=api-secret-key:latest
           env_vars: >
             GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }},
-            GCP_LOCATION=${{ env.GCP_LOCATION }}
+            GCP_LOCATION=${{ env.GCP_LOCATION }},
+            AGENT_ENGINE_RESOURCE_NAME=${{ vars.AGENT_ENGINE_RESOURCE_NAME }},
+            ALLOWED_ORIGINS=${{ vars.ALLOWED_ORIGINS }},
+            FIRESTORE_DATABASE=(default)
