@@ -120,9 +120,17 @@
   }
 }
 
-/* ── Ghost pulse — signature violation flash ─────────────────── */
+/* ── Ghost pulse — signature violation flash ─────────────────────
+   Two animations in one declaration:
+     1. fade-in-up  — entry slide (0.35s, runs once)
+     2. ghost-pulse — pulsing glow after entry (2.4s × 2, starts after entry)
+   Using the CSS multi-animation syntax avoids the animate-* Tailwind class
+   being overridden by this rule (both share the `animation` property).
+──────────────────────────────────────────────────────────────── */
 .ghost-pulse-overlay {
-  animation: ghost-pulse 2.4s ease-in-out;
+  animation:
+    fade-in-up 0.35s ease-out both,
+    ghost-pulse 2.4s ease-in-out 0.35s 2;
 }
 
 @keyframes float {

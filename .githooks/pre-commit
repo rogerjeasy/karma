@@ -8,6 +8,17 @@
 FAIL=0
 ROOT="$(git rev-parse --show-toplevel)"
 
+# ── Always-skip files — silently unstaged before any check runs ───────────────
+# These files are local tooling state and must never be committed.
+ALWAYS_SKIP=(
+    ".claude/settings.local.json"
+)
+for _f in "${ALWAYS_SKIP[@]}"; do
+    if git diff --cached --name-only | grep -qF "$_f"; then
+        git restore --staged "$_f" 2>/dev/null || true
+    fi
+done
+
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
 header() { printf "\n${BOLD}${YELLOW}▶ %s${NC}\n" "$1"; }
 ok()     { printf "  ${GREEN}✓${NC} %s\n" "$1"; }

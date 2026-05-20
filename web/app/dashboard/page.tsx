@@ -5,10 +5,11 @@ import type { Route } from "next";
 import Link from "next/link";
 import {
   Server, Ghost, FileCode2, Activity,
-  ArrowRight, Plus, Zap, TrendingUp,
+  ArrowRight, Plus, Zap, TrendingUp, Radio,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useSSE } from "@/lib/sse";
 
 interface Stats {
   totalServices: number;
@@ -19,7 +20,9 @@ interface Stats {
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [liveGhostBump, setLiveGhostBump] = useState(false);
 
+  // ── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
     const api = process.env.NEXT_PUBLIC_API_URL;
     Promise.all([
@@ -28,7 +31,6 @@ export default function DashboardPage() {
     ]).then(async ([services, ghosts]) => {
       const arr: { service_id: string; phase: string }[] = Array.isArray(services) ? services : [];
 
-      // Fetch contract counts for all services in parallel
       const contractCounts = await Promise.all(
         arr.map((s) =>
           fetch(`${api}/contracts/${s.service_id}`)
@@ -39,13 +41,28 @@ export default function DashboardPage() {
       );
 
       setStats({
-        totalServices:   arr.length,
-        activeGhosts:    Array.isArray(ghosts) ? ghosts.length : 0,
+        totalServices:    arr.length,
+        activeGhosts:     Array.isArray(ghosts) ? ghosts.length : 0,
         contractsLearned: contractCounts.reduce((a, b) => a + b, 0),
-        learningPhase:   arr.filter((s) => s.phase === "learning").length,
+        learningPhase:    arr.filter((s) => s.phase === "learning").length,
       });
     });
   }, []);
+
+  // ── Live ghost count via SSE ───────────────────────────────────────────────
+  const sseState = useSSE(
+    `${process.env.NEXT_PUBLIC_API_URL}/stream/ghosts`,
+    {
+      ghost_report: () => {
+        setStats((prev) =>
+          prev ? { ...prev, activeGhosts: prev.activeGhosts + 1 } : prev
+        );
+        // Flash the ghost card to signal the live update
+        setLiveGhostBump(true);
+        setTimeout(() => setLiveGhostBump(false), 1200);
+      },
+    }
+  );
 
   const cards = [
     {
@@ -56,6 +73,7 @@ export default function DashboardPage() {
       accent: "from-blue-500/20 to-blue-600/5 border-blue-500/20",
       iconClass: "text-blue-400 bg-blue-500/10 border-blue-500/20",
       glow: "group-hover:shadow-[0_0_20px_-4px_rgba(59,130,246,0.3)]",
+      bump: false,
     },
     {
       label: "Active Ghosts",
@@ -65,6 +83,7 @@ export default function DashboardPage() {
       accent: "from-red-500/20 to-red-600/5 border-red-500/20",
       iconClass: "text-red-400 bg-red-500/10 border-red-500/20",
       glow: "group-hover:shadow-[0_0_20px_-4px_rgba(239,68,68,0.3)]",
+      bump: liveGhostBump,
     },
     {
       label: "Contracts Learned",
@@ -74,6 +93,7 @@ export default function DashboardPage() {
       accent: "from-teal-500/20 to-teal-600/5 border-teal-500/20",
       iconClass: "text-teal-400 bg-teal-500/10 border-teal-500/20",
       glow: "group-hover:shadow-[0_0_20px_-4px_rgba(0,212,168,0.3)]",
+      bump: false,
     },
     {
       label: "In Learning Phase",
@@ -83,6 +103,7 @@ export default function DashboardPage() {
       accent: "from-amber-500/20 to-amber-600/5 border-amber-500/20",
       iconClass: "text-amber-400 bg-amber-500/10 border-amber-500/20",
       glow: "group-hover:shadow-[0_0_20px_-4px_rgba(245,158,11,0.3)]",
+      bump: false,
     },
   ];
 
@@ -96,12 +117,30 @@ export default function DashboardPage() {
             Services under observation, ghost activity, and discovered contracts.
           </p>
         </div>
-        <Link href="/dashboard/services">
-          <Button size="sm" className="gap-2 shrink-0">
-            <Plus className="h-3.5 w-3.5" />
-            Register service
-          </Button>
-        </Link>
+        <div className="flex items-center gap-3 self-start sm:self-auto">
+          {/* SSE connection indicator */}
+          <span
+            title={`Stream ${sseState}`}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+              sseState === "open"
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                : sseState === "connecting"
+                ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                : "border-zinc-500/30 bg-zinc-500/10 text-zinc-400"
+            )}
+          >
+            <Radio className="h-3 w-3" />
+            {sseState === "open" ? "Live" : sseState === "connecting" ? "Connecting…" : "Offline"}
+          </span>
+
+          <Link href="/dashboard/services">
+            <Button size="sm" className="gap-2 shrink-0">
+              <Plus className="h-3.5 w-3.5" />
+              Register service
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* ── Stats grid ── */}
@@ -114,11 +153,17 @@ export default function DashboardPage() {
               "group relative overflow-hidden rounded-xl border border-border bg-card p-5",
               "transition-all duration-250 hover:-translate-y-0.5 hover:border-border/70",
               "hover:shadow-card-hover",
-              card.glow
+              card.glow,
+              card.bump && "animate-ghost-pulse"
             )}
           >
             {/* Background gradient */}
-            <div className={cn("absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-100 transition-opacity duration-300", card.accent)} />
+            <div
+              className={cn(
+                "absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-100 transition-opacity duration-300",
+                card.accent
+              )}
+            />
 
             <div className="relative">
               <div className="flex items-center justify-between mb-4">
@@ -194,7 +239,7 @@ const PHASES = [
   {
     label: "Registered",
     desc: "Service is queued for deprecation tracking.",
-    icon: "bg-zinc-500/15 border-zinc-500/40 before:content-[''] text-zinc-400",
+    icon: "bg-zinc-500/15 border-zinc-500/40 text-zinc-400",
   },
   {
     label: "Learning",
