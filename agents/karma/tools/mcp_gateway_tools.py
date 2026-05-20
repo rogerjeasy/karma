@@ -13,6 +13,7 @@ Auth: Authorization: Bearer <DT_API_TOKEN>
 """
 from __future__ import annotations
 
+import contextlib
 import json
 from typing import Any
 
@@ -97,10 +98,8 @@ def _call_mcp_tool(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
 
             # 4. Terminate session (best effort)
             if session_id:
-                try:
+                with contextlib.suppress(Exception):
                     client.request("DELETE", endpoint, headers=session_headers)
-                except Exception:
-                    pass
 
         if not tool_resp.is_success:
             logger.warning(

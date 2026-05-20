@@ -129,7 +129,7 @@ def _poll_dql(token: str, headers: dict[str, Any]) -> dict[str, Any]:
     poll_url = f"{settings.dt_base_url}/platform/storage/query/v1/query:poll"
     body = {"requestToken": token}
 
-    for attempt in range(_MAX_POLLS):
+    for _attempt in range(_MAX_POLLS):
         try:
             with httpx.Client(timeout=_POLL_TIMEOUT + 5) as client:
                 resp = client.post(poll_url, json=body, headers=headers)
