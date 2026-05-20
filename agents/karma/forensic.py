@@ -25,7 +25,7 @@ def create_forensic_agent() -> Agent:
     system_prompt = _SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
 
     return Agent(
-        name="karma_forensic",
+        name="karma-forensic",
         model=settings.model_pro,
         description=(
             "Deep-investigation agent. Triggered on contract violations; "

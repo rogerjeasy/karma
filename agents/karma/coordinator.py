@@ -61,7 +61,7 @@ def create_coordinator_agent() -> Agent:
     forensic = create_forensic_agent()
 
     return Agent(
-        name="karma_coordinator",
+        name="karma-coordinator",
         model=settings.model_flash,
         description=(
             "Karma's root agent. Routes learning, watching, and forensic tasks "

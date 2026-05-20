@@ -81,7 +81,7 @@ Return a JSON object:
 
 def create_watcher_agent() -> Agent:
     return Agent(
-        name="karma_watcher",
+        name="karma-watcher",
         model=settings.model_flash,
         description=(
             "High-frequency contract checker. Runs every 10 min and evaluates "
