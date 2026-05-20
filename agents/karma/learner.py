@@ -25,7 +25,7 @@ def create_learner_agent() -> Agent:
     system_prompt = _SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
 
     return Agent(
-        name="karma-learner",
+        name="karma_learner",
         model=settings.model_pro,
         description=(
             "Discovers implicit behavioral contracts from a service's Dynatrace "
