@@ -155,6 +155,7 @@ class TestServices:
     async def test_trigger_learning_returns_202(self, client: AsyncClient) -> None:
         with (
             patch("app.firestore_client.get_service", new_callable=AsyncMock, return_value=MOCK_SERVICE),
+            patch("app.firestore_client.update_service_phase", new_callable=AsyncMock),
             patch("app.agent_client.trigger_learning", new_callable=AsyncMock, return_value={"status": "ok"}),
             patch("app.main.stream.start_firestore_listener"),
         ):
