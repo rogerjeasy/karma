@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   Plus, Server, Calendar, Clock, ExternalLink, Loader2, AlertCircle,
-  Copy, Check, BookOpen, Eye, Zap, GitMerge, RefreshCw, FileCode2,
+  Copy, Check, Eye, GitMerge, RefreshCw, FileCode2,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import type { ServiceRegistration, ServiceResponse, ServicePhase, ContractResponse } from "@/lib/types";
