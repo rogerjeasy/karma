@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Ghost, Filter } from "lucide-react";
-import { useSSE } from "@/lib/sse";
+import { useSSEEvent } from "@/lib/sse-context";
 import { GhostCard } from "@/components/GhostCard";
 import { ViolationPulse } from "@/components/ViolationPulse";
 import { Button } from "@/components/ui/button";
@@ -27,14 +27,12 @@ export default function GhostsPage() {
       .catch(() => {});
   }, []);
 
-  // Live SSE stream
-  useSSE(`${process.env.NEXT_PUBLIC_API_URL}/stream/ghosts`, {
-    ghost_report: (data) => {
-      const report = JSON.parse(data) as GhostReport;
-      setLatest(report);
-      setReports((prev) => [report, ...prev]);
-      setTimeout(() => setLatest(null), 6000);
-    },
+  // Live updates via the shared SSE connection opened by layout — no new socket.
+  useSSEEvent("ghost_report", (data) => {
+    const report = JSON.parse(data) as GhostReport;
+    setLatest(report);
+    setReports((prev) => [report, ...prev]);
+    setTimeout(() => setLatest(null), 6000);
   });
 
   const filtered = severity === "all"

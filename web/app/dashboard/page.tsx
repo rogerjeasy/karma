@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useSSE } from "@/lib/sse";
+import { useSSEContext, useSSEEvent } from "@/lib/sse-context";
 
 interface Stats {
   totalServices: number;
@@ -49,20 +49,15 @@ export default function DashboardPage() {
     });
   }, []);
 
-  // ── Live ghost count via SSE ───────────────────────────────────────────────
-  const sseState = useSSE(
-    `${process.env.NEXT_PUBLIC_API_URL}/stream/ghosts`,
-    {
-      ghost_report: () => {
-        setStats((prev) =>
-          prev ? { ...prev, activeGhosts: prev.activeGhosts + 1 } : prev
-        );
-        // Flash the ghost card to signal the live update
-        setLiveGhostBump(true);
-        setTimeout(() => setLiveGhostBump(false), 1200);
-      },
-    }
-  );
+  // ── Live ghost count via shared SSE connection (opened by layout) ────────────
+  const { connectionState: sseState } = useSSEContext();
+  useSSEEvent("ghost_report", () => {
+    setStats((prev) =>
+      prev ? { ...prev, activeGhosts: prev.activeGhosts + 1 } : prev
+    );
+    setLiveGhostBump(true);
+    setTimeout(() => setLiveGhostBump(false), 1200);
+  });
 
   const cards = [
     {

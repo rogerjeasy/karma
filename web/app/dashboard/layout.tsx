@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import type { Route } from "next";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Server,
@@ -13,10 +13,14 @@ import {
   X,
   Zap,
   ChevronRight,
+  LogOut,
+  Loader2,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
+import { useAuth, signOutUser } from "@/lib/firebase";
+import { SSEProvider, useSSEContext } from "@/lib/sse-context";
 
 type NavItem = { href: string; label: string; icon: LucideIcon; exact?: boolean };
 
@@ -27,18 +31,51 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard/timeline", label: "Timeline",  icon: Activity },
 ];
 
+// ── Auth guard + SSE provider ─────────────────────────────────────────────────
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !user) router.replace("/login");
+  }, [user, loading, router]);
+
+  if (loading || !user) {
+    return (
+      <div className="flex h-[100dvh] items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const sseUrl = `${process.env.NEXT_PUBLIC_API_URL ?? ""}/stream/ghosts`;
+
+  return (
+    // SSEProvider opens ONE connection for the whole dashboard.
+    // Children (pages) subscribe to events via useSSEContext() — no extra connections.
+    <SSEProvider url={sseUrl}>
+      <DashboardShell>{children}</DashboardShell>
+    </SSEProvider>
+  );
+}
+
+// ── Shell (rendered inside SSEProvider) ──────────────────────────────────────
+function DashboardShell({ children }: { children: React.ReactNode }) {
+  const { connectionState } = useSSEContext();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
 
-  // Close on route change
   useEffect(() => setSidebarOpen(false), [pathname]);
-
-  // Lock body scroll while mobile sidebar is open
   useEffect(() => {
     document.body.style.overflow = sidebarOpen ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
   }, [sidebarOpen]);
+
+  async function handleSignOut() {
+    await signOutUser();
+    router.push("/");
+  }
 
   return (
     <div className="flex h-[100dvh] bg-background overflow-hidden">
@@ -101,18 +138,60 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </nav>
 
-        {/* Footer badge */}
-        <div className="shrink-0 border-t border-border p-3">
-          <div className="flex items-center gap-2.5 rounded-lg bg-primary/8 border border-primary/15 px-3 py-2.5">
+        {/* Footer: SSE-derived API status + sign-out */}
+        <div className="shrink-0 border-t border-border p-3 space-y-2">
+          {/* API health — driven by SSE connection state, zero polling */}
+          <div
+            className={cn(
+              "flex items-center gap-2.5 rounded-lg border px-3 py-2.5",
+              connectionState === "open"
+                ? "bg-emerald-500/8 border-emerald-500/20"
+                : connectionState === "connecting"
+                ? "bg-primary/8 border-primary/15"
+                : "bg-amber-500/8 border-amber-500/20"
+            )}
+          >
             <span className="relative flex h-2 w-2 shrink-0">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+              {connectionState === "connecting" && (
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60 opacity-75" />
+              )}
+              <span
+                className={cn(
+                  "relative inline-flex h-2 w-2 rounded-full",
+                  connectionState === "open"
+                    ? "bg-emerald-500"
+                    : connectionState === "connecting"
+                    ? "bg-primary"
+                    : "bg-amber-500"
+                )}
+              />
             </span>
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold text-foreground leading-none">Demo Mode</p>
-              <p className="text-[10px] text-muted-foreground/70 leading-none mt-0.5">API not connected</p>
+              <p className="text-[11px] font-semibold text-foreground leading-none">
+                {connectionState === "open"
+                  ? "Live Mode"
+                  : connectionState === "connecting"
+                  ? "Connecting…"
+                  : "Demo Mode"}
+              </p>
+              <p className="text-[10px] text-muted-foreground/70 leading-none mt-0.5">
+                {connectionState === "open"
+                  ? "API connected"
+                  : connectionState === "connecting"
+                  ? "Reaching API…"
+                  : "API not connected"}
+              </p>
             </div>
           </div>
+
+          {/* Sign-out */}
+          <button
+            onClick={handleSignOut}
+            className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            <span className="text-[13px] font-medium">Sign out</span>
+          </button>
         </div>
       </aside>
 
@@ -131,7 +210,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Ghost className="h-4 w-4 text-primary" />
             <span className="text-sm font-bold text-foreground">Karma</span>
           </div>
-          {/* Current page breadcrumb */}
           <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
             <CurrentPageLabel />
           </div>
@@ -179,9 +257,7 @@ function NavLink({ item }: { item: NavItem }) {
         )}
       />
       {item.label}
-      {active && (
-        <ChevronRight className="ml-auto h-3 w-3 text-primary/60" />
-      )}
+      {active && <ChevronRight className="ml-auto h-3 w-3 text-primary/60" />}
     </Link>
   );
 }
