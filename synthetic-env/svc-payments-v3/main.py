@@ -28,7 +28,7 @@ from pydantic import BaseModel
 
 SERVICE_NAME = "svc-payments-v3"
 OTEL_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318/v1/traces")
-DT_API_TOKEN = os.getenv("DT_API_TOKEN", "")
+DT_OTEL_TOKEN = os.getenv("DT_OTEL_TOKEN") or os.getenv("DT_API_TOKEN", "")
 
 _idempotency: dict[str, str] = {}
 
@@ -36,7 +36,7 @@ _idempotency: dict[str, str] = {}
 def _configure_otel() -> None:
     resource = Resource.create({"service.name": SERVICE_NAME, "service.version": "3.0"})
     provider = TracerProvider(resource=resource)
-    headers = {"Authorization": f"Api-Token {DT_API_TOKEN}"} if DT_API_TOKEN else {}
+    headers = {"Authorization": f"Api-Token {DT_OTEL_TOKEN}"} if DT_OTEL_TOKEN else {}
     exporter = OTLPSpanExporter(endpoint=OTEL_ENDPOINT, headers=headers)
     provider.add_span_processor(BatchSpanProcessor(exporter))
     trace.set_tracer_provider(provider)

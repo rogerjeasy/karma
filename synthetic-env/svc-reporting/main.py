@@ -32,7 +32,7 @@ SERVICE_NAME = "svc-reporting"
 REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
 PAYMENTS_URL = os.getenv("PAYMENTS_URL", "http://svc-payments-v3:8080")
 OTEL_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318/v1/traces")
-DT_API_TOKEN = os.getenv("DT_API_TOKEN", "")
+DT_OTEL_TOKEN = os.getenv("DT_OTEL_TOKEN") or os.getenv("DT_API_TOKEN", "")
 
 _redis: aioredis.Redis | None = None
 _http: httpx.AsyncClient | None = None
@@ -43,7 +43,7 @@ def _configure_otel() -> None:
     global _tracer
     resource = Resource.create({"service.name": SERVICE_NAME})
     provider = TracerProvider(resource=resource)
-    headers = {"Authorization": f"Api-Token {DT_API_TOKEN}"} if DT_API_TOKEN else {}
+    headers = {"Authorization": f"Api-Token {DT_OTEL_TOKEN}"} if DT_OTEL_TOKEN else {}
     exporter = OTLPSpanExporter(endpoint=OTEL_ENDPOINT, headers=headers)
     provider.add_span_processor(BatchSpanProcessor(exporter))
     trace.set_tracer_provider(provider)

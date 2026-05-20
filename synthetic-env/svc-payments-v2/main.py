@@ -36,7 +36,9 @@ OTEL_ENDPOINT = os.getenv(
     "OTEL_EXPORTER_OTLP_ENDPOINT",
     "http://localhost:4318/v1/traces",
 )
-DT_API_TOKEN = os.getenv("DT_API_TOKEN", "")
+# Classic API token (openTelemetryTrace.ingest scope) is required for OTLP ingest.
+# Fall back to DT_API_TOKEN for local dev convenience.
+DT_OTEL_TOKEN = os.getenv("DT_OTEL_TOKEN") or os.getenv("DT_API_TOKEN", "")
 
 # In-memory idempotency store (demo only — no persistence needed)
 _idempotency: dict[str, str] = {}
@@ -49,8 +51,8 @@ def _configure_otel() -> None:
     resource = Resource.create({"service.name": SERVICE_NAME, "service.version": "2.0"})
     provider = TracerProvider(resource=resource)
     headers = {}
-    if DT_API_TOKEN:
-        headers["Authorization"] = f"Api-Token {DT_API_TOKEN}"
+    if DT_OTEL_TOKEN:
+        headers["Authorization"] = f"Api-Token {DT_OTEL_TOKEN}"
     exporter = OTLPSpanExporter(endpoint=OTEL_ENDPOINT, headers=headers)
     provider.add_span_processor(BatchSpanProcessor(exporter))
     trace.set_tracer_provider(provider)

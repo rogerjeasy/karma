@@ -66,7 +66,8 @@ jobs:
             --service-account=karma-runner@skillbridge-76a4c.iam.gserviceaccount.com
             --memory=256Mi
             --cpu=1
-            --set-secrets=DT_API_TOKEN=dt-api-token:latest
+            --set-secrets=DT_API_TOKEN=dt-api-token:latest,DT_OTEL_TOKEN=dt-otel-token:latest
           env_vars: >
             OTEL_SERVICE_NAME=${{ matrix.service.name }},
+            OTEL_EXPORTER_OTLP_ENDPOINT=https://${{ vars.DT_ENV }}.live.dynatrace.com/api/v2/otlp/v1/traces,
             REDIS_URL=${{ vars.REDIS_URL }}
