@@ -91,6 +91,7 @@ function RegistrationForm({
     service_name: "",
     dynatrace_entity_id: "",
     deprecation_date: "",
+    replacement_service_id: "",
     learning_window_days: 14,
   });
   const [loading, setLoading] = useState(false);
@@ -106,10 +107,14 @@ function RegistrationForm({
     setLoading(true);
     setError(null);
     try {
+      const body = {
+        ...form,
+        replacement_service_id: form.replacement_service_id?.trim() || null,
+      };
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/services`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const body = await res.text();
@@ -136,12 +141,19 @@ function RegistrationForm({
             onChange={field("service_name")}
           />
         </Field>
-        <Field label="Dynatrace entity ID" hint="SERVICE-…">
+        <Field label="Dynatrace entity ID" hint="SERVICE-… (deprecated service)">
           <Input
             required
             placeholder="SERVICE-XXXXXXXXXXXXXXXX"
             value={form.dynatrace_entity_id}
             onChange={field("dynatrace_entity_id")}
+          />
+        </Field>
+        <Field label="Replacement entity ID" hint="SERVICE-… (new service, optional)">
+          <Input
+            placeholder="SERVICE-YYYYYYYYYYYYYYYY"
+            value={form.replacement_service_id ?? ""}
+            onChange={field("replacement_service_id")}
           />
         </Field>
         <Field label="Deprecation date">
