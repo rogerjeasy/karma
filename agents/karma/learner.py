@@ -3,9 +3,11 @@
 Phase 1 of Karma. Runs during the deprecation window and learns the
 undocumented behaviors of the old service.
 
-The agent receives the full Dynatrace MCP toolset (all tools the server
-exposes) so it can use any analysis capability the server provides.
-System prompt guides which tools are used and in what order.
+Uses both direct Dynatrace API calls (execute_dql) and the Dynatrace MCP
+gateway tools (mcp_gateway_tools) to cover the full analysis surface:
+- execute_dql: raw Grail queries for spans, logs, metrics, events
+- MCP tools: Davis AI problems, changepoint detection, anomaly detection,
+  entity resolution — capabilities unique to the Dynatrace MCP server
 """
 from __future__ import annotations
 
@@ -14,9 +16,16 @@ from pathlib import Path
 from google.adk.agents import Agent
 
 from karma.config import settings
+from karma.tools.contract_validator_tool import validate_contract_predicate
+from karma.tools.dynatrace_api_tools import execute_dql
 from karma.tools.dynatrace_events import emit_karma_event
-from karma.tools.dynatrace_mcp import build_dynatrace_toolset
 from karma.tools.firestore_tools import save_contracts_to_firestore
+from karma.tools.mcp_gateway_tools import (
+    adaptive_anomaly_detection_via_mcp,
+    detect_changepoints_via_mcp,
+    get_entity_id_via_mcp,
+    get_entity_name_via_mcp,
+)
 
 _SYSTEM_PROMPT_PATH = Path(__file__).parent / "prompts" / "learner_system.md"
 
@@ -34,7 +43,16 @@ def create_learner_agent() -> Agent:
         ),
         instruction=system_prompt,
         tools=[
-            build_dynatrace_toolset(),  # live, dynamic — full server toolset
+            # Direct Dynatrace API — raw Grail queries
+            execute_dql,
+            # Dynatrace MCP gateway — AI-powered analysis agents
+            get_entity_id_via_mcp,
+            get_entity_name_via_mcp,
+            detect_changepoints_via_mcp,
+            adaptive_anomaly_detection_via_mcp,
+            # Contract quality gate — runs predicate against historical data
+            validate_contract_predicate,
+            # Persistence and self-observability
             emit_karma_event,
             save_contracts_to_firestore,
         ],

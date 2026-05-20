@@ -125,15 +125,37 @@ jobs:
 
           from karma.app import app as coordinator_agent
 
+          # Wire Vertex AI Memory Bank if MEMORY_BANK_ID is configured.
+          # The memory service persists conversation sessions so contracts
+          # discovered in one run are retrievable in future sessions —
+          # the visible proof that Memory Bank is doing real work in the demo.
+          memory_service = None
+          memory_bank_id = os.environ.get("MEMORY_BANK_ID", "")
+          if memory_bank_id:
+              try:
+                  from google.adk.memory import VertexAiMemoryBankService
+                  memory_service = VertexAiMemoryBankService(
+                      project=project,
+                      location=os.environ.get("GCP_LOCATION", "us-central1"),
+                      memory_bank_id=memory_bank_id,
+                  )
+                  print(f"Memory Bank wired: {memory_bank_id}")
+              except Exception as mb_exc:
+                  print(f"Warning: Memory Bank init failed ({mb_exc}) — deploying without it")
+
           # app_name must start with a letter per ADK App.name validator
           # (^[a-zA-Z][a-zA-Z0-9_-]*$). Without an explicit name, set_up()
           # falls back to GOOGLE_CLOUD_AGENT_ENGINE_ID which is a numeric ID
           # like "8160067876737253376" — that starts with a digit and fails.
-          karma_app = AdkApp(
+          adk_app_kwargs = dict(
               agent=coordinator_agent,
               enable_tracing=True,
               app_name="karma-agent",
           )
+          if memory_service is not None:
+              adk_app_kwargs["memory_service"] = memory_service
+
+          karma_app = AdkApp(**adk_app_kwargs)
 
           # Pass the karma source directory, not the wheel.
           # Agent Engine bundles wheels into a tar.gz and extracts them without
@@ -151,8 +173,20 @@ jobs:
               "httpx>=0.27.0",
               "tenacity>=8.3.0",
               "structlog>=24.1.0",
-              "mcp>=1.0.0",
           ]
+
+          # Forward secrets/vars into the Agent Engine runtime.
+          # The CI env: block above makes these available to this script,
+          # but Agent Engine runs in a separate isolated environment and
+          # does NOT inherit the GitHub Actions environment automatically.
+          env_vars = {k: v for k, v in {
+              "DT_ENV": os.environ.get("DT_ENV", ""),
+              "DT_API_TOKEN": os.environ.get("DT_API_TOKEN", ""),
+              "GCP_PROJECT_ID": os.environ.get("GCP_PROJECT_ID", ""),
+              "GCP_LOCATION": os.environ.get("GCP_LOCATION", "us-central1"),
+              "MEMORY_BANK_ID": os.environ.get("MEMORY_BANK_ID", ""),
+              "FIRESTORE_DATABASE": os.environ.get("FIRESTORE_DATABASE", "(default)"),
+          }.items() if v}
 
           resource_name = os.environ.get("AGENT_ENGINE_RESOURCE_NAME", "")
           if resource_name:
@@ -161,6 +195,7 @@ jobs:
                   agent_engine=karma_app,
                   requirements=requirements,
                   extra_packages=extra_packages,
+                  env_vars=env_vars,
               )
               print(f"Updated: {engine.resource_name}")
           else:
@@ -168,6 +203,7 @@ jobs:
                   karma_app,
                   requirements=requirements,
                   extra_packages=extra_packages,
+                  env_vars=env_vars,
                   display_name="Karma Agent System",
                   description="Reincarnation agent for deprecated services",
               )

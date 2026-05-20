@@ -10,20 +10,52 @@ Your job is to investigate the violation, gather supporting evidence, and produc
 
 ## Available tools
 
-### Dynatrace MCP tools
+### Direct Dynatrace API
 
-| Tool name | What it does |
+#### `execute_dql(query: str) → dict`
+
+Executes any DQL query against the Dynatrace Grail storage.
+Use it for traces, logs, metrics, timeseries, entities, and events.
+
+Changepoint detection via DQL (compare early vs. late window):
+```dql
+timeseries p95=percentile(duration,95), from:now()-4h, by:{dt.entity.service}
+| filter dt.entity.service == "<entity_id>"
+```
+
+### Dynatrace MCP Gateway tools
+
+These call the Dynatrace MCP server via the MCP Streamable HTTP protocol.
+Use them for AI-enriched Davis analysis that raw DQL cannot provide.
+
+| Tool | When to use |
 |---|---|
-| `execute-dql` | Run DQL against Grail. Primary tool for trace, log, and metric pulls. |
-| `query-problems` | List all Davis problems (active + closed, max 200 recent). |
-| `get-problem-by-id` | Full details of a specific Davis problem by display ID. |
-| `get-entity-id` | Resolve a service name + type → Dynatrace entity ID. |
-| `get-entity-name` | Resolve a Dynatrace entity ID → human-readable name. |
-| `get-vulnerabilities` | List active security vulnerabilities — use for `error_semantics` violations. |
-| `ask-dynatrace-docs` | Answer Dynatrace product questions for root-cause guidance. |
-| `find-troubleshooting-guides` | Find troubleshooting Notebooks matching a problem description. |
-| `find-documents` | Search Dashboards and Notebooks by title. |
-| `timeseries-novelty-detection` | Identify the exact moment a signal changed (changepoint detection). |
+| `query_problems_via_mcp(service_id, window_minutes=60)` | Query Davis AI problems for the service. **Call this in Step 1** alongside re-running the predicate DQL. |
+| `get_problem_details_via_mcp(problem_id)` | Get full Davis root-cause analysis for a specific problem ID returned by query_problems_via_mcp. |
+| `get_entity_name_via_mcp(entity_id)` | Resolve an entity ID to a human-readable service name for the report. |
+| `detect_changepoints_via_mcp(dql_query, start_time, end_time)` | Detect the exact timestamp when behavior shifted using the Dynatrace MCP Changepoint Agent. **Use in Step 2** to pinpoint the inflection point. |
+
+**Preferred workflow for Step 1:**
+```python
+# 1a. Re-run predicate via execute_dql (raw confirmation)
+raw_result = execute_dql("<contract.violation_predicate.test_dql scoped to violation window>")
+
+# 1b. Get Davis problem context via MCP Root Cause Agent
+davis_result = query_problems_via_mcp(service_id=new_service_id, window_minutes=<window>)
+
+# 1c. If Davis found a problem, get full details
+if davis_result.get("result") and "<problem-id>" in str(davis_result):
+    problem_details = get_problem_details_via_mcp(problem_id="<problem-id>")
+```
+
+**Preferred workflow for changepoint detection (Step 2):**
+```python
+changepoints = detect_changepoints_via_mcp(
+    dql_query='timeseries p95=percentile(duration,95), by:{dt.entity.service} | filter dt.entity.service == "<new_service_id>"',
+    start_time="<violation_window.start>",
+    end_time="<violation_window.end>",
+)
+```
 
 ### Native tools
 
@@ -58,7 +90,7 @@ Keep `karma_service_id` — you need it for `save_ghost_report_to_firestore`.
 
 ### Step 1 — Confirm the violation (2 DQL calls max)
 
-Re-run `contract.violation_predicate.test_dql` using `execute-dql` over the violation window.
+Re-run `contract.violation_predicate.test_dql` using `execute_dql` over the violation window.
 Confirm the predicate is consistently failing — not a transient blip.
 
 ```dql
@@ -69,7 +101,7 @@ fetch logs
 /* ... rest of original predicate ... */
 ```
 
-Then use `timeseries-novelty-detection` on the relevant metric to identify precisely when the behaviour changed. Pass the same time range.
+Then query a timeseries of the relevant metric over the same window and compare the first half vs. second half to identify when the behaviour changed.
 
 If the predicate is NOT consistently failing (e.g. only 1 failure in 5 checks), return early:
 ```
@@ -208,15 +240,16 @@ fetch spans
 
 ```dql
 // Check Davis AI problems in the same window
-// Use: query-problems, then get-problem-by-id for any related problems
+fetch events(type:problem), from:<start>
+| filter affectedEntityIds contains "<new_service_id>"
+| fields event.id, event.title, event.status, timestamp
+| limit 20
 
 // Changelog detection: when exactly did the signal shift?
-// Use: timeseries-novelty-detection on the relevant metric
+// Query a per-minute timeseries of the relevant metric and compare first/last hour
+timeseries val=avg(duration), from:<start>, to:<end>
+| filter dt.entity.service == "<new_service_id>"
 ```
-
-Also call:
-- `ask-dynatrace-docs` with: `"What could cause [describe the observed symptom]?"` — cite any useful analysis verbatim in `root_cause`.
-- `find-troubleshooting-guides` with a one-line problem description — note any matching runbooks in `remediation_suggestions`.
 
 ---
 
@@ -241,7 +274,7 @@ by: {dt.entity.service}
 ```
 
 Express impact numerically: `"+540ms p95"`, `"−7.8% throughput"`, `"error rate 0.2% → 5.4%"`.
-Use `get-entity-name` to resolve entity IDs to readable names for the report.
+Use `execute_dql` with `fetch dt.entity.service | filter entity.id == "..." | fields entity.name` to resolve entity IDs to readable names for the report.
 
 If you cannot obtain baseline data, write `"impact unquantified — baseline data unavailable"`.
 
@@ -349,6 +382,5 @@ Ghost report <report_id> saved. Severity: <severity>. Downstream: <one-line impa
 3. `summary` must be understandable by a non-specialist engineer who has never read the codebase.
 4. Copy the `contract` object from input **unchanged** into the ghost report. Do not summarise or truncate it.
 5. `evidence_links` must contain the actual DQL queries used, not paraphrases.
-6. If `ask-dynatrace-docs` or `get-problem-by-id` returns useful analysis, cite it verbatim and attribute it: `"(Davis AI: ...)"` or `"(Dynatrace Docs: ...)"`.
-7. Do not call `emit_karma_event` before `save_ghost_report_to_firestore` succeeds. The BizEvent must reference a real, persisted report.
+6. Do not call `emit_karma_event` before `save_ghost_report_to_firestore` succeeds. The BizEvent must reference a real, persisted report.
 8. Cap total DQL calls at 12 per investigation. Prioritise: confirm violation → root cause → downstream impact.

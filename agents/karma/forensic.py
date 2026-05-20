@@ -4,8 +4,10 @@ Triggered by the Watcher when a contract violation predicate has failed for
 the configured tolerance window. Pulls deep Dynatrace context and produces a
 structured GhostReport, then emits a BizEvent for self-observability.
 
-The agent receives the full Dynatrace MCP toolset so it can use any
-investigation capability the server provides. System prompt governs usage.
+Uses execute_dql for raw telemetry queries and MCP gateway tools for
+AI-powered Davis problem analysis, changepoint detection, and entity
+resolution — the combination that distinguishes engineered forensics from
+basic log scanning.
 """
 from __future__ import annotations
 
@@ -14,9 +16,15 @@ from pathlib import Path
 from google.adk.agents import Agent
 
 from karma.config import settings
+from karma.tools.dynatrace_api_tools import execute_dql
 from karma.tools.dynatrace_events import emit_karma_event
-from karma.tools.dynatrace_mcp import build_dynatrace_toolset
 from karma.tools.firestore_tools import save_ghost_report_to_firestore
+from karma.tools.mcp_gateway_tools import (
+    detect_changepoints_via_mcp,
+    get_entity_name_via_mcp,
+    get_problem_details_via_mcp,
+    query_problems_via_mcp,
+)
 
 _SYSTEM_PROMPT_PATH = Path(__file__).parent / "prompts" / "forensic_system.md"
 
@@ -35,7 +43,14 @@ def create_forensic_agent() -> Agent:
         ),
         instruction=system_prompt,
         tools=[
-            build_dynatrace_toolset(),  # live, dynamic — full server toolset
+            # Direct Dynatrace API — raw Grail queries
+            execute_dql,
+            # Dynatrace MCP gateway — Davis AI and advanced analysis
+            query_problems_via_mcp,
+            get_problem_details_via_mcp,
+            get_entity_name_via_mcp,
+            detect_changepoints_via_mcp,
+            # Persistence and self-observability
             emit_karma_event,
             save_ghost_report_to_firestore,
         ],
