@@ -125,7 +125,15 @@ jobs:
 
           from karma.app import app as coordinator_agent
 
-          karma_app = AdkApp(agent=coordinator_agent, enable_tracing=True)
+          # app_name must start with a letter per ADK App.name validator
+          # (^[a-zA-Z][a-zA-Z0-9_-]*$). Without an explicit name, set_up()
+          # falls back to GOOGLE_CLOUD_AGENT_ENGINE_ID which is a numeric ID
+          # like "8160067876737253376" — that starts with a digit and fails.
+          karma_app = AdkApp(
+              agent=coordinator_agent,
+              enable_tracing=True,
+              app_name="karma-agent",
+          )
 
           # Pass the karma source directory, not the wheel.
           # Agent Engine bundles wheels into a tar.gz and extracts them without
@@ -134,7 +142,7 @@ jobs:
           extra_packages = ["karma"]
 
           requirements = [
-              "google-adk>=1.0.0",
+              "google-adk>=1.5.0",
               "google-cloud-aiplatform>=1.90.0",
               "pydantic>=2.7.0",
               "pydantic-settings>=2.3.0",
