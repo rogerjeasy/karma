@@ -61,7 +61,10 @@ async def run_watcher_now(payload: WatcherRunRequest) -> dict[str, Any]:
 
     # Watcher → forensic chain takes several minutes per service — run in background.
     asyncio.create_task(_execute_watcher_chain(targets))
-    return {"status": "accepted", "service_count": len(targets)}
+    return {
+        "status": "accepted",
+        "triggered": [{"service_id": s["service_id"]} for s in targets],
+    }
 
 
 async def _execute_watcher_chain(targets: list[dict[str, Any]]) -> None:

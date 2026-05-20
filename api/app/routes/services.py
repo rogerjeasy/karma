@@ -37,7 +37,7 @@ async def register_service(payload: ServiceRegistration) -> ServiceResponse:
 
     # stream_query blocks for 2-5 min — run in background so 201 returns now.
     asyncio.create_task(
-        agent_client.trigger_learning(
+        _run_learning_task(
             service_id=service_id,
             service_name=payload.service_name,
             dynatrace_entity_id=payload.dynatrace_entity_id,
@@ -79,9 +79,12 @@ async def trigger_learning(service_id: str, hint: str | None = None) -> dict[str
     if doc is None:
         raise HTTPException(status_code=404, detail="Service not found")
 
-    # stream_query blocks for 2-5 min — run in background so 202 returns now.
+    # Reset to learning (clears any previous error), then dispatch in background.
+    await firestore_client.update_service_phase(
+        service_id, "learning", extra={"error_message": None}
+    )
     asyncio.create_task(
-        agent_client.trigger_learning(
+        _run_learning_task(
             service_id=service_id,
             service_name=doc["service_name"],
             dynatrace_entity_id=doc["dynatrace_entity_id"],
@@ -89,6 +92,34 @@ async def trigger_learning(service_id: str, hint: str | None = None) -> dict[str
         )
     )
     return {"status": "accepted", "service_id": service_id}
+
+
+async def _run_learning_task(
+    service_id: str,
+    service_name: str,
+    dynatrace_entity_id: str,
+    learning_window_days: int,
+) -> None:
+    """Background wrapper: run learning and persist any error to Firestore."""
+    log = logger.bind(service_id=service_id)
+    try:
+        result = await agent_client.trigger_learning(
+            service_id=service_id,
+            service_name=service_name,
+            dynatrace_entity_id=dynatrace_entity_id,
+            learning_window_days=learning_window_days,
+        )
+        if result.get("status") == "error":
+            msg = result.get("message", "Agent invocation failed")
+            log.warning("learning_agent_error", error=msg)
+            await firestore_client.update_service_phase(
+                service_id, "error", extra={"error_message": msg}
+            )
+    except Exception as exc:
+        log.error("learning_task_exception", error=str(exc))
+        await firestore_client.update_service_phase(
+            service_id, "error", extra={"error_message": str(exc)}
+        )
 
 
 def _doc_to_response(doc: dict[str, Any]) -> ServiceResponse:
@@ -99,6 +130,7 @@ def _doc_to_response(doc: dict[str, Any]) -> ServiceResponse:
         deprecation_date=_parse_dt(doc["deprecation_date"]),
         replacement_service_id=doc.get("replacement_service_id"),
         phase=doc.get("phase", "registered"),
+        error_message=doc.get("error_message"),
         created_at=_parse_dt(doc.get("created_at", datetime.now(dt.UTC))),
         updated_at=_parse_dt(doc.get("updated_at", datetime.now(dt.UTC))),
     )

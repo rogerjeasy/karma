@@ -1,4 +1,4 @@
-export type ServicePhase = "registered" | "learning" | "haunting" | "completed";
+export type ServicePhase = "registered" | "learning" | "haunting" | "completed" | "error";
 
 export interface ServiceRegistration {
   service_name: string;
@@ -15,6 +15,7 @@ export interface ServiceResponse {
   deprecation_date: string;
   replacement_service_id: string | null;
   phase: ServicePhase;
+  error_message?: string | null;
   created_at: string;
   updated_at: string;
 }

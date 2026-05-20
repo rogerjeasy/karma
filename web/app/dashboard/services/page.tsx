@@ -49,6 +49,7 @@ const PHASE_DESC: Record<ServicePhase, string> = {
   learning:   "Karma is analysing historical Dynatrace telemetry to discover implicit contracts.",
   haunting:   "Cutover complete. Watcher is comparing replacement service behaviour against learned contracts.",
   completed:  "Migration validated. No further agent runs scheduled.",
+  error:      "The last agent run failed. See the error details below and retry.",
 };
 
 function ServiceDetailsDialog({
@@ -83,6 +84,8 @@ function ServiceDetailsDialog({
     try {
       const r = await fetch(`${api}/services/${service.service_id}/learn`, { method: "POST" });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      // Reset phase to learning in parent state (API also resets it server-side)
+      onPhaseChange(service.service_id, "learning", { error_message: null });
       setActionMsg("Learning job dispatched — contracts will update within a few minutes.");
     } catch (e) {
       setActionMsg(`Failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -163,12 +166,18 @@ function ServiceDetailsDialog({
           {/* ── Phase status ── */}
           <div className={cn(
             "rounded-lg border px-4 py-3 text-sm",
-            service.phase === "learning"  && "bg-amber-500/8  border-amber-500/20  text-amber-300",
-            service.phase === "haunting"  && "bg-red-500/8    border-red-500/20    text-red-300",
-            service.phase === "completed" && "bg-emerald-500/8 border-emerald-500/20 text-emerald-300",
-            service.phase === "registered" && "bg-muted/40 border-border text-muted-foreground",
+            service.phase === "learning"   && "bg-amber-500/8   border-amber-500/20   text-amber-300",
+            service.phase === "haunting"   && "bg-red-500/8     border-red-500/20     text-red-300",
+            service.phase === "completed"  && "bg-emerald-500/8 border-emerald-500/20 text-emerald-300",
+            service.phase === "registered" && "bg-muted/40      border-border         text-muted-foreground",
+            service.phase === "error"      && "bg-destructive/8 border-destructive/30 text-destructive",
           )}>
             {PHASE_DESC[service.phase]}
+            {service.phase === "error" && service.error_message && (
+              <p className="mt-2 font-mono text-[11px] opacity-80 break-all leading-relaxed">
+                {service.error_message}
+              </p>
+            )}
           </div>
 
           {/* ── Metadata grid ── */}
@@ -224,8 +233,8 @@ function ServiceDetailsDialog({
           <div className="space-y-3 border-t border-border pt-4">
             <h3 className="text-sm font-semibold text-foreground">Actions</h3>
 
-            {/* Learning / registered: re-run + cutover */}
-            {(service.phase === "learning" || service.phase === "registered") && (
+            {/* Learning / registered / error: re-run learning */}
+            {(service.phase === "learning" || service.phase === "registered" || service.phase === "error") && (
               <div className="space-y-3">
                 <Button
                   variant="outline"
@@ -237,34 +246,37 @@ function ServiceDetailsDialog({
                   {actionLoading === "learn"
                     ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     : <RefreshCw className="h-3.5 w-3.5" />}
-                  Re-run learning
+                  {service.phase === "error" ? "Retry learning" : "Re-run learning"}
                 </Button>
 
-                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
-                  <p className="text-xs font-medium text-foreground">Mark cutover</p>
-                  <p className="text-xs text-muted-foreground">
-                    Signals that the replacement service is live. Activates the Watcher.
-                  </p>
-                  <div className="flex gap-2 mt-1">
-                    <Input
-                      placeholder="SERVICE-YYYYYYYYYYYYYYYY (replacement entity ID)"
-                      value={replacementId}
-                      onChange={(e) => setReplacementId(e.target.value)}
-                      className="text-xs h-8 font-mono"
-                    />
-                    <Button
-                      size="sm"
-                      className="gap-1.5 shrink-0"
-                      disabled={actionLoading === "cutover"}
-                      onClick={markCutover}
-                    >
-                      {actionLoading === "cutover"
-                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        : <GitMerge className="h-3.5 w-3.5" />}
-                      Cutover
-                    </Button>
+                {/* Cutover form only shown when not in error state */}
+                {service.phase !== "error" && (
+                  <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+                    <p className="text-xs font-medium text-foreground">Mark cutover</p>
+                    <p className="text-xs text-muted-foreground">
+                      Signals that the replacement service is live. Activates the Watcher.
+                    </p>
+                    <div className="flex gap-2 mt-1">
+                      <Input
+                        placeholder="SERVICE-YYYYYYYYYYYYYYYY (replacement entity ID)"
+                        value={replacementId}
+                        onChange={(e) => setReplacementId(e.target.value)}
+                        className="text-xs h-8 font-mono"
+                      />
+                      <Button
+                        size="sm"
+                        className="gap-1.5 shrink-0"
+                        disabled={actionLoading === "cutover"}
+                        onClick={markCutover}
+                      >
+                        {actionLoading === "cutover"
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <GitMerge className="h-3.5 w-3.5" />}
+                        Cutover
+                      </Button>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -582,6 +594,14 @@ function ServiceCard({
         <MetaRow icon={Clock}    label="Registered"  value={registeredAgo} />
       </div>
 
+      {/* Error message (only shown when phase === "error") */}
+      {svc.phase === "error" && svc.error_message && (
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/8 px-3 py-2 text-xs text-destructive">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+          <span className="leading-snug line-clamp-2">{svc.error_message}</span>
+        </div>
+      )}
+
       {/* Footer */}
       <div className="flex items-center justify-between pt-1 border-t border-border/60">
         <p className="text-[11px] font-mono text-muted-foreground/60 truncate">{svc.service_id.slice(0, 12)}…</p>
@@ -670,6 +690,7 @@ const PHASE_CONFIG: Record<ServicePhase, {
   learning:   { variant: "warning",     dot: "bg-amber-400",   label: "Learning"   },
   haunting:   { variant: "destructive", dot: "bg-red-400",     label: "Haunting"   },
   completed:  { variant: "success",     dot: "bg-emerald-400", label: "Completed"  },
+  error:      { variant: "destructive", dot: "bg-red-500",     label: "Error"      },
 };
 
 function PhaseBadge({ phase }: { phase: ServicePhase }) {
