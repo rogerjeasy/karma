@@ -1,11 +1,14 @@
 """Agent Engine client — sends tasks to the Karma agent system.
 
-Uses the Vertex AI SDK to invoke the deployed AdkApp on Agent Engine.
+Calls the Vertex AI Agent Engine REST API directly instead of using the
+Python SDK's dynamic method discovery, which fails on ADK v1.0 apps that
+register an 'async' operation mode the SDK does not support.
 """
 from __future__ import annotations
 
 from typing import Any
 
+import httpx
 import structlog
 
 from app.config import settings
@@ -24,7 +27,7 @@ async def trigger_learning(
         task="begin_learning",
         payload={
             "service_id": dynatrace_entity_id,
-            "karma_service_id": service_id,   # UUID for Firestore dashboard queries
+            "karma_service_id": service_id,
             "service_name": service_name,
             "learning_window_days": learning_window_days,
         },
@@ -79,14 +82,48 @@ async def _invoke_agent(task: str, payload: dict[str, Any]) -> dict[str, Any]:
     log.info("invoking_agent")
 
     try:
-        import vertexai
-        from vertexai.preview import reasoning_engines
+        token = _get_access_token()
+        url = (
+            f"https://{settings.gcp_location}-aiplatform.googleapis.com"
+            f"/v1/{resource_name}:query"
+        )
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+        body: dict[str, Any] = {"input": {"task": task, **payload}}
 
-        vertexai.init(project=settings.gcp_project_id, location=settings.gcp_location)
-        engine = reasoning_engines.ReasoningEngine(resource_name)
-        result = engine.query(input={"task": task, **payload})  # type: ignore[attr-defined]
+        # Agent Engine calls are long-running (LLM inference) — generous timeout.
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            resp = await client.post(url, json=body, headers=headers)
+            resp.raise_for_status()
+            result = resp.json()
+
         log.info("agent_invoked", status="ok")
         return {"status": "ok", "result": result}
+
+    except httpx.HTTPStatusError as exc:
+        log.error(
+            "agent_invocation_http_error",
+            status_code=exc.response.status_code,
+            detail=exc.response.text[:500],
+        )
+        return {
+            "status": "error",
+            "message": f"HTTP {exc.response.status_code}: {exc.response.text[:200]}",
+        }
     except Exception as exc:
         log.error("agent_invocation_failed", error=str(exc))
         return {"status": "error", "message": str(exc)}
+
+
+def _get_access_token() -> str:
+    """Return a fresh ADC Bearer token for the Vertex AI API."""
+    import google.auth
+    import google.auth.transport.requests
+
+    creds, _ = google.auth.default(
+        scopes=["https://www.googleapis.com/auth/cloud-platform"]
+    )
+    creds.refresh(google.auth.transport.requests.Request())  # type: ignore[no-untyped-call]
+    return creds.token  # type: ignore[return-value]
