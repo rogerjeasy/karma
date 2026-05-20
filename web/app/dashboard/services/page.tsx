@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Server, Calendar, Clock, ExternalLink, Loader2, AlertCircle } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import type { ServiceRegistration, ServiceResponse, ServicePhase } from "@/lib/types";
+import {
+  Plus, Server, Calendar, Clock, ExternalLink, Loader2, AlertCircle,
+  Copy, Check, BookOpen, Eye, Zap, GitMerge, RefreshCw, FileCode2,
+} from "lucide-react";
+import { formatDistanceToNow, format } from "date-fns";
+import type { ServiceRegistration, ServiceResponse, ServicePhase, ContractResponse } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,11 +16,357 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
+/* ── Auto-updating relative time ─────────────────────────────── */
+function useRelativeTime(dateStr: string): string {
+  const compute = () => formatDistanceToNow(new Date(dateStr), { addSuffix: true });
+  const [label, setLabel] = useState(compute);
+  useEffect(() => {
+    const id = setInterval(() => setLabel(compute()), 30_000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateStr]);
+  return label;
+}
+
+/* ── Copy-to-clipboard button ────────────────────────────────── */
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+  return (
+    <button onClick={copy} className="ml-1.5 text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+      {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+    </button>
+  );
+}
+
+/* ── Service Details Dialog ──────────────────────────────────── */
+const PHASE_DESC: Record<ServicePhase, string> = {
+  registered: "Queued for observation. Learning has not started yet.",
+  learning:   "Karma is analysing historical Dynatrace telemetry to discover implicit contracts.",
+  haunting:   "Cutover complete. Watcher is comparing replacement service behaviour against learned contracts.",
+  completed:  "Migration validated. No further agent runs scheduled.",
+};
+
+function ServiceDetailsDialog({
+  service,
+  onClose,
+  onPhaseChange,
+}: {
+  service: ServiceResponse;
+  onClose: () => void;
+  onPhaseChange: (id: string, phase: ServicePhase, extra?: Partial<ServiceResponse>) => void;
+}) {
+  const api = process.env.NEXT_PUBLIC_API_URL ?? "";
+  const [contracts, setContracts]         = useState<ContractResponse[]>([]);
+  const [contractsLoading, setContractsLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionMsg, setActionMsg]         = useState<string | null>(null);
+
+  // Replacement entity ID for cutover form
+  const [replacementId, setReplacementId] = useState(service.replacement_service_id ?? "");
+
+  useEffect(() => {
+    fetch(`${api}/contracts/${service.service_id}`)
+      .then((r) => r.json())
+      .then((d) => setContracts(Array.isArray(d) ? d : []))
+      .catch(() => setContracts([]))
+      .finally(() => setContractsLoading(false));
+  }, [api, service.service_id]);
+
+  async function rerunLearning() {
+    setActionLoading("learn");
+    setActionMsg(null);
+    try {
+      const r = await fetch(`${api}/services/${service.service_id}/learn`, { method: "POST" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setActionMsg("Learning job dispatched — contracts will update within a few minutes.");
+    } catch (e) {
+      setActionMsg(`Failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function markCutover() {
+    if (!replacementId.trim()) {
+      setActionMsg("Replacement entity ID is required to mark cutover.");
+      return;
+    }
+    setActionLoading("cutover");
+    setActionMsg(null);
+    try {
+      const r = await fetch(`${api}/cutover/${service.service_id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ replacement_service_id: replacementId.trim() }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      onPhaseChange(service.service_id, "haunting", {
+        replacement_service_id: replacementId.trim(),
+      });
+      setActionMsg("Cutover recorded. Watcher is now active.");
+    } catch (e) {
+      setActionMsg(`Failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function runWatcher() {
+    setActionLoading("watcher");
+    setActionMsg(null);
+    try {
+      const r = await fetch(`${api}/cutover/watchers/run-now`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ service_id: service.service_id }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setActionMsg("Watcher dispatched — ghost reports will appear if violations are detected.");
+    } catch (e) {
+      setActionMsg(`Failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  const registeredAgo = useRelativeTime(service.created_at);
+  const updatedAgo    = useRelativeTime(service.updated_at);
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted border border-border">
+              <Server className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="min-w-0">
+              <DialogTitle className="text-base">{service.service_name}</DialogTitle>
+              <DialogDescription className="text-[11px] font-mono mt-0.5">
+                {service.service_id}
+                <CopyButton value={service.service_id} />
+              </DialogDescription>
+            </div>
+            <div className="ml-auto shrink-0">
+              <PhaseBadge phase={service.phase} />
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="space-y-6 pt-2">
+
+          {/* ── Phase status ── */}
+          <div className={cn(
+            "rounded-lg border px-4 py-3 text-sm",
+            service.phase === "learning"  && "bg-amber-500/8  border-amber-500/20  text-amber-300",
+            service.phase === "haunting"  && "bg-red-500/8    border-red-500/20    text-red-300",
+            service.phase === "completed" && "bg-emerald-500/8 border-emerald-500/20 text-emerald-300",
+            service.phase === "registered" && "bg-muted/40 border-border text-muted-foreground",
+          )}>
+            {PHASE_DESC[service.phase]}
+          </div>
+
+          {/* ── Metadata grid ── */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <DetailRow label="Dynatrace entity" value={service.dynatrace_entity_id} mono copy />
+            {service.replacement_service_id && (
+              <DetailRow label="Replacement entity" value={service.replacement_service_id} mono copy />
+            )}
+            <DetailRow
+              label="Deprecation date"
+              value={format(new Date(service.deprecation_date), "PPP")}
+            />
+            <DetailRow label="Registered" value={registeredAgo} />
+            <DetailRow label="Last updated" value={updatedAgo} />
+          </div>
+
+          {/* ── Contracts ── */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <FileCode2 className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold text-foreground">
+                Contracts discovered
+                {!contractsLoading && (
+                  <span className="ml-1.5 text-muted-foreground font-normal">({contracts.length})</span>
+                )}
+              </h3>
+            </div>
+
+            {contractsLoading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground py-3">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Loading contracts…
+              </div>
+            ) : contracts.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 px-4 py-6 text-center">
+                <p className="text-sm text-muted-foreground">No contracts discovered yet.</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">
+                  {service.phase === "learning"
+                    ? "The Learner agent is running — contracts will appear once analysis completes."
+                    : "Trigger learning to discover contracts from Dynatrace telemetry."}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                {contracts.map((c) => (
+                  <ContractRow key={c.contract_id} contract={c} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Actions ── */}
+          <div className="space-y-3 border-t border-border pt-4">
+            <h3 className="text-sm font-semibold text-foreground">Actions</h3>
+
+            {/* Learning / registered: re-run + cutover */}
+            {(service.phase === "learning" || service.phase === "registered") && (
+              <div className="space-y-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  disabled={actionLoading === "learn"}
+                  onClick={rerunLearning}
+                >
+                  {actionLoading === "learn"
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <RefreshCw className="h-3.5 w-3.5" />}
+                  Re-run learning
+                </Button>
+
+                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+                  <p className="text-xs font-medium text-foreground">Mark cutover</p>
+                  <p className="text-xs text-muted-foreground">
+                    Signals that the replacement service is live. Activates the Watcher.
+                  </p>
+                  <div className="flex gap-2 mt-1">
+                    <Input
+                      placeholder="SERVICE-YYYYYYYYYYYYYYYY (replacement entity ID)"
+                      value={replacementId}
+                      onChange={(e) => setReplacementId(e.target.value)}
+                      className="text-xs h-8 font-mono"
+                    />
+                    <Button
+                      size="sm"
+                      className="gap-1.5 shrink-0"
+                      disabled={actionLoading === "cutover"}
+                      onClick={markCutover}
+                    >
+                      {actionLoading === "cutover"
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : <GitMerge className="h-3.5 w-3.5" />}
+                      Cutover
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Haunting: run watcher */}
+            {service.phase === "haunting" && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                disabled={actionLoading === "watcher"}
+                onClick={runWatcher}
+              >
+                {actionLoading === "watcher"
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <Eye className="h-3.5 w-3.5" />}
+                Run watcher now
+              </Button>
+            )}
+
+            {/* Completed */}
+            {service.phase === "completed" && (
+              <p className="text-xs text-muted-foreground">
+                Migration complete. No further actions required.
+              </p>
+            )}
+
+            {/* Feedback message */}
+            {actionMsg && (
+              <p className={cn(
+                "text-xs rounded-lg border px-3 py-2 leading-relaxed",
+                actionMsg.startsWith("Failed")
+                  ? "border-destructive/30 bg-destructive/8 text-destructive"
+                  : "border-emerald-500/30 bg-emerald-500/8 text-emerald-400"
+              )}>
+                {actionMsg}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DetailRow({
+  label, value, mono = false, copy = false,
+}: {
+  label: string; value: string; mono?: boolean; copy?: boolean;
+}) {
+  return (
+    <div className="space-y-0.5">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">{label}</p>
+      <div className="flex items-center">
+        <p className={cn("text-[13px] text-foreground truncate", mono && "font-mono")}>{value}</p>
+        {copy && <CopyButton value={value} />}
+      </div>
+    </div>
+  );
+}
+
+const CATEGORY_COLOR: Record<string, string> = {
+  latency:         "bg-blue-500/15   text-blue-400   border-blue-500/20",
+  error_semantics: "bg-red-500/15    text-red-400    border-red-500/20",
+  side_effect:     "bg-purple-500/15 text-purple-400 border-purple-500/20",
+  throughput:      "bg-cyan-500/15   text-cyan-400   border-cyan-500/20",
+  timing:          "bg-amber-500/15  text-amber-400  border-amber-500/20",
+  dependency:      "bg-indigo-500/15 text-indigo-400 border-indigo-500/20",
+  resource:        "bg-orange-500/15 text-orange-400 border-orange-500/20",
+  sequencing:      "bg-teal-500/15   text-teal-400   border-teal-500/20",
+};
+
+function ContractRow({ contract: c }: { contract: ContractResponse }) {
+  const colorClass = CATEGORY_COLOR[c.category] ?? "bg-muted/30 text-muted-foreground border-border";
+  return (
+    <div className="rounded-lg border border-border bg-card/50 px-3 py-2.5 space-y-1.5">
+      <div className="flex items-center gap-2">
+        <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide", colorClass)}>
+          {c.category.replace("_", " ")}
+        </span>
+        {c.subcategory && (
+          <span className="text-[10px] text-muted-foreground/60">{c.subcategory}</span>
+        )}
+        <span className="ml-auto text-[10px] text-muted-foreground/50 tabular-nums">
+          {Math.round(c.confidence * 100)}% confidence
+        </span>
+      </div>
+      <p className="text-xs text-muted-foreground leading-snug">{c.description}</p>
+    </div>
+  );
+}
+
+/* ── Main page ───────────────────────────────────────────────── */
 export default function ServicesPage() {
-  const [services, setServices] = useState<ServiceResponse[]>([]);
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [services, setServices]       = useState<ServiceResponse[]>([]);
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [selectedSvc, setSelectedSvc] = useState<ServiceResponse | null>(null);
+  const [loading, setLoading]         = useState(true);
+  const [fetchError, setFetchError]   = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/services`)
@@ -30,6 +379,19 @@ export default function ServicesPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  function handlePhaseChange(
+    id: string,
+    phase: ServicePhase,
+    extra?: Partial<ServiceResponse>
+  ) {
+    setServices((prev) =>
+      prev.map((s) => s.service_id === id ? { ...s, phase, ...extra } : s)
+    );
+    setSelectedSvc((prev) =>
+      prev?.service_id === id ? { ...prev, phase, ...extra } : prev
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in-up">
       {/* ── Header ── */}
@@ -40,14 +402,14 @@ export default function ServicesPage() {
             Manage deprecated services under observation and track their replacement status.
           </p>
         </div>
-        <Button className="gap-2 self-start sm:self-auto sm:shrink-0" onClick={() => setOpen(true)}>
+        <Button className="gap-2 self-start sm:self-auto sm:shrink-0" onClick={() => setRegisterOpen(true)}>
           <Plus className="h-4 w-4" />
           Register service
         </Button>
       </div>
 
       {/* ── Registration dialog ── */}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={registerOpen} onOpenChange={setRegisterOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Register a service</DialogTitle>
@@ -58,12 +420,21 @@ export default function ServicesPage() {
           <RegistrationForm
             onSuccess={(svc) => {
               setServices((prev) => [svc, ...prev]);
-              setOpen(false);
+              setRegisterOpen(false);
             }}
-            onCancel={() => setOpen(false)}
+            onCancel={() => setRegisterOpen(false)}
           />
         </DialogContent>
       </Dialog>
+
+      {/* ── Details dialog ── */}
+      {selectedSvc && (
+        <ServiceDetailsDialog
+          service={selectedSvc}
+          onClose={() => setSelectedSvc(null)}
+          onPhaseChange={handlePhaseChange}
+        />
+      )}
 
       {/* ── Content ── */}
       {loading ? (
@@ -71,9 +442,17 @@ export default function ServicesPage() {
       ) : fetchError ? (
         <ErrorBanner message={fetchError} />
       ) : services.length === 0 ? (
-        <EmptyState onRegister={() => setOpen(true)} />
+        <EmptyState onRegister={() => setRegisterOpen(true)} />
       ) : (
-        <ServiceGrid services={services} />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {services.map((svc) => (
+            <ServiceCard
+              key={svc.service_id}
+              service={svc}
+              onDetails={() => setSelectedSvc(svc)}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -81,8 +460,7 @@ export default function ServicesPage() {
 
 /* ── Registration form ─────────────────────────────────────── */
 function RegistrationForm({
-  onSuccess,
-  onCancel,
+  onSuccess, onCancel,
 }: {
   onSuccess: (s: ServiceResponse) => void;
   onCancel: () => void;
@@ -95,7 +473,7 @@ function RegistrationForm({
     learning_window_days: 14,
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]     = useState<string | null>(null);
 
   function field(key: keyof ServiceRegistration) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -107,19 +485,16 @@ function RegistrationForm({
     setLoading(true);
     setError(null);
     try {
-      const body = {
-        ...form,
-        replacement_service_id: form.replacement_service_id?.trim() || null,
-      };
+      const body = { ...form, replacement_service_id: form.replacement_service_id?.trim() || null };
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/services`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const body = await res.text();
+        const text = await res.text();
         const ct   = res.headers.get("content-type") ?? "";
-        throw new Error(ct.includes("html") ? `Server error ${res.status}` : body);
+        throw new Error(ct.includes("html") ? `Server error ${res.status}` : text);
       }
       onSuccess(await res.json());
     } catch (err) {
@@ -134,57 +509,26 @@ function RegistrationForm({
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Service name" hint="e.g. svc-payments-v2">
-          <Input
-            required
-            placeholder="svc-payments-v2"
-            value={form.service_name}
-            onChange={field("service_name")}
-          />
+          <Input required placeholder="svc-payments-v2" value={form.service_name} onChange={field("service_name")} />
         </Field>
-        <Field label="Dynatrace entity ID" hint="SERVICE-… (deprecated service)">
-          <Input
-            required
-            placeholder="SERVICE-XXXXXXXXXXXXXXXX"
-            value={form.dynatrace_entity_id}
-            onChange={field("dynatrace_entity_id")}
-          />
+        <Field label="Dynatrace entity ID" hint="SERVICE-… (deprecated)">
+          <Input required placeholder="SERVICE-XXXXXXXXXXXXXXXX" value={form.dynatrace_entity_id} onChange={field("dynatrace_entity_id")} />
         </Field>
-        <Field label="Replacement entity ID" hint="SERVICE-… (new service, optional)">
-          <Input
-            placeholder="SERVICE-YYYYYYYYYYYYYYYY"
-            value={form.replacement_service_id ?? ""}
-            onChange={field("replacement_service_id")}
-          />
+        <Field label="Replacement entity ID" hint="SERVICE-… (optional)">
+          <Input placeholder="SERVICE-YYYYYYYYYYYYYYYY" value={form.replacement_service_id ?? ""} onChange={field("replacement_service_id")} />
         </Field>
         <Field label="Deprecation date">
-          <Input
-            required
-            type="date"
-            value={form.deprecation_date}
-            onChange={field("deprecation_date")}
-          />
+          <Input required type="date" value={form.deprecation_date} onChange={field("deprecation_date")} />
         </Field>
         <Field label="Learning window" hint="1–30 days">
-          <Input
-            type="number"
-            min={1}
-            max={30}
-            value={form.learning_window_days}
-            onChange={field("learning_window_days")}
-          />
+          <Input type="number" min={1} max={30} value={form.learning_window_days} onChange={field("learning_window_days")} />
         </Field>
       </div>
-
       {error && (
-        <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
-          {error}
-        </p>
+        <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">{error}</p>
       )}
-
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
-          Cancel
-        </Button>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>Cancel</Button>
         <Button type="submit" disabled={loading} className="gap-2">
           {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {loading ? "Registering…" : "Register and begin learning"}
@@ -194,15 +538,7 @@ function RegistrationForm({
   );
 }
 
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
       <Label>
@@ -214,7 +550,64 @@ function Field({
   );
 }
 
-/* ── Loading skeleton ───────────────────────────────────────── */
+/* ── Service card ────────────────────────────────────────────── */
+function ServiceCard({
+  service: svc,
+  onDetails,
+}: {
+  service: ServiceResponse;
+  onDetails: () => void;
+}) {
+  const registeredAgo = useRelativeTime(svc.created_at);
+
+  return (
+    <div className="group rounded-xl border border-border bg-card p-5 space-y-4 transition-all duration-200 hover:border-border/70 hover:shadow-card-hover hover:-translate-y-px">
+      {/* Top row */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted border border-border">
+            <Server className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground leading-tight truncate">{svc.service_name}</p>
+            <p className="text-[11px] text-muted-foreground font-mono truncate mt-0.5">{svc.dynatrace_entity_id}</p>
+          </div>
+        </div>
+        <PhaseBadge phase={svc.phase} />
+      </div>
+
+      {/* Metadata */}
+      <div className="space-y-1.5">
+        <MetaRow icon={Calendar} label="Deprecation" value={new Date(svc.deprecation_date).toLocaleDateString()} />
+        <MetaRow icon={Clock}    label="Registered"  value={registeredAgo} />
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between pt-1 border-t border-border/60">
+        <p className="text-[11px] font-mono text-muted-foreground/60 truncate">{svc.service_id.slice(0, 12)}…</p>
+        <button
+          onClick={onDetails}
+          className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors opacity-0 group-hover:opacity-100"
+        >
+          <ExternalLink className="h-3 w-3" />
+          Details
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MetaRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+      <span className="text-muted-foreground/60">{label}:</span>
+      <span className="text-muted-foreground">{value}</span>
+    </div>
+  );
+}
+
+/* ── Skeleton / Error / Empty ────────────────────────────────── */
 function ServiceGridSkeleton() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -240,7 +633,6 @@ function ServiceGridSkeleton() {
   );
 }
 
-/* ── Error banner ────────────────────────────────────────────── */
 function ErrorBanner({ message }: { message: string }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-5 py-4 text-sm text-destructive">
@@ -250,7 +642,6 @@ function ErrorBanner({ message }: { message: string }) {
   );
 }
 
-/* ── Empty state ────────────────────────────────────────────── */
 function EmptyState({ onRegister }: { onRegister: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-card/30 px-6 py-16 text-center">
@@ -269,64 +660,12 @@ function EmptyState({ onRegister }: { onRegister: () => void }) {
   );
 }
 
-/* ── Service grid ───────────────────────────────────────────── */
-function ServiceGrid({ services }: { services: ServiceResponse[] }) {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {services.map((svc) => (
-        <ServiceCard key={svc.service_id} service={svc} />
-      ))}
-    </div>
-  );
-}
-
-function ServiceCard({ service: svc }: { service: ServiceResponse }) {
-  return (
-    <div className="group rounded-xl border border-border bg-card p-5 space-y-4 transition-all duration-200 hover:border-border/70 hover:shadow-card-hover hover:-translate-y-px">
-      {/* Top row */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted border border-border">
-            <Server className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground leading-tight truncate">{svc.service_name}</p>
-            <p className="text-[11px] text-muted-foreground font-mono truncate mt-0.5">{svc.dynatrace_entity_id}</p>
-          </div>
-        </div>
-        <PhaseBadge phase={svc.phase} />
-      </div>
-
-      {/* Metadata */}
-      <div className="space-y-1.5">
-        <MetaRow icon={Calendar} label="Deprecation" value={new Date(svc.deprecation_date).toLocaleDateString()} />
-        <MetaRow icon={Clock} label="Registered" value={formatDistanceToNow(new Date(svc.created_at), { addSuffix: true })} />
-      </div>
-
-      {/* Footer */}
-      <div className="flex items-center justify-between pt-1 border-t border-border/60">
-        <p className="text-[11px] font-mono text-muted-foreground/60 truncate">{svc.service_id.slice(0, 12)}…</p>
-        <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100">
-          <ExternalLink className="h-3 w-3" />
-          Details
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function MetaRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
-  return (
-    <div className="flex items-center gap-2 text-xs">
-      <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
-      <span className="text-muted-foreground/60">{label}:</span>
-      <span className="text-muted-foreground">{value}</span>
-    </div>
-  );
-}
-
-/* ── Phase badge ────────────────────────────────────────────── */
-const PHASE_CONFIG: Record<ServicePhase, { variant: "ghost" | "warning" | "destructive" | "success"; dot: string; label: string }> = {
+/* ── Phase badge ─────────────────────────────────────────────── */
+const PHASE_CONFIG: Record<ServicePhase, {
+  variant: "ghost" | "warning" | "destructive" | "success";
+  dot: string;
+  label: string;
+}> = {
   registered: { variant: "ghost",       dot: "bg-zinc-500",    label: "Registered" },
   learning:   { variant: "warning",     dot: "bg-amber-400",   label: "Learning"   },
   haunting:   { variant: "destructive", dot: "bg-red-400",     label: "Haunting"   },
