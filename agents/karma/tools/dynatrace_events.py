@@ -118,6 +118,10 @@ async def emit_karma_event(
             # Logs Ingest API's attribute value type constraints.
             record[flat_key] = str(value)
 
+    if not settings.dt_otel_token:
+        logger.warning("karma_log_event_skipped", reason="DT_OTEL_TOKEN not configured")
+        return {"status": "skipped", "detail": "DT_OTEL_TOKEN not configured"}
+
     headers = {
         "Authorization": f"Api-Token {settings.dt_otel_token}",
         "Content-Type": "application/json; charset=utf-8",
