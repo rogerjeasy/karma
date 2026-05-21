@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { BeforeAfterTimeline } from "@/components/BeforeAfterTimeline";
-import { ContractTimeline } from "@/components/ContractTimeline";
 import type { ContractResponse, GhostReport, ServiceResponse } from "@/lib/types";
 import { apiFetch } from "@/lib/api";
 import { useSSEEvent } from "@/lib/sse-context";
@@ -34,14 +33,9 @@ export default function TimelinePage() {
     setContracts([]);
     setGhosts([]);
 
-    const selectedSvc = services.find((s) => s.service_id === selectedId);
-    const isHaunting  = selectedSvc?.phase === "haunting";
-
     Promise.all([
       apiFetch<ContractResponse[]>(`/contracts/${selectedId}`).catch(() => []),
-      isHaunting
-        ? apiFetch<GhostReport[]>(`/ghosts?service_id=${selectedId}&limit=100`).catch(() => [])
-        : Promise.resolve([]),
+      apiFetch<GhostReport[]>(`/ghosts?service_id=${selectedId}&limit=100`).catch(() => []),
     ]).then(([contractData, ghostData]) => {
       setContracts(Array.isArray(contractData) ? contractData : []);
       setGhosts(Array.isArray(ghostData) ? ghostData : []);
@@ -79,9 +73,7 @@ export default function TimelinePage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Contract Timeline</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {isHaunting
-            ? "Before / After view — learned contracts vs. replacement service behaviour."
-            : "Implicit contracts discovered and validated during the learning phase."}
+          Before / After view — learned contracts vs. replacement service behaviour.
         </p>
       </div>
 
@@ -118,19 +110,14 @@ export default function TimelinePage() {
         </div>
       )}
 
-      {/* ── Before/After split (haunting phase) ── */}
-      {!loading && isHaunting && (
+      {/* ── Before/After split — always shown once loading is done ── */}
+      {!loading && (
         <BeforeAfterTimeline
           contracts={contracts}
           ghosts={ghosts}
           oldServiceName={selectedSvc?.service_name ?? "Deprecated service"}
-          newServiceName={replacementName}
+          newServiceName={isHaunting ? replacementName : "Replacement service"}
         />
-      )}
-
-      {/* ── Standard vertical list (learning / ready / other phases) ── */}
-      {!loading && !isHaunting && (
-        <ContractTimeline contracts={contracts} />
       )}
     </div>
   );
