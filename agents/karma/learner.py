@@ -20,13 +20,13 @@ from karma.tools.contract_validator_tool import validate_contract_predicate
 from karma.tools.dynatrace_api_tools import execute_dql
 from karma.tools.dynatrace_events import emit_karma_event
 from karma.tools.firestore_tools import save_contracts_to_firestore
-from karma.tools.memory_bank_tools import save_contracts_to_memory_bank
 from karma.tools.mcp_gateway_tools import (
     adaptive_anomaly_detection_via_mcp,
     detect_changepoints_via_mcp,
     get_entity_id_via_mcp,
     get_entity_name_via_mcp,
 )
+from karma.tools.memory_bank_tools import save_contracts_to_memory_bank
 
 _SYSTEM_PROMPT_PATH = Path(__file__).parent / "prompts" / "learner_system.md"
 

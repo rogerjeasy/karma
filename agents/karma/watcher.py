@@ -13,8 +13,8 @@ from google.adk.agents import Agent
 
 from karma.config import settings
 from karma.tools.dynatrace_api_tools import execute_dql
-from karma.tools.memory_bank_tools import load_contracts_from_memory_bank
 from karma.tools.mcp_gateway_tools import get_entity_name_via_mcp, query_problems_via_mcp
+from karma.tools.memory_bank_tools import load_contracts_from_memory_bank
 from karma.tools.pubsub_tools import publish_violation_to_pubsub
 
 _WATCHER_INSTRUCTION = """
