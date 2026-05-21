@@ -1,4 +1,7 @@
-import { ExternalLink, ArrowRight, Clock } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import { ExternalLink, ArrowRight, Clock, Copy, Check } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { GhostReport, ViolationSeverity } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
@@ -36,8 +39,10 @@ function buildDtLink(dql: string): string | null {
 }
 
 function EvidenceLink({ raw, index }: { raw: string; index: number }) {
+  const [copied, setCopied] = useState(false);
   const isUrl = /^https?:\/\//i.test(raw);
-  const href = isUrl ? raw : buildDtLink(extractDql(raw));
+  const dql = isUrl ? "" : extractDql(raw);
+  const href = isUrl ? raw : buildDtLink(dql);
 
   if (href) {
     return (
@@ -53,14 +58,22 @@ function EvidenceLink({ raw, index }: { raw: string; index: number }) {
     );
   }
 
-  // Fallback: render the raw string as a copyable code snippet.
+  // DT_ENV not configured — copy the DQL query to clipboard instead.
+  function copyDql() {
+    navigator.clipboard.writeText(dql || raw);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
   return (
-    <span
-      title={raw}
-      className="inline-flex items-center gap-1 text-xs text-muted-foreground font-mono cursor-default"
+    <button
+      onClick={copyDql}
+      title={dql || raw}
+      className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-mono transition-colors"
     >
+      {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
       evidence [{index}]
-    </span>
+    </button>
   );
 }
 
