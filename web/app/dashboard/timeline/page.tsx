@@ -2,70 +2,29 @@
 
 import { useEffect, useState } from "react";
 import { BeforeAfterTimeline } from "@/components/BeforeAfterTimeline";
-import type { ContractResponse, GhostReport, ServiceResponse } from "@/lib/types";
-import { apiFetch } from "@/lib/api";
-import { useSSEEvent } from "@/lib/sse-context";
+import { useDashboardData } from "@/lib/dashboard-context";
 import { cn } from "@/lib/utils";
 
 export default function TimelinePage() {
-  const [services, setServices]   = useState<ServiceResponse[]>([]);
+  const { services, ghosts, contracts, loading } = useDashboardData();
   const [selectedId, setSelected] = useState<string | null>(null);
-  const [contracts, setContracts] = useState<ContractResponse[]>([]);
-  const [ghosts, setGhosts]       = useState<GhostReport[]>([]);
-  const [loading, setLoading]     = useState(false);
 
-  // Load service list once
+  // Pick the first service once the list loads
   useEffect(() => {
-    apiFetch<ServiceResponse[]>("/services")
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setServices(data);
-          if (data.length > 0) setSelected(data[0].service_id);
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  // Load contracts + ghosts whenever the selected service changes
-  useEffect(() => {
-    if (!selectedId) return;
-    setLoading(true);
-    setContracts([]);
-    setGhosts([]);
-
-    Promise.all([
-      apiFetch<ContractResponse[]>(`/contracts/${selectedId}`).catch(() => []),
-      apiFetch<GhostReport[]>(`/ghosts?service_id=${selectedId}&limit=100`).catch(() => []),
-    ]).then(([contractData, ghostData]) => {
-      setContracts(Array.isArray(contractData) ? contractData : []);
-      setGhosts(Array.isArray(ghostData) ? ghostData : []);
-    }).finally(() => setLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId]);
-
-  // Live: append new ghost reports for the selected service via SSE
-  useSSEEvent("ghost_report", (data) => {
-    const report = JSON.parse(data) as GhostReport;
-    if (report.karma_service_id !== selectedId) return;
-    setGhosts((prev) => [report, ...prev]);
-  });
-
-  // Live: re-fetch contracts when a service finishes learning
-  useSSEEvent("service_update", (data) => {
-    const updated = JSON.parse(data) as ServiceResponse;
-    setServices((prev) =>
-      prev.map((s) => s.service_id === updated.service_id ? { ...s, ...updated } : s)
-    );
-    if (updated.service_id === selectedId && updated.phase === "ready") {
-      apiFetch<ContractResponse[]>(`/contracts/${selectedId}`)
-        .then((d) => { if (Array.isArray(d)) setContracts(d); })
-        .catch(() => {});
+    if (selectedId === null && services.length > 0) {
+      setSelected(services[0].service_id);
     }
-  });
+  }, [services, selectedId]);
 
-  const selectedSvc  = services.find((s) => s.service_id === selectedId);
-  const isHaunting   = selectedSvc?.phase === "haunting";
+  const selectedSvc     = services.find((s) => s.service_id === selectedId);
+  const isHaunting      = selectedSvc?.phase === "haunting";
   const replacementName = selectedSvc?.replacement_service_id ?? "Replacement service";
+
+  // Slice context data to the selected service
+  const serviceContracts = selectedId ? (contracts[selectedId] ?? []) : [];
+  const serviceGhosts    = selectedId
+    ? ghosts.filter((g) => g.karma_service_id === selectedId)
+    : [];
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -98,7 +57,7 @@ export default function TimelinePage() {
         </div>
       )}
 
-      {/* ── Skeleton ── */}
+      {/* ── Skeleton while context is loading ── */}
       {loading && (
         <div className="space-y-px rounded-xl overflow-hidden border border-border">
           {[...Array(4)].map((_, i) => (
@@ -110,11 +69,11 @@ export default function TimelinePage() {
         </div>
       )}
 
-      {/* ── Before/After split — always shown once loading is done ── */}
+      {/* ── Before/After split — rendered instantly from shared context ── */}
       {!loading && (
         <BeforeAfterTimeline
-          contracts={contracts}
-          ghosts={ghosts}
+          contracts={serviceContracts}
+          ghosts={serviceGhosts}
           oldServiceName={selectedSvc?.service_name ?? "Deprecated service"}
           newServiceName={isHaunting ? replacementName : "Replacement service"}
         />

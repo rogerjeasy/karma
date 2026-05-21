@@ -8,7 +8,7 @@ import {
 import { formatDistanceToNow, format } from "date-fns";
 import type { ServiceRegistration, ServiceResponse, ServicePhase, ContractResponse } from "@/lib/types";
 import { apiFetch } from "@/lib/api";
-import { useSSEEvent } from "@/lib/sse-context";
+import { useDashboardData } from "@/lib/dashboard-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -439,42 +439,12 @@ function ContractRow({ contract: c }: { contract: ContractResponse }) {
 
 /* ── Main page ───────────────────────────────────────────────── */
 export default function ServicesPage() {
-  const [services, setServices]       = useState<ServiceResponse[]>([]);
+  const { services, loading, addService, updateService, removeService } = useDashboardData();
   const [registerOpen, setRegisterOpen] = useState(false);
-  const [selectedSvc, setSelectedSvc] = useState<ServiceResponse | null>(null);
-  const [loading, setLoading]         = useState(true);
-  const [fetchError, setFetchError]   = useState<string | null>(null);
+  const [selectedId, setSelectedId]     = useState<string | null>(null);
 
-  useEffect(() => {
-    apiFetch<ServiceResponse[]>("/services")
-      .then((data) => setServices(Array.isArray(data) ? data : []))
-      .catch((err) => setFetchError(err instanceof Error ? err.message : "Failed to load services."))
-      .finally(() => setLoading(false));
-  }, []);
-
-  // Live phase updates pushed from Firestore via SSE — no manual refresh needed.
-  useSSEEvent("service_update", (data) => {
-    const updated = JSON.parse(data) as ServiceResponse;
-    setServices((prev) =>
-      prev.map((s) => s.service_id === updated.service_id ? { ...s, ...updated } : s)
-    );
-    setSelectedSvc((prev) =>
-      prev?.service_id === updated.service_id ? { ...prev, ...updated } : prev
-    );
-  });
-
-  function handlePhaseChange(
-    id: string,
-    phase: ServicePhase,
-    extra?: Partial<ServiceResponse>
-  ) {
-    setServices((prev) =>
-      prev.map((s) => s.service_id === id ? { ...s, phase, ...extra } : s)
-    );
-    setSelectedSvc((prev) =>
-      prev?.service_id === id ? { ...prev, phase, ...extra } : prev
-    );
-  }
+  // Derive selected service from shared data — SSE updates propagate automatically.
+  const selectedSvc = services.find((s) => s.service_id === selectedId) ?? null;
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -503,7 +473,7 @@ export default function ServicesPage() {
           </DialogHeader>
           <RegistrationForm
             onSuccess={(svc) => {
-              setServices((prev) => [svc, ...prev]);
+              addService(svc);
               setRegisterOpen(false);
             }}
             onCancel={() => setRegisterOpen(false)}
@@ -515,11 +485,11 @@ export default function ServicesPage() {
       {selectedSvc && (
         <ServiceDetailsDialog
           service={selectedSvc}
-          onClose={() => setSelectedSvc(null)}
-          onPhaseChange={handlePhaseChange}
+          onClose={() => setSelectedId(null)}
+          onPhaseChange={(id, phase, extra) => updateService(id, { phase, ...extra })}
           onDeleted={(id) => {
-            setServices((prev) => prev.filter((s) => s.service_id !== id));
-            setSelectedSvc(null);
+            removeService(id);
+            setSelectedId(null);
           }}
         />
       )}
@@ -527,8 +497,6 @@ export default function ServicesPage() {
       {/* ── Content ── */}
       {loading ? (
         <ServiceGridSkeleton />
-      ) : fetchError ? (
-        <ErrorBanner message={fetchError} />
       ) : services.length === 0 ? (
         <EmptyState onRegister={() => setRegisterOpen(true)} />
       ) : (
@@ -537,7 +505,7 @@ export default function ServicesPage() {
             <ServiceCard
               key={svc.service_id}
               service={svc}
-              onDetails={() => setSelectedSvc(svc)}
+              onDetails={() => setSelectedId(svc.service_id)}
             />
           ))}
         </div>
@@ -722,14 +690,6 @@ function ServiceGridSkeleton() {
   );
 }
 
-function ErrorBanner({ message }: { message: string }) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-5 py-4 text-sm text-destructive">
-      <AlertCircle className="h-4 w-4 shrink-0" />
-      <span>{message}</span>
-    </div>
-  );
-}
 
 function EmptyState({ onRegister }: { onRegister: () => void }) {
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Ghost, Filter } from "lucide-react";
 import { useSSEEvent } from "@/lib/sse-context";
 import { GhostCard } from "@/components/GhostCard";
@@ -8,34 +8,26 @@ import { ViolationPulse } from "@/components/ViolationPulse";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { GhostReport, ViolationSeverity } from "@/lib/types";
-import { apiFetch } from "@/lib/api";
+import { useDashboardData } from "@/lib/dashboard-context";
 import { cn } from "@/lib/utils";
 
 const SEVERITIES: Array<ViolationSeverity | "all"> = ["all", "critical", "high", "medium", "low"];
 
 export default function GhostsPage() {
-  const [reports, setReports]       = useState<GhostReport[]>([]);
-  const [latestReport, setLatest]   = useState<GhostReport | null>(null);
-  const [severity, setSeverity]     = useState<ViolationSeverity | "all">("all");
+  const { ghosts } = useDashboardData();
+  const [latestReport, setLatest] = useState<GhostReport | null>(null);
+  const [severity, setSeverity]   = useState<ViolationSeverity | "all">("all");
 
-  // Initial load
-  useEffect(() => {
-    apiFetch<GhostReport[]>("/ghosts?limit=50")
-      .then((data) => { if (Array.isArray(data)) setReports(data); })
-      .catch(() => {});
-  }, []);
-
-  // Live updates via the shared SSE connection opened by layout — no new socket.
+  // Drive the violation-pulse banner only — list data comes from context.
   useSSEEvent("ghost_report", (data) => {
     const report = JSON.parse(data) as GhostReport;
     setLatest(report);
-    setReports((prev) => [report, ...prev]);
     setTimeout(() => setLatest(null), 6000);
   });
 
   const filtered = severity === "all"
-    ? reports
-    : reports.filter((r) => r.severity === severity);
+    ? ghosts
+    : ghosts.filter((r) => r.severity === severity);
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -47,7 +39,7 @@ export default function GhostsPage() {
             Implicit contract violations detected in replacement services.
           </p>
         </div>
-        {reports.length > 0 && (
+        {ghosts.length > 0 && (
           <Badge variant="ghost" className="gap-1.5 self-start sm:self-auto">
             <span className="relative flex h-1.5 w-1.5">
               <span className="absolute inline-flex h-full w-full rounded-full bg-primary/60 animate-ping opacity-75" />
@@ -62,7 +54,7 @@ export default function GhostsPage() {
       {latestReport && <ViolationPulse report={latestReport} />}
 
       {/* ── Severity filter ── */}
-      {reports.length > 0 && (
+      {ghosts.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
           <Filter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           {SEVERITIES.map((s) => (
@@ -76,7 +68,7 @@ export default function GhostsPage() {
                   : "border-border text-muted-foreground hover:text-foreground hover:bg-accent"
               )}
             >
-              {s === "all" ? `All (${reports.length})` : s}
+              {s === "all" ? `All (${ghosts.length})` : s}
             </button>
           ))}
         </div>

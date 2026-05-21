@@ -30,6 +30,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth, signOutUser } from "@/lib/firebase";
 import { SSEProvider, useSSEContext } from "@/lib/sse-context";
+import { DashboardDataProvider } from "@/lib/dashboard-context";
 
 type NavItem = { href: string; label: string; icon: LucideIcon; exact?: boolean };
 
@@ -68,7 +69,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <SSEProvider url={sseUrl}>
-      <DashboardShell onSignOut={handleSignOut}>{children}</DashboardShell>
+      <DashboardDataProvider>
+        <DashboardShell onSignOut={handleSignOut}>{children}</DashboardShell>
+      </DashboardDataProvider>
     </SSEProvider>
   );
 }

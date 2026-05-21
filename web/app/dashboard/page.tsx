@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { Route } from "next";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -11,7 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useSSEContext, useSSEEvent } from "@/lib/sse-context";
-import { apiFetch } from "@/lib/api";
+import { useDashboardData } from "@/lib/dashboard-context";
 import type { GhostReport, ViolationSeverity } from "@/lib/types";
 
 interface Stats {
@@ -22,45 +22,21 @@ interface Stats {
 }
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [recentGhosts, setRecentGhosts] = useState<GhostReport[]>([]);
+  const { services, ghosts, contracts, loading } = useDashboardData();
   const [liveGhostBump, setLiveGhostBump] = useState(false);
 
-  // ── Initial load ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    Promise.all([
-      apiFetch<{ service_id: string; phase: string }[]>("/services").catch(() => []),
-      apiFetch<GhostReport[]>("/ghosts?limit=50").catch(() => []),
-    ]).then(async ([services, ghosts]) => {
-      const arr = Array.isArray(services) ? services : [];
-      const ghostArr = Array.isArray(ghosts) ? ghosts : [];
-      setRecentGhosts(ghostArr);
+  // ── Derive stats from shared context data ─────────────────────────────────
+  const contractsLearned = Object.values(contracts).reduce((sum, c) => sum + c.length, 0);
+  const stats: Stats | null = loading ? null : {
+    totalServices:    services.length,
+    activeGhosts:     ghosts.length,
+    contractsLearned,
+    hauntingPhase:    services.filter((s) => s.phase === "haunting").length,
+  };
 
-      const contractCounts = await Promise.all(
-        arr.map((s) =>
-          apiFetch<unknown[]>(`/contracts/${s.service_id}`)
-            .then((c) => (Array.isArray(c) ? c.length : 0))
-            .catch(() => 0)
-        )
-      );
-
-      setStats({
-        totalServices:    arr.length,
-        activeGhosts:     ghostArr.length,
-        contractsLearned: contractCounts.reduce((a, b) => a + b, 0),
-        hauntingPhase:    arr.filter((s) => s.phase === "haunting").length,
-      });
-    });
-  }, []);
-
-  // ── Live ghost count via shared SSE connection (opened by layout) ────────────
+  // ── Bump animation only — data already handled by context ─────────────────
   const { connectionState: sseState } = useSSEContext();
-  useSSEEvent("ghost_report", (data) => {
-    const report = JSON.parse(data) as GhostReport;
-    setStats((prev) =>
-      prev ? { ...prev, activeGhosts: prev.activeGhosts + 1 } : prev
-    );
-    setRecentGhosts((prev) => [report, ...prev].slice(0, 50));
+  useSSEEvent("ghost_report", () => {
     setLiveGhostBump(true);
     setTimeout(() => setLiveGhostBump(false), 1200);
   });
@@ -190,7 +166,7 @@ export default function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Ghost activity feed / empty state */}
         <div className="lg:col-span-2 rounded-xl border border-border bg-card overflow-hidden min-h-[260px]">
-          {recentGhosts.length === 0 ? (
+          {ghosts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full p-10 text-center min-h-[260px]">
               <div className="relative mb-5">
                 <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-card shadow-card">
@@ -234,7 +210,7 @@ export default function DashboardPage() {
               </div>
               {/* List */}
               <div className="divide-y divide-border/50">
-                {recentGhosts.slice(0, 6).map((g) => (
+                {ghosts.slice(0, 6).map((g) => (
                   <GhostRow key={g.report_id} ghost={g} />
                 ))}
               </div>
