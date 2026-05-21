@@ -60,8 +60,14 @@ If Memory Bank also returns nothing, return `{"status": "no_contracts", "violati
 For each contract:
 
 1. Retrieve `contract.violation_predicate.test_dql`.
-2. Call `execute_dql` to run it against the new service's telemetry for the
-   last `check_window_minutes` minutes.
+   **Before running, rewrite the DQL for the new service:**
+   - Replace every occurrence of `contract.service_id` (the OLD service entity ID)
+     in the DQL with `new_service_id` (the NEW service entity ID from the task payload).
+   - Replace any `from:now()-Xd` or `from:now()-Xh` time window with
+     `from:now()-{check_window_minutes}m` so the check uses only recent telemetry.
+   The stored DQL was learned from the old service — you must adapt both the entity
+   ID and the time window before evaluating it against the replacement service.
+2. Call `execute_dql` with the rewritten DQL.
 3. Evaluate the result against `contract.violation_predicate.threshold`:
    - Threshold MET → contract is honoured; continue to next.
    - Threshold NOT MET → record a violation candidate.
@@ -126,7 +132,7 @@ Return a JSON object:
 def create_watcher_agent() -> Agent:
     return Agent(
         name="karma_watcher",
-        model=settings.model_flash,
+        model=settings.model_pro,
         description=(
             "High-frequency contract checker. Runs every 10 min, evaluates "
             "violation predicates, loads contracts from Memory Bank when needed, "
