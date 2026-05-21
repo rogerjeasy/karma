@@ -3,33 +3,38 @@
 import { useEffect, useState } from "react";
 import type { Route } from "next";
 import Link from "next/link";
+import { formatDistanceToNow } from "date-fns";
 import {
   Server, Ghost, FileCode2, Activity,
-  ArrowRight, Plus, Zap, TrendingUp, Radio,
+  ArrowRight, Plus, Zap, TrendingUp, Radio, Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useSSEContext, useSSEEvent } from "@/lib/sse-context";
 import { apiFetch } from "@/lib/api";
+import type { GhostReport, ViolationSeverity } from "@/lib/types";
 
 interface Stats {
   totalServices: number;
   activeGhosts: number;
   contractsLearned: number;
-  learningPhase: number;
+  hauntingPhase: number;
 }
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [recentGhosts, setRecentGhosts] = useState<GhostReport[]>([]);
   const [liveGhostBump, setLiveGhostBump] = useState(false);
 
   // ── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
     Promise.all([
       apiFetch<{ service_id: string; phase: string }[]>("/services").catch(() => []),
-      apiFetch<unknown[]>("/ghosts?limit=50").catch(() => []),
+      apiFetch<GhostReport[]>("/ghosts?limit=50").catch(() => []),
     ]).then(async ([services, ghosts]) => {
       const arr = Array.isArray(services) ? services : [];
+      const ghostArr = Array.isArray(ghosts) ? ghosts : [];
+      setRecentGhosts(ghostArr);
 
       const contractCounts = await Promise.all(
         arr.map((s) =>
@@ -41,19 +46,21 @@ export default function DashboardPage() {
 
       setStats({
         totalServices:    arr.length,
-        activeGhosts:     Array.isArray(ghosts) ? ghosts.length : 0,
+        activeGhosts:     ghostArr.length,
         contractsLearned: contractCounts.reduce((a, b) => a + b, 0),
-        learningPhase:    arr.filter((s) => s.phase === "learning").length,
+        hauntingPhase:    arr.filter((s) => s.phase === "haunting").length,
       });
     });
   }, []);
 
   // ── Live ghost count via shared SSE connection (opened by layout) ────────────
   const { connectionState: sseState } = useSSEContext();
-  useSSEEvent("ghost_report", () => {
+  useSSEEvent("ghost_report", (data) => {
+    const report = JSON.parse(data) as GhostReport;
     setStats((prev) =>
       prev ? { ...prev, activeGhosts: prev.activeGhosts + 1 } : prev
     );
+    setRecentGhosts((prev) => [report, ...prev].slice(0, 50));
     setLiveGhostBump(true);
     setTimeout(() => setLiveGhostBump(false), 1200);
   });
@@ -90,8 +97,8 @@ export default function DashboardPage() {
       bump: false,
     },
     {
-      label: "In Learning Phase",
-      value: stats?.learningPhase ?? null,
+      label: "Haunting Phase",
+      value: stats?.hauntingPhase ?? null,
       icon: Activity,
       href: "/dashboard/services",
       accent: "from-amber-500/20 to-amber-600/5 border-amber-500/20",
@@ -181,32 +188,58 @@ export default function DashboardPage() {
 
       {/* ── Platform overview ── */}
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* Getting started / empty state */}
-        <div className="lg:col-span-2 rounded-xl border border-dashed border-border/70 bg-card/40 p-10 flex flex-col items-center justify-center text-center min-h-[260px]">
-          <div className="relative mb-5">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-card shadow-card">
-              <Ghost className="h-7 w-7 text-muted-foreground/50" />
+        {/* Ghost activity feed / empty state */}
+        <div className="lg:col-span-2 rounded-xl border border-border bg-card overflow-hidden min-h-[260px]">
+          {recentGhosts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full p-10 text-center min-h-[260px]">
+              <div className="relative mb-5">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-card shadow-card">
+                  <Ghost className="h-7 w-7 text-muted-foreground/50" />
+                </div>
+                <div className="absolute -inset-1.5 rounded-2xl border border-primary/10 animate-pulse" />
+              </div>
+              <h3 className="text-base font-semibold text-foreground">No ghosts yet</h3>
+              <p className="mt-2 text-sm text-muted-foreground max-w-xs leading-relaxed">
+                Register a deprecated service to start the learning phase and automatically discover implicit contracts.
+              </p>
+              <div className="mt-6 flex flex-col sm:flex-row items-center gap-3">
+                <Link href="/dashboard/services">
+                  <Button className="gap-2">
+                    <Zap className="h-4 w-4" />
+                    Register a service
+                  </Button>
+                </Link>
+                <Link href="/dashboard/timeline">
+                  <Button variant="outline" className="gap-2">
+                    <TrendingUp className="h-4 w-4" />
+                    View contracts
+                  </Button>
+                </Link>
+              </div>
             </div>
-            <div className="absolute -inset-1.5 rounded-2xl border border-primary/10 animate-pulse" />
-          </div>
-          <h3 className="text-base font-semibold text-foreground">No ghosts yet</h3>
-          <p className="mt-2 text-sm text-muted-foreground max-w-xs leading-relaxed">
-            Register a deprecated service to start the learning phase and automatically discover implicit contracts.
-          </p>
-          <div className="mt-6 flex flex-col sm:flex-row items-center gap-3">
-            <Link href="/dashboard/services">
-              <Button className="gap-2">
-                <Zap className="h-4 w-4" />
-                Register a service
-              </Button>
-            </Link>
-            <Link href="/dashboard/timeline">
-              <Button variant="outline" className="gap-2">
-                <TrendingUp className="h-4 w-4" />
-                View contracts
-              </Button>
-            </Link>
-          </div>
+          ) : (
+            <>
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
+                <div className="flex items-center gap-2">
+                  <Ghost className="h-4 w-4 text-red-400" />
+                  <h3 className="text-sm font-semibold text-foreground">Recent Ghost Activity</h3>
+                </div>
+                <Link
+                  href="/dashboard/ghosts"
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  View all <ArrowRight className="h-3 w-3" />
+                </Link>
+              </div>
+              {/* List */}
+              <div className="divide-y divide-border/50">
+                {recentGhosts.slice(0, 6).map((g) => (
+                  <GhostRow key={g.report_id} ghost={g} />
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Phase legend */}
@@ -224,6 +257,34 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+const SEVERITY_CFG: Record<ViolationSeverity, { label: string; cls: string }> = {
+  critical: { label: "Critical", cls: "bg-red-500/20 text-red-400 border-red-500/40" },
+  high:     { label: "High",     cls: "bg-orange-500/20 text-orange-400 border-orange-500/40" },
+  medium:   { label: "Medium",   cls: "bg-amber-500/20 text-amber-400 border-amber-500/40" },
+  low:      { label: "Low",      cls: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30" },
+};
+
+function GhostRow({ ghost }: { ghost: GhostReport }) {
+  const sev = SEVERITY_CFG[ghost.severity] ?? SEVERITY_CFG.medium;
+  return (
+    <div className="flex items-start gap-3 px-5 py-3.5 hover:bg-muted/30 transition-colors">
+      <span className={cn(
+        "mt-0.5 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+        sev.cls
+      )}>
+        {sev.label}
+      </span>
+      <p className="flex-1 text-xs text-muted-foreground leading-snug line-clamp-2 min-w-0">
+        {ghost.summary}
+      </p>
+      <div className="flex items-center gap-1 shrink-0 text-[10px] text-muted-foreground/40">
+        <Clock className="h-3 w-3" />
+        {formatDistanceToNow(new Date(ghost.created_at), { addSuffix: true })}
       </div>
     </div>
   );
