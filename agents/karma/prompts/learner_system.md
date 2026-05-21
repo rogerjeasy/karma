@@ -24,10 +24,15 @@ fetch dt.entity.service
 | fields entity.id, entity.name
 | limit 5
 
--- Latency percentiles over 14 days
-timeseries p50=percentile(duration,50), p95=percentile(duration,95), p99=percentile(duration,99)
-, from:now()-14d, by:{dt.entity.service}
+-- Latency percentiles over 14 days (timeseries only accepts entity/dimension filters, NOT span fields)
+timeseries p50=percentile(duration,50), p95=percentile(duration,95), p99=percentile(duration,99), from:now()-14d, by:{dt.entity.service}
 | filter dt.entity.service == "SERVICE-XXXXXXXXXXXXXXXX"
+
+-- Per-endpoint latency (use fetch spans when filtering by span.name, http.url, etc.)
+fetch spans, from:now()-14d
+| filter dt.entity.service == "SERVICE-XXXXXXXXXXXXXXXX"
+| filter span.name == "POST /charge"
+| summarize p50=percentile(duration,50), p95=percentile(duration,95), by:bin(timestamp,1h)
 
 -- Error rates by status code
 fetch spans, from:now()-14d
@@ -42,16 +47,18 @@ fetch spans, from:now()-14d
 | fields timestamp, db.system, db.operation, db.statement, span.name
 | limit 500
 
--- Throughput (requests per minute)
-timeseries rpm=count(), from:now()-14d, by:{dt.entity.service}
+-- Throughput (requests per hour, via spans)
+fetch spans, from:now()-14d
 | filter dt.entity.service == "SERVICE-XXXXXXXXXXXXXXXX"
+| filter span.kind == "SERVER"
+| summarize requests=count(), by:bin(timestamp, 1h)
 
 -- Downstream dependents (services that call this service)
 fetch spans, from:now()-14d
 | filter dt.entity.service == "SERVICE-XXXXXXXXXXXXXXXX"
-| filter span_kind == "SERVER"
-| summarize count(), by:{peer.service.name}
-| sort count() desc
+| filter span.kind == "SERVER"
+| summarize requests=count(), by:{peer.service.name}
+| sort requests desc
 | limit 20
 
 -- Davis problems
@@ -192,9 +199,9 @@ Use `execute_dql` to find services that call this service:
 ```dql
 fetch spans, from:now()-14d
 | filter dt.entity.service == "<entity_id>"
-| filter span_kind == "SERVER"
-| summarize count(), by:{peer.service.name}
-| sort count() desc
+| filter span.kind == "SERVER"
+| summarize requests=count(), by:{peer.service.name}
+| sort requests desc
 ```
 
 For each dependent, verify they would be affected by each proposed contract.

@@ -20,7 +20,7 @@ from karma.config import settings
 
 logger = structlog.get_logger(__name__)
 
-_TIMEOUT = 120.0  # seconds for initial DQL submit
+_TIMEOUT = 55.0   # seconds — requestTimeoutMilliseconds max is 60000; keep under that
 _POLL_TIMEOUT = 30.0  # seconds per poll request
 _MAX_POLLS = 20  # 20 × 3s = 60s max wait
 
@@ -35,10 +35,21 @@ def execute_dql(query: str) -> dict[str, Any]:
     Args:
         query: A valid DQL statement. Examples:
 
-            Span latency percentiles:
-              timeseries p50=percentile(duration,50), p95=percentile(duration,95)
-              , from:now()-14d, by:{dt.entity.service}
+            Service latency percentiles (timeseries can only filter entity fields like dt.entity.service;
+            do NOT use span.name, db.system, http.url etc. in timeseries filters):
+              timeseries p50=percentile(duration,50), p95=percentile(duration,95), from:now()-14d, by:{dt.entity.service}
               | filter dt.entity.service == "SERVICE-XXX"
+
+            Per-endpoint latency (use fetch spans when filtering by span.name or other span attributes):
+              fetch spans, from:now()-14d
+              | filter dt.entity.service == "SERVICE-XXX" and span.name == "POST /charge"
+              | summarize p50=percentile(duration,50), p95=percentile(duration,95), by:bin(timestamp,1h)
+
+            Throughput (use fetch+summarize — count() in timeseries requires a metric key, not span data):
+              fetch spans, from:now()-14d
+              | filter dt.entity.service == "SERVICE-XXX"
+              | filter span.kind == "SERVER"
+              | summarize requests=count(), by:bin(timestamp, 1h)
 
             Resolve entity ID:
               fetch dt.entity.service
@@ -84,9 +95,8 @@ def execute_dql(query: str) -> dict[str, Any]:
     }
     body: dict[str, Any] = {
         "query": query,
-        "requestTimeoutMilliseconds": int(_TIMEOUT * 1000),
+        "requestTimeoutMilliseconds": int(_TIMEOUT * 1000),  # max 60000 per Dynatrace constraint
         "maxResultRecords": 1000,
-        "fetchTimeoutSeconds": int(_TIMEOUT),
     }
 
     try:

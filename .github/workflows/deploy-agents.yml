@@ -211,19 +211,7 @@ jobs:
               )
               print(f"Created: {engine.resource_name}")
 
-          # Write resource name for the telemetry-enable step below
           resource_id = engine.resource_name.split("/")[-1]
           print(f"REASONING_ENGINE_ID={resource_id}")
-          with open("/tmp/engine_id.txt", "w") as f:
-              f.write(resource_id)
           EOF
 
-      - name: Enable telemetry collection
-        run: |
-          ENGINE_ID=$(cat /tmp/engine_id.txt)
-          curl -s -X PATCH \
-            "https://us-central1-aiplatform.googleapis.com/v1/projects/${{ env.GCP_PROJECT_ID }}/locations/us-central1/reasoningEngines/${ENGINE_ID}" \
-            -H "Authorization: Bearer $(gcloud auth print-access-token)" \
-            -H "Content-Type: application/json" \
-            -d '{"telemetryCollection":{"enabled":true}}' \
-            --url-query "updateMask=telemetryCollection" || echo "Telemetry enable skipped (non-fatal)"

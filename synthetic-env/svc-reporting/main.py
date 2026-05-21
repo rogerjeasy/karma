@@ -26,7 +26,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
 
 SERVICE_NAME = "svc-reporting"
 REDIS_URL = os.getenv("REDIS_URL") or "redis://localhost:6379"
@@ -45,7 +45,7 @@ def _configure_otel() -> None:
     provider = TracerProvider(resource=resource)
     headers = {"Authorization": f"Api-Token {DT_OTEL_TOKEN}"} if DT_OTEL_TOKEN else {}
     exporter = OTLPSpanExporter(endpoint=OTEL_ENDPOINT, headers=headers)
-    provider.add_span_processor(BatchSpanProcessor(exporter))
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
     trace.set_tracer_provider(provider)
     _tracer = trace.get_tracer(SERVICE_NAME)
 

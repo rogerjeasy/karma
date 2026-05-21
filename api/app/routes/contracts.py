@@ -19,6 +19,8 @@ async def list_contracts(service_id: str) -> list[ContractResponse]:
 
 def _doc_to_response(doc: dict[str, Any]) -> ContractResponse:
     from datetime import datetime
+    # Agent saves "saved_at"; older docs may use "detected_at"
+    ts_raw = doc.get("saved_at") or doc.get("detected_at") or datetime.utcnow().isoformat()
     return ContractResponse(
         contract_id=doc["contract_id"],
         service_id=doc["service_id"],
@@ -27,5 +29,5 @@ def _doc_to_response(doc: dict[str, Any]) -> ContractResponse:
         description=doc["description"],
         confidence=doc["confidence"],
         validated=doc.get("validated", False),
-        detected_at=datetime.fromisoformat(str(doc["detected_at"])),
+        detected_at=datetime.fromisoformat(str(ts_raw)),
     )
