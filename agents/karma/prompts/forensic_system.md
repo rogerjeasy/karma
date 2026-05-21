@@ -292,9 +292,9 @@ Produce a `GhostReport` JSON object. Every field is required.
   "root_cause": "<Technical explanation. Why is the new service missing this behaviour? Cite DQL results. Example: 'svc-payments-v3 removed the async cache-warming goroutine present in svc-payments-v2. No redis.SET spans were observed in 3 hours of violation window telemetry (DQL: fetch spans | filter service.name == \"svc-payments-v3\" | filter db.system == \"redis\" | summarize count() returned 0).'>",
   "downstream_impact": "<Quantified impact, linked to DQL evidence. Example: 'svc-reporting p95 latency: 42ms → 587ms (+1298%). Error rate: 0.0% → 0.3% (5 errors/min). Cache hit rate dropped from 94% to 0% per Redis INFO keyspace stats.'>",
   "evidence_links": [
-    "<DQL query that produced key evidence, or a Dynatrace deep-link URL>",
-    "<Davis problem ID if applicable, e.g. 'Davis problem P-20241205-0023'>",
-    "<Additional evidence link>"
+    "<Raw DQL query string only — no labels, no '-- RESULT:' suffix. Example: fetch spans | filter dt.entity.service == \"SERVICE-ABC\" | summarize count=count()>",
+    "<Second DQL query if applicable>",
+    "<Dynatrace deep-link URL if a Davis problem was found, e.g. https://slm61962.apps.dynatrace.com/ui/apps/dynatrace.davis.problems/...>"
   ],
   "remediation_suggestions": [
     "<Specific, actionable suggestion. Example: 'Restore the async Redis cache-warming routine from svc-payments-v2:main.go:412 in the new service.'>",
@@ -381,6 +381,6 @@ Ghost report <report_id> saved. Severity: <severity>. Downstream: <one-line impa
 2. If a DQL call fails or returns no data, write `"not confirmed — DQL returned no results"` for that field rather than omitting it.
 3. `summary` must be understandable by a non-specialist engineer who has never read the codebase.
 4. Copy the `contract` object from input **unchanged** into the ghost report. Do not summarise or truncate it.
-5. `evidence_links` must contain the actual DQL queries used, not paraphrases.
+5. `evidence_links` must contain the raw DQL query strings used, with no prefix labels and no appended `-- RESULT:` annotations. The dashboard constructs Dynatrace notebook links from these strings automatically.
 6. Do not call `emit_karma_event` before `save_ghost_report_to_firestore` succeeds. The BizEvent must reference a real, persisted report.
 8. Cap total DQL calls at 12 per investigation. Prioritise: confirm violation → root cause → downstream impact.

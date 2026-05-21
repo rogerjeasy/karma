@@ -18,6 +18,52 @@ const SEVERITY_CONFIG: Record<
   critical: { variant: "critical",    bar: "bg-red-500",     glow: "shadow-[0_0_18px_-4px_hsl(0_72%_51%/0.45)]" },
 };
 
+const DT_ENV = process.env.NEXT_PUBLIC_DT_ENV ?? "";
+
+function extractDql(raw: string): string {
+  // Strip optional "DQL#N (label): " prefix written by the forensic agent.
+  const withoutPrefix = raw.replace(/^DQL#?\d*\s*[^:]*:\s*/i, "");
+  // Strip trailing " -- RESULT: ..." annotation.
+  return withoutPrefix.replace(/\s*--\s*RESULT:[\s\S]*$/i, "").trim();
+}
+
+function buildDtLink(dql: string): string | null {
+  if (!DT_ENV) return null;
+  return (
+    `https://${DT_ENV}.apps.dynatrace.com/ui/apps/dynatrace.grail.notebook/` +
+    `?query=${encodeURIComponent(dql)}`
+  );
+}
+
+function EvidenceLink({ raw, index }: { raw: string; index: number }) {
+  const isUrl = /^https?:\/\//i.test(raw);
+  const href = isUrl ? raw : buildDtLink(extractDql(raw));
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-mono transition-colors"
+      >
+        <ExternalLink className="h-3 w-3" />
+        evidence [{index}]
+      </a>
+    );
+  }
+
+  // Fallback: render the raw string as a copyable code snippet.
+  return (
+    <span
+      title={raw}
+      className="inline-flex items-center gap-1 text-xs text-muted-foreground font-mono cursor-default"
+    >
+      evidence [{index}]
+    </span>
+  );
+}
+
 export function GhostCard({ report }: GhostCardProps) {
   const cfg = SEVERITY_CONFIG[report.severity] ?? SEVERITY_CONFIG.medium;
 
@@ -78,16 +124,7 @@ export function GhostCard({ report }: GhostCardProps) {
         {report.evidence_links.length > 0 && (
           <div className="flex flex-wrap gap-2 pt-1">
             {report.evidence_links.map((link, i) => (
-              <a
-                key={i}
-                href={link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-mono transition-colors"
-              >
-                <ExternalLink className="h-3 w-3" />
-                evidence [{i + 1}]
-              </a>
+              <EvidenceLink key={i} raw={link} index={i + 1} />
             ))}
           </div>
         )}

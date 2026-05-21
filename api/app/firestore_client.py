@@ -177,3 +177,44 @@ async def get_ghost_report(report_id: str) -> dict[str, Any] | None:
     db = get_db()
     doc = await db.collection("ghost_reports").document(report_id).get()
     return doc.to_dict() if doc.exists else None
+
+
+async def delete_service_cascade(service_id: str) -> dict[str, Any]:
+    """Delete a service and all its associated Firestore data.
+
+    Deletes (in order): contracts → ghost_reports → service document.
+    The watcher stops automatically because the service doc (and its haunting
+    phase) no longer exist; no in-flight agent calls are cancelled since they
+    are stateless one-shot invocations.
+    """
+    db = get_db()
+    contracts_deleted = 0
+    ghost_reports_deleted = 0
+
+    contracts_q = db.collection("contracts").where(
+        filter=FieldFilter("karma_service_id", "==", service_id)
+    )
+    async for doc in contracts_q.stream():
+        await doc.reference.delete()
+        contracts_deleted += 1
+
+    ghosts_q = db.collection("ghost_reports").where(
+        filter=FieldFilter("karma_service_id", "==", service_id)
+    )
+    async for doc in ghosts_q.stream():
+        await doc.reference.delete()
+        ghost_reports_deleted += 1
+
+    await db.collection("services").document(service_id).delete()
+
+    logger.info(
+        "service_cascade_deleted",
+        service_id=service_id,
+        contracts_deleted=contracts_deleted,
+        ghost_reports_deleted=ghost_reports_deleted,
+    )
+    return {
+        "deleted": True,
+        "contracts_deleted": contracts_deleted,
+        "ghost_reports_deleted": ghost_reports_deleted,
+    }

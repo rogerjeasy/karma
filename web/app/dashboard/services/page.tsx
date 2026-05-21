@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   Plus, Server, Calendar, Clock, ExternalLink, Loader2, AlertCircle,
-  Copy, Check, Eye, GitMerge, RefreshCw, FileCode2,
+  Copy, Check, Eye, GitMerge, RefreshCw, FileCode2, Trash2,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import type { ServiceRegistration, ServiceResponse, ServicePhase, ContractResponse } from "@/lib/types";
@@ -59,15 +59,18 @@ function ServiceDetailsDialog({
   service,
   onClose,
   onPhaseChange,
+  onDeleted,
 }: {
   service: ServiceResponse;
   onClose: () => void;
   onPhaseChange: (id: string, phase: ServicePhase, extra?: Partial<ServiceResponse>) => void;
+  onDeleted: (id: string) => void;
 }) {
   const [contracts, setContracts]         = useState<ContractResponse[]>([]);
   const [contractsLoading, setContractsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionMsg, setActionMsg]         = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Replacement entity ID for cutover form
   const [replacementId, setReplacementId] = useState(service.replacement_service_id ?? "");
@@ -128,6 +131,21 @@ function ServiceDetailsDialog({
       setActionMsg("Watcher dispatched — ghost reports will appear if violations are detected.");
     } catch (e) {
       setActionMsg(`Failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function deleteService() {
+    setActionLoading("delete");
+    setActionMsg(null);
+    try {
+      await apiFetch(`/services/${service.service_id}`, { method: "DELETE" });
+      onDeleted(service.service_id);
+      onClose();
+    } catch (e) {
+      setActionMsg(`Failed: ${e instanceof Error ? e.message : String(e)}`);
+      setConfirmDelete(false);
     } finally {
       setActionLoading(null);
     }
@@ -300,6 +318,51 @@ function ServiceDetailsDialog({
               </p>
             )}
 
+            {/* Delete service */}
+            <div className="border-t border-border/60 pt-3 mt-1">
+              {!confirmDelete ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                  disabled={actionLoading === "delete"}
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete service
+                </Button>
+              ) : (
+                <div className="rounded-lg border border-destructive/30 bg-destructive/8 p-3 space-y-2">
+                  <p className="text-xs text-destructive font-medium">
+                    This will permanently delete the service, all discovered contracts, and all ghost reports. This cannot be undone.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="gap-1.5 h-7 text-xs"
+                      disabled={actionLoading === "delete"}
+                      onClick={deleteService}
+                    >
+                      {actionLoading === "delete"
+                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                        : <Trash2 className="h-3 w-3" />}
+                      Yes, delete everything
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      disabled={actionLoading === "delete"}
+                      onClick={() => setConfirmDelete(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Feedback message */}
             {actionMsg && (
               <p className={cn(
@@ -449,6 +512,10 @@ export default function ServicesPage() {
           service={selectedSvc}
           onClose={() => setSelectedSvc(null)}
           onPhaseChange={handlePhaseChange}
+          onDeleted={(id) => {
+            setServices((prev) => prev.filter((s) => s.service_id !== id));
+            setSelectedSvc(null);
+          }}
         />
       )}
 

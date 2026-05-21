@@ -90,6 +90,25 @@ async def get_service(
     return _doc_to_response(doc)
 
 
+@router.delete("/{service_id}", status_code=status.HTTP_200_OK)
+async def delete_service(
+    service_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Delete a service and all associated contracts and ghost reports.
+
+    Also stops the watcher — the scheduler tick only picks up services in
+    haunting phase, so removing the document prevents any further runs.
+    """
+    await _get_owned_service(service_id, user["uid"])
+    log = logger.bind(service_id=service_id)
+    log.info("service_delete_requested")
+
+    result = await firestore_client.delete_service_cascade(service_id)
+    log.info("service_deleted", **{k: v for k, v in result.items() if k != "deleted"})
+    return {"service_id": service_id, **result}
+
+
 @router.post("/{service_id}/learn", status_code=status.HTTP_202_ACCEPTED)
 async def trigger_learning(
     service_id: str,
