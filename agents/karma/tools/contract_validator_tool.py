@@ -106,12 +106,47 @@ def validate_contract_predicate(
 
 
 def _inject_timeframe(dql: str, start: str, end: str) -> str:
-    """Best-effort: add from/to timeframe to a fetch statement if absent."""
-    lower = dql.lower()
-    if "from:" in lower or "timeframe" in lower or 'from:"' in lower:
-        return dql
+    """Force the learning-window timeframe onto a DQL statement.
+
+    Violation predicate DQLs use relative windows like 'from:now()-10m' for the
+    watcher (checking current traffic). During validation we must override this
+    with the historical learning window — otherwise the DQL runs against a
+    deprecated service that has no current traffic and returns 0 records,
+    causing every contract to be rejected.
+    """
+    import re
+
     stripped = dql.strip()
-    if not stripped.lower().startswith("fetch "):
+
+    # Replace any existing from: clause (relative or absolute) with the learning window.
+    # Handles: from:now()-14d  from:"2026-05-01T..."  from:now()
+    replaced, n_from = re.subn(
+        r'from:(?:"[^"]*"|now\(\)[^\s,|]*)',
+        f'from:"{start}"',
+        stripped,
+        flags=re.IGNORECASE,
+    )
+    # Replace any existing to: clause with the end boundary.
+    replaced, n_to = re.subn(
+        r'to:(?:"[^"]*"|now\(\)[^\s,|]*)',
+        f'to:"{end}"',
+        replaced,
+        flags=re.IGNORECASE,
+    )
+
+    if n_from:
+        # Had a from: — also append to: if it was not already there / replaced.
+        if not n_to and "to:" not in replaced.lower():
+            replaced = re.sub(
+                r'(from:"[^"]*")',
+                rf'\1, to:"{end}"',
+                replaced,
+                flags=re.IGNORECASE,
+            )
+        return replaced
+
+    # No from: at all — append the window to the first fetch line.
+    if not stripped.lower().startswith("fetch ") and not stripped.lower().startswith("timeseries "):
         return dql
     newline = stripped.find("\n")
     if newline == -1:

@@ -31,7 +31,9 @@ def _doc_to_response(doc: dict[str, Any]) -> ContractResponse:
     ts_raw = doc.get("saved_at") or doc.get("detected_at") or datetime.utcnow().isoformat()
     return ContractResponse(
         contract_id=doc["contract_id"],
-        service_id=doc["service_id"],
+        # service_id in the contract schema is the Dynatrace entity ID;
+        # fall back to karma_service_id so malformed docs don't 500 the endpoint.
+        service_id=doc.get("service_id") or doc.get("karma_service_id", ""),
         category=doc["category"],
         subcategory=doc["subcategory"],
         description=doc["description"],
