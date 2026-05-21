@@ -10,6 +10,8 @@ resource "google_project_service" "apis" {
     "artifactregistry.googleapis.com",
     "secretmanager.googleapis.com",
     "redis.googleapis.com",
+    "vpcaccess.googleapis.com",
+    "cloudbuild.googleapis.com",
     "iam.googleapis.com",
     "storage.googleapis.com",
   ])
@@ -155,4 +157,67 @@ resource "google_storage_bucket" "agent_staging" {
   }
 
   depends_on = [google_project_service.apis]
+}
+
+# ── Serverless VPC Access connector — lets Cloud Run reach Memorystore ────────
+
+resource "google_vpc_access_connector" "karma" {
+  project        = var.project_id
+  region         = var.region
+  name           = "karma-vpc-connector"
+  network        = "default"
+  ip_cidr_range  = "10.8.0.0/28"
+  min_throughput = 200
+  max_throughput = 1000
+
+  depends_on = [google_project_service.apis]
+}
+
+# ── Memorystore Redis — svc-payments-v2 side-effect + load-gen cache ──────────
+
+resource "google_redis_instance" "load_gen_cache" {
+  project        = var.project_id
+  region         = var.region
+  name           = "karma-redis"
+  tier           = "BASIC"
+  memory_size_gb = 1
+
+  depends_on = [google_project_service.apis]
+}
+
+# ── Cloud Run Job — k6 load generator (50 RPS to svc-payments-v2) ─────────────
+
+resource "google_cloud_run_v2_job" "load_generator" {
+  project  = var.project_id
+  location = var.region
+  name     = "karma-load-generator"
+
+  template {
+    template {
+      max_retries = 0
+      timeout     = "86400s"
+
+      containers {
+        image = "${var.region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_repo}/load-generator:latest"
+
+        resources {
+          limits = {
+            memory = "512Mi"
+            cpu    = "1"
+          }
+        }
+
+        env {
+          name  = "PAYMENTS_URL"
+          value = var.payments_v2_url
+        }
+        env {
+          name  = "REPORTING_URL"
+          value = var.reporting_url
+        }
+      }
+    }
+  }
+
+  depends_on = [google_artifact_registry_repository.karma]
 }

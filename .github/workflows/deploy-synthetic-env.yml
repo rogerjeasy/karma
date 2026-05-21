@@ -66,8 +66,11 @@ jobs:
             --service-account=karma-runner@skillbridge-76a4c.iam.gserviceaccount.com
             --memory=256Mi
             --cpu=1
+            --vpc-connector=karma-vpc-connector
+            --vpc-egress=private-ranges-only
             --set-secrets=DT_API_TOKEN=dt-api-token:latest,DT_OTEL_TOKEN=dt-otel-token:latest
           env_vars: >
             OTEL_SERVICE_NAME=${{ matrix.service.name }},
             OTEL_EXPORTER_OTLP_ENDPOINT=https://${{ vars.DT_ENV }}.live.dynatrace.com/api/v2/otlp/v1/traces,
-            PAYMENTS_URL=https://karma-svc-payments-v3-957527396263.us-central1.run.app
+            PAYMENTS_URL=https://karma-svc-payments-v3-957527396263.us-central1.run.app,
+            REDIS_URL=${{ vars.REDIS_URL }}

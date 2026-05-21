@@ -39,3 +39,21 @@ variable "api_secret_key" {
   description = "Random hex secret for FastAPI JWT signing — generate with: python -c \"import secrets; print(secrets.token_hex(32))\""
   sensitive   = true
 }
+
+variable "firestore_location" {
+  type        = string
+  description = "Firestore location (e.g. nam5, eur3, europe-west6)"
+  default     = "nam5"
+}
+
+variable "payments_v2_url" {
+  type        = string
+  description = "Cloud Run URL of karma-svc-payments-v2 — used by the load generator job"
+  default     = ""
+}
+
+variable "reporting_url" {
+  type        = string
+  description = "Cloud Run URL of karma-svc-reporting — used by the load generator job"
+  default     = ""
+}

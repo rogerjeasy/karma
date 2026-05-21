@@ -22,3 +22,13 @@ output "api_secret_key_secret_name" {
   description = "Secret Manager resource name for the API secret key"
   value       = google_secret_manager_secret.api_secret_key.name
 }
+
+output "redis_host" {
+  description = "Memorystore Redis host IP — use as redis://<host>:6379"
+  value       = google_redis_instance.load_gen_cache.host
+}
+
+output "vpc_connector_id" {
+  description = "Serverless VPC Access connector ID — attach to Cloud Run services that need Memorystore"
+  value       = google_vpc_access_connector.karma.id
+}

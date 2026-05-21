@@ -26,3 +26,8 @@ dt_api_token = "<your-dynatrace-platform-token>"
 # Generate a random secret:
 #   python -c "import secrets; print(secrets.token_hex(32))"
 api_secret_key = "<output-of-the-command-above>"
+
+# ── Load generator URLs (set after first Cloud Run deploy) ────────────────────
+# Copy the deployed service URLs here so the Cloud Run Job can reach them.
+payments_v2_url = "https://karma-svc-payments-v2-<hash>-uc.a.run.app"
+reporting_url   = "https://karma-svc-reporting-<hash>-uc.a.run.app"
