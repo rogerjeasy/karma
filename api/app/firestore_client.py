@@ -201,6 +201,111 @@ async def get_ghost_report(report_id: str) -> dict[str, Any] | None:
     return doc.to_dict() if doc.exists else None
 
 
+async def compute_platform_stats() -> dict[str, Any]:
+    """Aggregate platform-wide stats for the public /stats endpoint.
+
+    Streams all three collections once; does per-service first-ghost queries
+    only for services that went through haunting (typically small count).
+    """
+    db = get_db()
+
+    services = [
+        d async for doc in db.collection("services").stream()
+        if (d := doc.to_dict()) is not None
+    ]
+    contracts = [
+        d async for doc in db.collection("contracts").stream()
+        if (d := doc.to_dict()) is not None
+    ]
+
+    # Contracts per karma_service_id
+    contracts_by_service: dict[str, int] = {}
+    for c in contracts:
+        sid = c.get("karma_service_id", "")
+        if sid:
+            contracts_by_service[sid] = contracts_by_service.get(sid, 0) + 1
+
+    services_with_contracts = len(contracts_by_service)
+    avg_contracts: float | None = (
+        round(len(contracts) / services_with_contracts, 1)
+        if services_with_contracts > 0
+        else None
+    )
+
+    # Per-service violation rate + timing for haunting/completed services
+    haunted = [s for s in services if s.get("phase") in ("haunting", "completed")]
+    services_with_violations: set[str] = set()
+    alert_times_minutes: list[float] = []
+
+    for svc in haunted[:50]:
+        sid = svc.get("service_id", "")
+        cutover_raw = svc.get("cutover_time")
+        if not sid:
+            continue
+
+        query = (
+            db.collection("ghost_reports")
+            .where(filter=FieldFilter("karma_service_id", "==", sid))
+            .order_by("created_at")
+            .limit(1)
+        )
+        first_docs = [
+            d async for doc in query.stream()
+            if (d := doc.to_dict()) is not None
+        ]
+
+        if not first_docs:
+            continue
+
+        services_with_violations.add(sid)
+
+        if cutover_raw:
+            try:
+                cutover_dt = (
+                    cutover_raw
+                    if isinstance(cutover_raw, datetime)
+                    else datetime.fromisoformat(str(cutover_raw))
+                )
+                cr_raw = first_docs[0].get("created_at") or first_docs[0].get("saved_at")
+                if cr_raw:
+                    cr_dt = (
+                        cr_raw
+                        if isinstance(cr_raw, datetime)
+                        else datetime.fromisoformat(str(cr_raw))
+                    )
+                    delta = (cr_dt - cutover_dt).total_seconds() / 60
+                    if 0 < delta < 60 * 24:  # sanity: must be positive and < 24 h
+                        alert_times_minutes.append(delta)
+            except Exception:
+                pass
+
+    # Total ghost reports (reuse violation check data + count all)
+    all_ghosts = [
+        d async for doc in db.collection("ghost_reports").stream()
+        if (d := doc.to_dict()) is not None
+    ]
+
+    pct_violations: float | None = (
+        round(len(services_with_violations) / len(haunted) * 100, 1)
+        if haunted
+        else None
+    )
+    avg_alert_minutes: float | None = (
+        round(sum(alert_times_minutes) / len(alert_times_minutes), 1)
+        if alert_times_minutes
+        else None
+    )
+
+    return {
+        "total_services": len(services),
+        "total_contracts": len(contracts),
+        "total_ghost_reports": len(all_ghosts),
+        "avg_contracts_per_service": avg_contracts,
+        "avg_minutes_to_first_alert": avg_alert_minutes,
+        "pct_services_with_violations": pct_violations,
+    }
+
+
 async def delete_service_cascade(service_id: str) -> dict[str, Any]:
     """Delete a service and all its associated Firestore data.
 

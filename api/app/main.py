@@ -16,7 +16,7 @@ from google.auth.exceptions import DefaultCredentialsError, TransportError
 
 from app.config import settings
 from app.models import HealthResponse
-from app.routes import contracts, cutover, ghosts, pubsub, services, stream, users
+from app.routes import contracts, cutover, ghosts, pubsub, services, stats, stream, users
 
 logger = structlog.get_logger(__name__)
 
@@ -65,6 +65,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    application.include_router(stats.router)
     application.include_router(users.router)
     application.include_router(services.router)
     application.include_router(contracts.router)

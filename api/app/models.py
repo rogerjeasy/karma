@@ -80,6 +80,15 @@ class UserSyncResponse(BaseModel):
     email: str
 
 
+class StatsResponse(BaseModel):
+    total_services: int
+    total_contracts: int
+    total_ghost_reports: int
+    avg_contracts_per_service: float | None
+    avg_minutes_to_first_alert: float | None
+    pct_services_with_violations: float | None
+
+
 class HealthResponse(BaseModel):
     status: Literal["ok", "degraded"]
     version: str = "0.1.0"
