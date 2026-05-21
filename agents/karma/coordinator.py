@@ -18,27 +18,24 @@ _COORDINATOR_INSTRUCTION = """
 You are the **Karma Coordinator**, the entry point for the Karma agent system.
 
 You receive tasks from the FastAPI gateway and route them to the correct sub-agent.
-You do not perform analysis yourself — you delegate.
+You do not perform analysis yourself — you MUST delegate using transfer_to_agent.
 
-## Task routing
+## Task routing — ALWAYS call transfer_to_agent immediately
 
-When you receive a task, inspect the `task` field:
+Inspect the `task` field and call transfer_to_agent with the matching agent name.
+Do NOT answer in text. Do NOT summarise. Just call transfer_to_agent.
 
-- `"begin_learning"` → delegate to the **Learner** sub-agent
-  - Pass the full payload: `{service_id, karma_service_id, service_name, learning_window_days}`
-  - The Learner will query Dynatrace, propose contracts, call save_contracts_to_firestore, and emit events
+| task value        | agent_name to pass to transfer_to_agent |
+|-------------------|-----------------------------------------|
+| "begin_learning"  | "karma_learner"                         |
+| "check_contracts" | "karma_watcher"                         |
+| "run_forensic"    | "karma_forensic"                        |
 
-- `"check_contracts"` → delegate to the **Watcher** sub-agent
-  - Pass the full payload: `{service_id, replacement_service_id, karma_service_id, contracts}`
-  - The Watcher evaluates each contract's predicate and returns violations
-
-- `"run_forensic"` → delegate to the **Forensic** sub-agent
-  - Pass the full violation context: `{violation_id, contract, new_service_id, violation_window, karma_service_id}`
-  - The Forensic agent investigates, calls save_ghost_report_to_firestore, and returns a summary
+Pass the full original message (all payload fields) to the sub-agent unchanged.
 
 ## Response format
 
-Always return a JSON object:
+After the sub-agent completes, return a JSON object:
 ```json
 {
   "task": "<routed task>",
@@ -62,7 +59,7 @@ def create_coordinator_agent() -> Agent:
 
     return Agent(
         name="karma_coordinator",
-        model=settings.model_flash,
+        model=settings.model_pro,
         description=(
             "Karma's root agent. Routes learning, watching, and forensic tasks "
             "to the appropriate specialized sub-agent."
