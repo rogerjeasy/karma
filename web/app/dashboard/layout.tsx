@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Route } from "next";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -44,9 +44,10 @@ const NAV_ITEMS: NavItem[] = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const intentionalSignOut = useRef(false);
 
   useEffect(() => {
-    if (!loading && !user) router.replace("/login");
+    if (!loading && !user && !intentionalSignOut.current) router.replace("/login");
   }, [user, loading, router]);
 
   if (loading || !user) {
@@ -57,21 +58,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
+  async function handleSignOut() {
+    intentionalSignOut.current = true;
+    await signOutUser();
+    router.push("/");
+  }
+
   const sseUrl = `${process.env.NEXT_PUBLIC_API_URL ?? ""}/stream/ghosts`;
 
   return (
-    // SSEProvider opens ONE connection for the whole dashboard.
-    // Children (pages) subscribe to events via useSSEContext() — no extra connections.
     <SSEProvider url={sseUrl}>
-      <DashboardShell>{children}</DashboardShell>
+      <DashboardShell onSignOut={handleSignOut}>{children}</DashboardShell>
     </SSEProvider>
   );
 }
 
 // ── Shell (rendered inside SSEProvider) ──────────────────────────────────────
-function DashboardShell({ children }: { children: React.ReactNode }) {
+function DashboardShell({ children, onSignOut }: { children: React.ReactNode; onSignOut: () => Promise<void> }) {
   const { connectionState } = useSSEContext();
-  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -85,8 +89,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   async function confirmSignOut() {
     setSigningOut(true);
-    await signOutUser();
-    router.push("/");
+    await onSignOut();
   }
 
   return (
@@ -216,7 +219,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               Are you sure you want to sign out of Karma?
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="flex flex-row justify-end gap-3">
             <Button
               variant="outline"
               onClick={() => setSignOutOpen(false)}
