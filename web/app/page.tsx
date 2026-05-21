@@ -742,7 +742,7 @@ function FeaturesGrid() {
 const TECH = [
   { name: "Google ADK v1.0",    icon: Cpu,      color: "border-blue-500/30 bg-blue-500/8 text-blue-300 hover:bg-blue-500/14" },
   { name: "Dynatrace MCP",      icon: Activity, color: "border-violet-500/30 bg-violet-500/8 text-violet-300 hover:bg-violet-500/14" },
-  { name: "Gemini 2.0 Flash",   icon: Brain,    color: "border-primary/30 bg-primary/8 text-primary hover:bg-primary/14" },
+  { name: "Gemini 2.5 Pro",     icon: Brain,    color: "border-primary/30 bg-primary/8 text-primary hover:bg-primary/14" },
   { name: "FastAPI",            icon: Zap,      color: "border-emerald-500/30 bg-emerald-500/8 text-emerald-300 hover:bg-emerald-500/14" },
   { name: "Next.js 15",         icon: Code2,    color: "border-border bg-card text-foreground hover:bg-card/80" },
   { name: "Firebase Auth",      icon: Shield,   color: "border-amber-500/30 bg-amber-500/8 text-amber-300 hover:bg-amber-500/14" },

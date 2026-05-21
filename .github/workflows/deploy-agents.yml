@@ -109,10 +109,11 @@ jobs:
           DT_OTEL_TOKEN: ${{ secrets.DT_OTEL_TOKEN }}
           AGENT_ENGINE_RESOURCE_NAME: ${{ vars.AGENT_ENGINE_RESOURCE_NAME }}
           MEMORY_BANK_ID: ${{ vars.MEMORY_BANK_ID }}
-          FIRESTORE_DATABASE: ${{ vars.FIRESTORE_DATABASE }}
+          FIRESTORE_DATABASE: ${{ vars.FIRESTORE_DATABASE || '(default)' }}
         run: |
           python - <<'EOF'
           import os
+          import sys
           import vertexai
           from vertexai import agent_engines
           from vertexai.agent_engines import AdkApp
@@ -161,15 +162,26 @@ jobs:
           # The CI env: block above makes these available to this script,
           # but Agent Engine runs in a separate isolated environment and
           # does NOT inherit the GitHub Actions environment automatically.
-          env_vars = {k: v for k, v in {
-              "DT_ENV": os.environ.get("DT_ENV", ""),
-              "DT_API_TOKEN": os.environ.get("DT_API_TOKEN", ""),
-              "DT_OTEL_TOKEN": os.environ.get("DT_OTEL_TOKEN", ""),
-              "GCP_PROJECT_ID": os.environ.get("GCP_PROJECT_ID", ""),
-              "GCP_LOCATION": os.environ.get("GCP_LOCATION", "us-central1"),
-              "MEMORY_BANK_ID": os.environ.get("MEMORY_BANK_ID", ""),
+          env_vars = {
+              "DT_ENV":             os.environ.get("DT_ENV", ""),
+              "DT_API_TOKEN":       os.environ.get("DT_API_TOKEN", ""),
+              "DT_OTEL_TOKEN":      os.environ.get("DT_OTEL_TOKEN", ""),
+              "GCP_PROJECT_ID":     os.environ.get("GCP_PROJECT_ID", ""),
+              "GCP_LOCATION":       os.environ.get("GCP_LOCATION", "us-central1"),
+              "MEMORY_BANK_ID":     os.environ.get("MEMORY_BANK_ID", ""),
               "FIRESTORE_DATABASE": os.environ.get("FIRESTORE_DATABASE", "(default)"),
-          }.items() if v}
+          }
+
+          # Fail fast — these must be present or agents cannot call Dynatrace.
+          required = ["DT_ENV", "DT_API_TOKEN", "GCP_PROJECT_ID"]
+          missing = [k for k in required if not env_vars.get(k)]
+          if missing:
+              print(f"ERROR: required env vars missing: {missing}", flush=True)
+              sys.exit(1)
+
+          # Drop truly empty values (but keep non-empty ones including defaults).
+          env_vars = {k: v for k, v in env_vars.items() if v}
+          print(f"Deploying with env vars: {list(env_vars.keys())}", flush=True)
 
           resource_name = os.environ.get("AGENT_ENGINE_RESOURCE_NAME", "")
           if resource_name:
