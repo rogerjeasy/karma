@@ -101,7 +101,7 @@ export function GhostCard({ report }: GhostCardProps) {
             <span className="text-xs text-muted-foreground font-mono">{report.category}</span>
             <span className="text-muted-foreground/40 text-xs">·</span>
             <span className="text-[11px] text-muted-foreground/70 font-mono">
-              #{report.contract_id.slice(0, 8)}
+              #{report.contract_id?.slice(0, 8) ?? '—'}
             </span>
           </div>
           <div className="flex items-center gap-1 shrink-0 text-xs text-muted-foreground/60">

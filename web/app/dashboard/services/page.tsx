@@ -673,7 +673,7 @@ function ServiceCard({
 
       {/* Footer */}
       <div className="flex items-center justify-between pt-1 border-t border-border/60">
-        <p className="text-[11px] font-mono text-muted-foreground/60 truncate">{svc.service_id.slice(0, 12)}…</p>
+        <p className="text-[11px] font-mono text-muted-foreground/60 truncate">{svc.service_id?.slice(0, 12) ?? '—'}…</p>
         <button
           onClick={onDetails}
           className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors opacity-0 group-hover:opacity-100"
