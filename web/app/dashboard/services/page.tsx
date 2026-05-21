@@ -50,7 +50,7 @@ const PHASE_DESC: Record<ServicePhase, string> = {
   registered: "Queued for observation. Learning has not started yet.",
   learning:   "Karma is analysing historical Dynatrace telemetry to discover implicit contracts.",
   ready:      "Learning complete. Contracts have been discovered. Mark cutover when the replacement service is live.",
-  haunting:   "Cutover complete. Watcher is comparing replacement service behaviour against learned contracts.",
+  haunting:   "Cutover complete. Watcher is monitoring for violations. Auto-completes after 3 consecutive clean runs.",
   completed:  "Migration validated. No further agent runs scheduled.",
   error:      "The last agent run failed. See the error details below and retry.",
 };
@@ -295,20 +295,25 @@ function ServiceDetailsDialog({
               </div>
             )}
 
-            {/* Haunting: run watcher */}
+            {/* Haunting: run watcher now */}
             {service.phase === "haunting" && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                disabled={actionLoading === "watcher"}
-                onClick={runWatcher}
-              >
-                {actionLoading === "watcher"
-                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  : <Eye className="h-3.5 w-3.5" />}
-                Run watcher now
-              </Button>
+              <div className="space-y-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  disabled={actionLoading === "watcher"}
+                  onClick={runWatcher}
+                >
+                  {actionLoading === "watcher"
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Eye className="h-3.5 w-3.5" />}
+                  Run watcher now
+                </Button>
+                <p className="text-[11px] text-muted-foreground/60">
+                  Auto-completes after 3 consecutive clean runs with no violations.
+                </p>
+              </div>
             )}
 
             {/* Completed */}

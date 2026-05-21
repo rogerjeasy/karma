@@ -48,6 +48,11 @@ class Settings(BaseSettings):
 
     log_level: str = "INFO"
 
+    # ── Watcher auto-completion ───────────────────────────────────────────────
+    # Number of consecutive clean watcher cycles (zero violations) required
+    # to automatically transition a service from haunting → completed.
+    watcher_clean_runs_to_complete: int = 3
+
     @field_validator("gcp_project_id", mode="after")
     @classmethod
     def _require_gcp_project(cls, v: str) -> str:

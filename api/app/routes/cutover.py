@@ -75,6 +75,7 @@ async def run_watcher_now(
 
 async def _execute_watcher_chain(targets: list[dict[str, Any]]) -> None:
     from app import agent_client
+    from app.config import settings
 
     for svc in targets:
         karma_service_id = svc["service_id"]
@@ -95,6 +96,20 @@ async def _execute_watcher_chain(targets: list[dict[str, Any]]) -> None:
 
         violations = _extract_violations(watcher_result)
         log.info("watcher_complete", violations_found=len(violations))
+
+        if violations:
+            await firestore_client.reset_clean_watcher_runs(karma_service_id)
+        else:
+            threshold = settings.watcher_clean_runs_to_complete
+            should_complete = await firestore_client.record_clean_watcher_run(
+                karma_service_id, threshold
+            )
+            if should_complete:
+                await firestore_client.update_service_phase(
+                    karma_service_id, "completed", extra={"clean_watcher_runs": 0}
+                )
+                log.info("auto_completed_clean_runs", threshold=threshold)
+                continue
 
         for v in violations:
             if not v.get("needs_forensic"):

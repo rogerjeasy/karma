@@ -90,6 +90,27 @@ async def get_service(
     return _doc_to_response(doc)
 
 
+@router.post("/{service_id}/complete", status_code=status.HTTP_200_OK)
+async def complete_migration(
+    service_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Mark a service migration as validated and complete.
+
+    Transitions the service from haunting → completed, which stops the watcher
+    from picking it up on the next scheduler tick.
+    """
+    doc = await _get_owned_service(service_id, user["uid"])
+    if doc.get("phase") != "haunting":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Service is in phase '{doc.get('phase')}', not 'haunting'.",
+        )
+    await firestore_client.update_service_phase(service_id, "completed")
+    logger.bind(service_id=service_id).info("migration_completed")
+    return {"service_id": service_id, "phase": "completed"}
+
+
 @router.delete("/{service_id}", status_code=status.HTTP_200_OK)
 async def delete_service(
     service_id: str,

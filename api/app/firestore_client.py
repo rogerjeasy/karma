@@ -104,6 +104,28 @@ async def update_service_phase(
     await db.collection("services").document(service_id).update(payload)
 
 
+async def record_clean_watcher_run(service_id: str, threshold: int) -> bool:
+    """Atomically increment the clean-run counter and return True when threshold is reached."""
+    db = get_db()
+    ref = db.collection("services").document(service_id)
+    await ref.update({
+        "clean_watcher_runs": firestore.Increment(1),
+        "updated_at": datetime.now(dt.UTC),
+    })
+    snap = await ref.get()
+    data = snap.to_dict() or {}
+    return int(data.get("clean_watcher_runs") or 0) >= threshold
+
+
+async def reset_clean_watcher_runs(service_id: str) -> None:
+    """Reset the clean-run counter to 0 when a violation is detected."""
+    db = get_db()
+    await db.collection("services").document(service_id).update({
+        "clean_watcher_runs": 0,
+        "updated_at": datetime.now(dt.UTC),
+    })
+
+
 # ── Contracts ─────────────────────────────────────────────────────────────────
 
 async def save_contract(contract_id: str, data: dict[str, Any]) -> None:

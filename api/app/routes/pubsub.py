@@ -76,6 +76,8 @@ async def watcher_tick(request: Request) -> Response:
 
 
 async def _run_watcher_for_services(services: list[dict[str, Any]]) -> None:
+    from app.config import settings
+
     for svc in services:
         karma_service_id = svc["service_id"]
         log = logger.bind(karma_service_id=karma_service_id)
@@ -94,10 +96,25 @@ async def _run_watcher_for_services(services: list[dict[str, Any]]) -> None:
         )
 
         # Violations published to Pub/Sub by the agent's publish_violation_to_pubsub
-        # tool will arrive at /internal/violation-received below.
+        # tool will arrive at /internal/violation-received, which resets the counter.
         # As a fallback, also process any violations returned in the agent's JSON output
         # (handles cases where Pub/Sub publish failed inside the agent).
         violations = _extract_violations(watcher_result)
+
+        if violations:
+            await firestore_client.reset_clean_watcher_runs(karma_service_id)
+        else:
+            threshold = settings.watcher_clean_runs_to_complete
+            should_complete = await firestore_client.record_clean_watcher_run(
+                karma_service_id, threshold
+            )
+            if should_complete:
+                await firestore_client.update_service_phase(
+                    karma_service_id, "completed", extra={"clean_watcher_runs": 0}
+                )
+                log.info("auto_completed_clean_runs", threshold=threshold)
+                continue
+
         for v in violations:
             if not v.get("needs_forensic") or v.get("published_to_pubsub"):
                 continue
@@ -155,6 +172,9 @@ async def violation_received(request: Request) -> Response:
     if contract is None:
         logger.warning("violation_contract_not_found", contract_id=contract_id)
         return Response(status_code=204)
+
+    # A violation arrived — invalidate any accumulated clean-run streak.
+    await firestore_client.reset_clean_watcher_runs(karma_service_id)
 
     asyncio.create_task(
         agent_client.trigger_forensic(
