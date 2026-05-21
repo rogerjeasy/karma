@@ -75,6 +75,11 @@ class WatcherRunRequest(BaseModel):
     service_id: str | None = None  # None = run for all active services
 
 
+class UserSyncResponse(BaseModel):
+    uid: str
+    email: str
+
+
 class HealthResponse(BaseModel):
     status: Literal["ok", "degraded"]
     version: str = "0.1.0"

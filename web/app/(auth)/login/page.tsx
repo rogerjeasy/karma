@@ -9,6 +9,7 @@ import {
   checkGoogleRedirect,
   authErrorMessage,
 } from "@/lib/firebase";
+import { apiFetch } from "@/lib/api";
 import { Ghost, Loader2, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +30,12 @@ export default function LoginPage() {
   // ── Handle Google redirect result on mount ──────────────────────────────────
   useEffect(() => {
     checkGoogleRedirect()
-      .then((user) => { if (user) router.replace("/dashboard"); })
+      .then(async (user) => {
+        if (user) {
+          await apiFetch("/users/sync", { method: "POST" }).catch(() => {});
+          router.replace("/dashboard");
+        }
+      })
       .catch((err) => setError(authErrorMessage(err)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -48,6 +54,7 @@ export default function LoginPage() {
     setError(null);
     try {
       await signInWithGoogle();
+      await apiFetch("/users/sync", { method: "POST" }).catch(() => {});
       router.replace("/dashboard");
     } catch (err: unknown) {
       const msg = authErrorMessage(err);
@@ -78,6 +85,7 @@ export default function LoginPage() {
       } else {
         await signUpWithEmail(email, password);
       }
+      await apiFetch("/users/sync", { method: "POST" }).catch(() => {});
       router.replace("/dashboard");
     } catch (err: unknown) {
       setError(authErrorMessage(err));

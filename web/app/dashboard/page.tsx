@@ -10,6 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useSSEContext, useSSEEvent } from "@/lib/sse-context";
+import { apiFetch } from "@/lib/api";
 
 interface Stats {
   totalServices: number;
@@ -24,17 +25,15 @@ export default function DashboardPage() {
 
   // ── Initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
-    const api = process.env.NEXT_PUBLIC_API_URL;
     Promise.all([
-      fetch(`${api}/services`).then((r) => r.json()).catch(() => []),
-      fetch(`${api}/ghosts?limit=50`).then((r) => r.json()).catch(() => []),
+      apiFetch<{ service_id: string; phase: string }[]>("/services").catch(() => []),
+      apiFetch<unknown[]>("/ghosts?limit=50").catch(() => []),
     ]).then(async ([services, ghosts]) => {
-      const arr: { service_id: string; phase: string }[] = Array.isArray(services) ? services : [];
+      const arr = Array.isArray(services) ? services : [];
 
       const contractCounts = await Promise.all(
         arr.map((s) =>
-          fetch(`${api}/contracts/${s.service_id}`)
-            .then((r) => r.json())
+          apiFetch<unknown[]>(`/contracts/${s.service_id}`)
             .then((c) => (Array.isArray(c) ? c.length : 0))
             .catch(() => 0)
         )

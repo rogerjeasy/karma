@@ -8,6 +8,7 @@ import { ViolationPulse } from "@/components/ViolationPulse";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { GhostReport, ViolationSeverity } from "@/lib/types";
+import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const SEVERITIES: Array<ViolationSeverity | "all"> = ["all", "critical", "high", "medium", "low"];
@@ -19,11 +20,8 @@ export default function GhostsPage() {
 
   // Initial load
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/ghosts?limit=50`)
-      .then((r) => r.json())
-      .then((data: GhostReport[]) => {
-        if (Array.isArray(data)) setReports(data);
-      })
+    apiFetch<GhostReport[]>("/ghosts?limit=50")
+      .then((data) => { if (Array.isArray(data)) setReports(data); })
       .catch(() => {});
   }, []);
 

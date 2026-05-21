@@ -8,12 +8,16 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
+from app.auth import get_current_user
 
 FUTURE_DATE = datetime(2026, 6, 1, tzinfo=timezone.utc).isoformat()
 PAST_DATE = datetime(2026, 5, 1, tzinfo=timezone.utc).isoformat()
 
+MOCK_USER = {"uid": "test-uid", "email": "test@example.com"}
+
 MOCK_SERVICE = {
     "service_id": "test-id",
+    "user_id": "test-uid",
     "service_name": "svc-payments-v2",
     "dynatrace_entity_id": "SERVICE-SVC-PAYMENTS-V2",
     "deprecation_date": FUTURE_DATE,
@@ -37,6 +41,7 @@ MOCK_CONTRACT = {
 MOCK_GHOST = {
     "report_id": "ghost-1",
     "violation_id": "violation-1",
+    "karma_service_id": "test-id",
     "contract": {"contract_id": "contract-1", "category": "side_effect"},
     "summary": "Redis writes stopped after cutover",
     "root_cause": "New service omits cache warming logic",
@@ -50,8 +55,11 @@ MOCK_GHOST = {
 
 @pytest.fixture
 async def client():
+    # Override Firebase auth for all tests — returns MOCK_USER without network calls.
+    app.dependency_overrides[get_current_user] = lambda: MOCK_USER
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
+    app.dependency_overrides.clear()
 
 
 class TestHealth:
@@ -66,7 +74,6 @@ class TestHealth:
         with patch("app.main.stream.start_firestore_listener"):
             response = await client.get("/health")
         data = response.json()
-        # Without GCP credentials, firestore=False → status degraded
         assert data["status"] in ("ok", "degraded")
         assert isinstance(data["firestore"], bool)
         assert isinstance(data["agent_engine"], bool)
@@ -108,7 +115,7 @@ class TestServices:
                     "service_name": "svc-x",
                     "dynatrace_entity_id": "SERVICE-X",
                     "deprecation_date": FUTURE_DATE,
-                    "learning_window_days": 0,  # below minimum (ge=1)
+                    "learning_window_days": 0,
                 },
             )
         assert response.status_code == 422
@@ -152,6 +159,15 @@ class TestServices:
             response = await client.get("/services/nonexistent")
         assert response.status_code == 404
 
+    async def test_get_service_404_for_other_user(self, client: AsyncClient) -> None:
+        other_user_service = {**MOCK_SERVICE, "user_id": "other-uid"}
+        with (
+            patch("app.firestore_client.get_service", new_callable=AsyncMock, return_value=other_user_service),
+            patch("app.main.stream.start_firestore_listener"),
+        ):
+            response = await client.get("/services/test-id")
+        assert response.status_code == 404
+
     async def test_trigger_learning_returns_202(self, client: AsyncClient) -> None:
         with (
             patch("app.firestore_client.get_service", new_callable=AsyncMock, return_value=MOCK_SERVICE),
@@ -177,6 +193,7 @@ class TestServices:
 class TestContracts:
     async def test_list_contracts_for_service(self, client: AsyncClient) -> None:
         with (
+            patch("app.firestore_client.get_service", new_callable=AsyncMock, return_value=MOCK_SERVICE),
             patch(
                 "app.firestore_client.list_contracts_for_service",
                 new_callable=AsyncMock,
@@ -191,18 +208,22 @@ class TestContracts:
         assert data[0]["contract_id"] == "contract-1"
         assert data[0]["service_id"] == "test-id"
 
-    async def test_list_contracts_empty(self, client: AsyncClient) -> None:
+    async def test_list_contracts_404_for_unknown_service(self, client: AsyncClient) -> None:
         with (
-            patch(
-                "app.firestore_client.list_contracts_for_service",
-                new_callable=AsyncMock,
-                return_value=[],
-            ),
+            patch("app.firestore_client.get_service", new_callable=AsyncMock, return_value=None),
             patch("app.main.stream.start_firestore_listener"),
         ):
             response = await client.get("/contracts/unknown-service")
-        assert response.status_code == 200
-        assert response.json() == []
+        assert response.status_code == 404
+
+    async def test_list_contracts_404_for_other_user_service(self, client: AsyncClient) -> None:
+        with (
+            patch("app.firestore_client.get_service", new_callable=AsyncMock,
+                  return_value={**MOCK_SERVICE, "user_id": "other-uid"}),
+            patch("app.main.stream.start_firestore_listener"),
+        ):
+            response = await client.get("/contracts/test-id")
+        assert response.status_code == 404
 
 
 class TestGhosts:
@@ -220,21 +241,23 @@ class TestGhosts:
 
     async def test_list_ghost_reports_with_service_filter(self, client: AsyncClient) -> None:
         with (
+            patch("app.firestore_client.get_service", new_callable=AsyncMock, return_value=MOCK_SERVICE),
             patch("app.firestore_client.list_ghost_reports", new_callable=AsyncMock, return_value=[]) as mock_list,
             patch("app.main.stream.start_firestore_listener"),
         ):
             response = await client.get("/ghosts?service_id=test-id&limit=10")
         assert response.status_code == 200
-        mock_list.assert_called_once_with(service_id="test-id", limit=10)
+        mock_list.assert_called_once_with(user_id="test-uid", service_id="test-id", limit=10)
 
     async def test_list_ghost_reports_limit_validation(self, client: AsyncClient) -> None:
         with patch("app.main.stream.start_firestore_listener"):
-            response = await client.get("/ghosts?limit=0")  # below ge=1
+            response = await client.get("/ghosts?limit=0")
         assert response.status_code == 422
 
     async def test_get_ghost_report_returns_200(self, client: AsyncClient) -> None:
         with (
             patch("app.firestore_client.get_ghost_report", new_callable=AsyncMock, return_value=MOCK_GHOST),
+            patch("app.firestore_client.get_service", new_callable=AsyncMock, return_value=MOCK_SERVICE),
             patch("app.main.stream.start_firestore_listener"),
         ):
             response = await client.get("/ghosts/ghost-1")
@@ -266,11 +289,7 @@ class TestCutover:
 
     async def test_cutover_activates_watcher(self, client: AsyncClient) -> None:
         with (
-            patch("app.firestore_client.get_service", new_callable=AsyncMock, return_value={
-                "service_id": "test-id",
-                "service_name": "svc-payments-v2",
-                "dynatrace_entity_id": "SERVICE-SVC-PAYMENTS-V2",
-            }),
+            patch("app.firestore_client.get_service", new_callable=AsyncMock, return_value=MOCK_SERVICE),
             patch("app.firestore_client.update_service_phase", new_callable=AsyncMock),
             patch("app.main.stream.start_firestore_listener"),
         ):
@@ -287,11 +306,7 @@ class TestCutover:
     async def test_cutover_uses_explicit_time(self, client: AsyncClient) -> None:
         cutover_time = "2026-06-01T12:00:00+00:00"
         with (
-            patch("app.firestore_client.get_service", new_callable=AsyncMock, return_value={
-                "service_id": "test-id",
-                "service_name": "svc-payments-v2",
-                "dynatrace_entity_id": "SERVICE-SVC-PAYMENTS-V2",
-            }),
+            patch("app.firestore_client.get_service", new_callable=AsyncMock, return_value=MOCK_SERVICE),
             patch("app.firestore_client.update_service_phase", new_callable=AsyncMock),
             patch("app.main.stream.start_firestore_listener"),
         ):
@@ -303,7 +318,6 @@ class TestCutover:
                 },
             )
         assert response.status_code == 200
-        # Pydantic may serialize +00:00 as Z; normalize both to compare
         returned = response.json()["cutover_time"].replace("Z", "+00:00")
         assert returned == cutover_time
 
@@ -336,7 +350,19 @@ class TestCutover:
             patch("app.firestore_client.list_services", new_callable=AsyncMock, return_value=[haunting_service]),
             patch("app.main.stream.start_firestore_listener"),
         ):
-            # Filter for a different service_id → no matches
             response = await client.post("/cutover/watchers/run-now", json={"service_id": "other-id"})
         assert response.status_code == 202
         assert response.json()["status"] == "no_active_watchers"
+
+
+class TestUsers:
+    async def test_sync_user_returns_200(self, client: AsyncClient) -> None:
+        with (
+            patch("app.firestore_client.upsert_user", new_callable=AsyncMock),
+            patch("app.main.stream.start_firestore_listener"),
+        ):
+            response = await client.post("/users/sync")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["uid"] == "test-uid"
+        assert data["email"] == "test@example.com"

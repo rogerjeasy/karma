@@ -1,7 +1,8 @@
 """Firestore client — thin wrapper around google-cloud-firestore.
 
 Collections:
-  services/        — registered services and their phase
+  users/           — user profiles (uid, email, display_name, …)
+  services/        — registered services and their phase (per user)
   contracts/       — validated implicit contracts (mirrored from Memory Bank)
   violations/      — watcher-detected violation candidates
   ghost_reports/   — forensic ghost reports
@@ -44,6 +45,13 @@ def get_db() -> firestore.AsyncClient:
     return _db
 
 
+# ── Users ─────────────────────────────────────────────────────────────────────
+
+async def upsert_user(uid: str, data: dict[str, Any]) -> None:
+    db = get_db()
+    await db.collection("users").document(uid).set(data, merge=True)
+
+
 # ── Services ──────────────────────────────────────────────────────────────────
 
 async def create_service(service_id: str, data: dict[str, Any]) -> None:
@@ -60,10 +68,18 @@ async def get_service(service_id: str) -> dict[str, Any] | None:
     return doc.to_dict() if doc.exists else None
 
 
-async def list_services() -> list[dict[str, Any]]:
+async def list_services(user_id: str) -> list[dict[str, Any]]:
     db = get_db()
-    docs = db.collection("services").stream()
-    return [d async for doc in docs if (d := doc.to_dict()) is not None]
+    query = db.collection("services").where(
+        filter=FieldFilter("user_id", "==", user_id)
+    )
+    return [d async for doc in query.stream() if (d := doc.to_dict()) is not None]
+
+
+async def get_user_service_ids(user_id: str) -> list[str]:
+    """Return the service_id values owned by this user (cheap: only reads that field)."""
+    services = await list_services(user_id)
+    return [s["service_id"] for s in services if "service_id" in s]
 
 
 async def update_service_phase(
@@ -85,8 +101,6 @@ async def save_contract(contract_id: str, data: dict[str, Any]) -> None:
 
 async def list_contracts_for_service(service_id: str) -> list[dict[str, Any]]:
     db = get_db()
-    # karma_service_id is the Karma UUID written by save_contracts_to_firestore.
-    # service_id in the contract document is the Dynatrace entity ID (schema field).
     query = db.collection("contracts").where(
         filter=FieldFilter("karma_service_id", "==", service_id)
     )
@@ -101,16 +115,50 @@ async def save_ghost_report(report_id: str, data: dict[str, Any]) -> None:
 
 
 async def list_ghost_reports(
+    user_id: str,
     service_id: str | None = None,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
+    """Return ghost reports visible to this user.
+
+    If service_id is given, verify it belongs to the user and filter to that
+    service only. Otherwise, fetch reports across all of the user's services.
+    """
     db = get_db()
-    query = db.collection("ghost_reports").order_by(
-        "created_at", direction=firestore.Query.DESCENDING
-    ).limit(limit)
+
     if service_id:
-        query = query.where(filter=FieldFilter("karma_service_id", "==", service_id))
-    return [d async for doc in query.stream() if (d := doc.to_dict()) is not None]
+        # Single-service path — uses the existing karma_service_id + created_at index.
+        query = (
+            db.collection("ghost_reports")
+            .where(filter=FieldFilter("karma_service_id", "==", service_id))
+            .order_by("created_at", direction=firestore.Query.DESCENDING)
+            .limit(limit)
+        )
+        return [d async for doc in query.stream() if (d := doc.to_dict()) is not None]
+
+    # Multi-service path — use an IN query on the user's service IDs.
+    # We sort in Python to avoid a composite index (IN + order_by requires one).
+    service_ids = await get_user_service_ids(user_id)
+    if not service_ids:
+        return []
+
+    chunk = service_ids[:30]  # Firestore IN limit
+    if len(chunk) == 1:
+        query = (
+            db.collection("ghost_reports")
+            .where(filter=FieldFilter("karma_service_id", "==", chunk[0]))
+            .limit(limit)
+        )
+    else:
+        query = (
+            db.collection("ghost_reports")
+            .where(filter=FieldFilter("karma_service_id", "in", chunk))
+            .limit(limit * 2)  # over-fetch so we have enough after Python sort
+        )
+
+    docs = [d async for doc in query.stream() if (d := doc.to_dict()) is not None]
+    docs.sort(key=lambda d: str(d.get("created_at", "")), reverse=True)
+    return docs[:limit]
 
 
 async def get_ghost_report(report_id: str) -> dict[str, Any] | None:

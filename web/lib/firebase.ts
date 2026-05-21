@@ -83,6 +83,16 @@ export async function signUpWithEmail(email: string, password: string): Promise<
   return result.user;
 }
 
+// ── ID token (for API Bearer auth) ───────────────────────────────────────────
+
+export async function getIdToken(): Promise<string | null> {
+  if (!isConfigured) return null;
+  const auth = getFirebaseAuth();
+  const user = auth.currentUser;
+  if (!user) return null;
+  return user.getIdToken();
+}
+
 // ── Sign-out ──────────────────────────────────────────────────────────────────
 
 export async function signOutUser(): Promise<void> {

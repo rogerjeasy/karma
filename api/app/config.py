@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     # projects/<id>/locations/us-central1/reasoningEngines/<id>
     agent_engine_resource_name: str = ""
 
+    # ── Firebase Auth ─────────────────────────────────────────────────────────
+    # Project that issued the client-side ID tokens we verify server-side.
+    # Separate from gcp_project_id (which is the GCP infra project).
+    firebase_project_id: str = "gptuesser-firebase"
+
     # ── API ───────────────────────────────────────────────────────────────────
     api_secret_key: str = ""
 

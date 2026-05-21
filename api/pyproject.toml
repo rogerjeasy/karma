@@ -42,6 +42,8 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM"]
+# B008: FastAPI's Depends() in function-default positions is the canonical pattern.
+ignore = ["B008"]
 
 [tool.mypy]
 python_version = "3.11"

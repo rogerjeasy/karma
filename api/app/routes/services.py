@@ -8,23 +8,40 @@ from datetime import datetime
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app import agent_client, firestore_client
+from app.auth import get_current_user
 from app.models import ServiceRegistration, ServiceResponse
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/services", tags=["services"])
 
 
+async def _get_owned_service(service_id: str, user_id: str) -> dict[str, Any]:
+    """Fetch a service and verify it belongs to this user.
+
+    Returns 404 (not 403) in both the missing and wrong-owner cases to
+    avoid leaking existence information to other users.
+    """
+    doc = await firestore_client.get_service(service_id)
+    if doc is None or doc.get("user_id") != user_id:
+        raise HTTPException(status_code=404, detail="Service not found")
+    return doc
+
+
 @router.post("", response_model=ServiceResponse, status_code=status.HTTP_201_CREATED)
-async def register_service(payload: ServiceRegistration) -> ServiceResponse:
+async def register_service(
+    payload: ServiceRegistration,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ServiceResponse:
     service_id = str(uuid.uuid4())
-    log = logger.bind(service_id=service_id, service_name=payload.service_name)
+    log = logger.bind(service_id=service_id, service_name=payload.service_name, uid=user["uid"])
     log.info("registering_service")
 
     data = {
         "service_id": service_id,
+        "user_id": user["uid"],
         "service_name": payload.service_name,
         "dynatrace_entity_id": payload.dynatrace_entity_id,
         "deprecation_date": payload.deprecation_date.isoformat(),
@@ -35,7 +52,6 @@ async def register_service(payload: ServiceRegistration) -> ServiceResponse:
     await firestore_client.create_service(service_id, data)
     await firestore_client.update_service_phase(service_id, "learning")
 
-    # stream_query blocks for 2-5 min — run in background so 201 returns now.
     asyncio.create_task(
         _run_learning_task(
             service_id=service_id,
@@ -60,26 +76,28 @@ async def register_service(payload: ServiceRegistration) -> ServiceResponse:
 
 
 @router.get("", response_model=list[ServiceResponse])
-async def list_services() -> list[ServiceResponse]:
-    docs = await firestore_client.list_services()
+async def list_services(user: dict[str, Any] = Depends(get_current_user)) -> list[ServiceResponse]:
+    docs = await firestore_client.list_services(user["uid"])
     return [_doc_to_response(d) for d in docs]
 
 
 @router.get("/{service_id}", response_model=ServiceResponse)
-async def get_service(service_id: str) -> ServiceResponse:
-    doc = await firestore_client.get_service(service_id)
-    if doc is None:
-        raise HTTPException(status_code=404, detail="Service not found")
+async def get_service(
+    service_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> ServiceResponse:
+    doc = await _get_owned_service(service_id, user["uid"])
     return _doc_to_response(doc)
 
 
 @router.post("/{service_id}/learn", status_code=status.HTTP_202_ACCEPTED)
-async def trigger_learning(service_id: str, hint: str | None = None) -> dict[str, Any]:
-    doc = await firestore_client.get_service(service_id)
-    if doc is None:
-        raise HTTPException(status_code=404, detail="Service not found")
+async def trigger_learning(
+    service_id: str,
+    hint: str | None = None,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    doc = await _get_owned_service(service_id, user["uid"])
 
-    # Reset to learning (clears any previous error), then dispatch in background.
     await firestore_client.update_service_phase(
         service_id, "learning", extra={"error_message": None}
     )
@@ -100,7 +118,6 @@ async def _run_learning_task(
     dynatrace_entity_id: str,
     learning_window_days: int,
 ) -> None:
-    """Background wrapper: run learning and persist any error to Firestore."""
     log = logger.bind(service_id=service_id)
     try:
         result = await agent_client.trigger_learning(

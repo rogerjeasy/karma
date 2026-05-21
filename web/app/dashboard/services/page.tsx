@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import type { ServiceRegistration, ServiceResponse, ServicePhase, ContractResponse } from "@/lib/types";
+import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,7 +63,6 @@ function ServiceDetailsDialog({
   onClose: () => void;
   onPhaseChange: (id: string, phase: ServicePhase, extra?: Partial<ServiceResponse>) => void;
 }) {
-  const api = process.env.NEXT_PUBLIC_API_URL ?? "";
   const [contracts, setContracts]         = useState<ContractResponse[]>([]);
   const [contractsLoading, setContractsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -72,20 +72,17 @@ function ServiceDetailsDialog({
   const [replacementId, setReplacementId] = useState(service.replacement_service_id ?? "");
 
   useEffect(() => {
-    fetch(`${api}/contracts/${service.service_id}`)
-      .then((r) => r.json())
+    apiFetch<ContractResponse[]>(`/contracts/${service.service_id}`)
       .then((d) => setContracts(Array.isArray(d) ? d : []))
       .catch(() => setContracts([]))
       .finally(() => setContractsLoading(false));
-  }, [api, service.service_id]);
+  }, [service.service_id]);
 
   async function rerunLearning() {
     setActionLoading("learn");
     setActionMsg(null);
     try {
-      const r = await fetch(`${api}/services/${service.service_id}/learn`, { method: "POST" });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      // Reset phase to learning in parent state (API also resets it server-side)
+      await apiFetch(`/services/${service.service_id}/learn`, { method: "POST" });
       onPhaseChange(service.service_id, "learning", { error_message: null });
       setActionMsg("Learning job dispatched — contracts will update within a few minutes.");
     } catch (e) {
@@ -103,12 +100,10 @@ function ServiceDetailsDialog({
     setActionLoading("cutover");
     setActionMsg(null);
     try {
-      const r = await fetch(`${api}/cutover/${service.service_id}`, {
+      await apiFetch(`/cutover/${service.service_id}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ replacement_service_id: replacementId.trim() }),
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       onPhaseChange(service.service_id, "haunting", {
         replacement_service_id: replacementId.trim(),
       });
@@ -124,12 +119,10 @@ function ServiceDetailsDialog({
     setActionLoading("watcher");
     setActionMsg(null);
     try {
-      const r = await fetch(`${api}/cutover/watchers/run-now`, {
+      await apiFetch(`/cutover/watchers/run-now`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ service_id: service.service_id }),
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       setActionMsg("Watcher dispatched — ghost reports will appear if violations are detected.");
     } catch (e) {
       setActionMsg(`Failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -383,11 +376,7 @@ export default function ServicesPage() {
   const [fetchError, setFetchError]   = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/services`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`API error ${r.status}`);
-        return r.json();
-      })
+    apiFetch<ServiceResponse[]>("/services")
       .then((data) => setServices(Array.isArray(data) ? data : []))
       .catch((err) => setFetchError(err instanceof Error ? err.message : "Failed to load services."))
       .finally(() => setLoading(false));
@@ -500,20 +489,13 @@ function RegistrationForm({
     setError(null);
     try {
       const body = { ...form, replacement_service_id: form.replacement_service_id?.trim() || null };
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/services`, {
+      const svc = await apiFetch<ServiceResponse>("/services", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!res.ok) {
-        const text = await res.text();
-        const ct   = res.headers.get("content-type") ?? "";
-        throw new Error(ct.includes("html") ? `Server error ${res.status}` : text);
-      }
-      onSuccess(await res.json());
+      onSuccess(svc);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg.startsWith("<!") ? "Could not reach the API server." : msg);
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }

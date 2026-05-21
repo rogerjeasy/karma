@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ContractTimeline } from "@/components/ContractTimeline";
 import type { ContractResponse, ServiceResponse } from "@/lib/types";
+import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 export default function TimelinePage() {
@@ -12,9 +13,8 @@ export default function TimelinePage() {
   const [loadingContracts, setLoadingContracts] = useState(false);
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/services`)
-      .then((r) => r.json())
-      .then((data: ServiceResponse[]) => {
+    apiFetch<ServiceResponse[]>("/services")
+      .then((data) => {
         if (Array.isArray(data)) {
           setServices(data);
           if (data.length > 0) setSelected(data[0].service_id);
@@ -26,11 +26,8 @@ export default function TimelinePage() {
   useEffect(() => {
     if (!selectedId) return;
     setLoadingContracts(true);
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/contracts/${selectedId}`)
-      .then((r) => r.json())
-      .then((data: ContractResponse[]) => {
-        if (Array.isArray(data)) setContracts(data);
-      })
+    apiFetch<ContractResponse[]>(`/contracts/${selectedId}`)
+      .then((data) => { if (Array.isArray(data)) setContracts(data); })
       .catch(() => setContracts([]))
       .finally(() => setLoadingContracts(false));
   }, [selectedId]);
