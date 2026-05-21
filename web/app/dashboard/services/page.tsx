@@ -8,6 +8,7 @@ import {
 import { formatDistanceToNow, format } from "date-fns";
 import type { ServiceRegistration, ServiceResponse, ServicePhase, ContractResponse } from "@/lib/types";
 import { apiFetch } from "@/lib/api";
+import { useSSEEvent } from "@/lib/sse-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -72,11 +73,12 @@ function ServiceDetailsDialog({
   const [replacementId, setReplacementId] = useState(service.replacement_service_id ?? "");
 
   useEffect(() => {
+    setContractsLoading(true);
     apiFetch<ContractResponse[]>(`/contracts/${service.service_id}`)
       .then((d) => setContracts(Array.isArray(d) ? d : []))
       .catch(() => setContracts([]))
       .finally(() => setContractsLoading(false));
-  }, [service.service_id]);
+  }, [service.service_id, service.phase]);
 
   async function rerunLearning() {
     setActionLoading("learn");
@@ -381,6 +383,17 @@ export default function ServicesPage() {
       .catch((err) => setFetchError(err instanceof Error ? err.message : "Failed to load services."))
       .finally(() => setLoading(false));
   }, []);
+
+  // Live phase updates pushed from Firestore via SSE — no manual refresh needed.
+  useSSEEvent("service_update", (data) => {
+    const updated = JSON.parse(data) as ServiceResponse;
+    setServices((prev) =>
+      prev.map((s) => s.service_id === updated.service_id ? { ...s, ...updated } : s)
+    );
+    setSelectedSvc((prev) =>
+      prev?.service_id === updated.service_id ? { ...prev, ...updated } : prev
+    );
+  });
 
   function handlePhaseChange(
     id: string,

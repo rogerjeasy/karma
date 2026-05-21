@@ -1,11 +1,16 @@
-"""Server-Sent Events (SSE) route — pushes ghost reports to the dashboard in real time.
+"""Server-Sent Events (SSE) route — pushes real-time updates to the dashboard.
 
-The dashboard subscribes to /stream/ghosts and receives events as they are written
-to Firestore. Uses Firestore's on_snapshot listener (sync client) bridged to SSE via
+The dashboard subscribes to /stream/ghosts and receives two event types:
+  - ghost_report   — new violation report written to ghost_reports collection
+  - service_update — service document modified (e.g. phase: learning → ready)
+
+Uses Firestore's on_snapshot listener (sync client) bridged to SSE via
 asyncio.run_coroutine_threadsafe — the correct pattern for thread → asyncio dispatch.
 
 Note: on_snapshot is only supported on the sync Firestore client, not AsyncClient.
 A dedicated sync client is created here so the async API client stays unaffected.
+
+Queue message format: {"_event": str, "_data": dict}
 """
 from __future__ import annotations
 
@@ -26,7 +31,8 @@ from app.config import settings
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/stream", tags=["stream"])
 
-# Active SSE queues — one per connected client
+# Active SSE queues — one per connected client.
+# Each item is {"_event": str, "_data": dict} or None (sentinel to close).
 _queues: list[asyncio.Queue[dict[str, Any] | None]] = []
 
 # Event loop captured at startup — used for thread-safe dispatch from Firestore callbacks
@@ -35,7 +41,7 @@ _loop: asyncio.AbstractEventLoop | None = None
 
 @router.get("/ghosts")
 async def stream_ghosts(request: Request) -> EventSourceResponse:
-    """SSE endpoint — clients connect and receive ghost reports as they arrive."""
+    """SSE endpoint — clients connect and receive ghost reports and service updates."""
     queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
     _queues.append(queue)
     logger.info("sse_client_connected", total_clients=len(_queues))
@@ -58,7 +64,10 @@ async def stream_ghosts(request: Request) -> EventSourceResponse:
                 if message is None:
                     break
 
-                yield {"event": "ghost_report", "data": json.dumps(message, default=str)}
+                yield {
+                    "event": message["_event"],
+                    "data": json.dumps(message["_data"], default=str),
+                }
         finally:
             if queue in _queues:
                 _queues.remove(queue)
@@ -67,16 +76,13 @@ async def stream_ghosts(request: Request) -> EventSourceResponse:
     return EventSourceResponse(event_generator())
 
 
-async def broadcast_ghost_report(report: dict[str, Any]) -> None:
-    """Push a ghost report to every connected SSE client.
-
-    Called from the Firestore listener thread via run_coroutine_threadsafe,
-    so it runs in the asyncio event loop — queue.put is safe here.
-    """
+async def _broadcast(event: str, data: dict[str, Any]) -> None:
+    """Push an event to every connected SSE client."""
+    message: dict[str, Any] = {"_event": event, "_data": data}
     dead: list[asyncio.Queue[dict[str, Any] | None]] = []
     for queue in list(_queues):
         try:
-            queue.put_nowait(report)
+            queue.put_nowait(message)
         except asyncio.QueueFull:
             dead.append(queue)
 
@@ -84,11 +90,21 @@ async def broadcast_ghost_report(report: dict[str, Any]) -> None:
         if queue in _queues:
             _queues.remove(queue)
 
-    logger.info("ghost_report_broadcasted", clients=len(_queues), dropped=len(dead))
+    logger.info("sse_broadcasted", event=event, clients=len(_queues), dropped=len(dead))
+
+
+async def broadcast_ghost_report(report: dict[str, Any]) -> None:
+    """Push a new ghost report to every connected SSE client."""
+    await _broadcast("ghost_report", report)
+
+
+async def broadcast_service_update(service: dict[str, Any]) -> None:
+    """Push a service document change to every connected SSE client."""
+    await _broadcast("service_update", service)
 
 
 def start_firestore_listener() -> None:
-    """Attach a Firestore on_snapshot listener to broadcast new ghost reports to SSE clients.
+    """Attach Firestore on_snapshot listeners for ghost_reports and services.
 
     Must be called from within an async context (e.g. FastAPI lifespan) so that
     asyncio.get_running_loop() succeeds. Internally uses the sync Firestore client
@@ -112,16 +128,26 @@ def start_firestore_listener() -> None:
 
     captured_loop = _loop
 
-    def on_snapshot(col_snapshot: object, changes: object, read_time: object) -> None:
+    def on_ghost_snapshot(col_snapshot: object, changes: object, read_time: object) -> None:
         for change in changes:  # type: ignore[attr-defined]
             if change.type.name == "ADDED":
                 doc: dict[str, Any] | None = change.document.to_dict()
                 if doc is not None:
-                    # run_coroutine_threadsafe is the correct bridge from a
-                    # background thread into the asyncio event loop.
                     asyncio.run_coroutine_threadsafe(
                         broadcast_ghost_report(doc), captured_loop
                     )
 
-    db_sync.collection("ghost_reports").on_snapshot(on_snapshot)
-    logger.info("firestore_sse_listener_started")
+    def on_service_snapshot(col_snapshot: object, changes: object, read_time: object) -> None:
+        for change in changes:  # type: ignore[attr-defined]
+            # MODIFIED covers phase transitions (learning→ready, ready→haunting, etc.)
+            # ADDED covers the initial write so a newly opened tab sees the correct phase.
+            if change.type.name in ("MODIFIED", "ADDED"):
+                doc = change.document.to_dict()
+                if doc is not None:
+                    asyncio.run_coroutine_threadsafe(
+                        broadcast_service_update(doc), captured_loop
+                    )
+
+    db_sync.collection("ghost_reports").on_snapshot(on_ghost_snapshot)
+    db_sync.collection("services").on_snapshot(on_service_snapshot)
+    logger.info("firestore_sse_listeners_started")
