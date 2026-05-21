@@ -44,11 +44,13 @@ def save_ghost_report_to_firestore(
         database=settings.firestore_database,
     )
     report_id = report.get("report_id") or str(uuid.uuid4())
+    now_iso = datetime.now(UTC).isoformat()
     doc: dict[str, Any] = {
         **report,
         "report_id": report_id,
         "karma_service_id": karma_service_id,
-        "saved_at": datetime.now(UTC).isoformat(),
+        "saved_at": now_iso,
+        "created_at": now_iso,
     }
     db.collection("ghost_reports").document(report_id).set(doc)
     logger.info(

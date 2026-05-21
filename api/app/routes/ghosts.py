@@ -62,5 +62,5 @@ def _doc_to_response(doc: dict[str, Any]) -> GhostReportResponse:
         severity=doc.get("severity", "medium"),
         evidence_links=doc.get("evidence_links", []),
         remediation_suggestions=doc.get("remediation_suggestions", []),
-        created_at=datetime.fromisoformat(str(doc["created_at"])),
+        created_at=datetime.fromisoformat(str(doc.get("created_at") or doc["saved_at"])),
     )
