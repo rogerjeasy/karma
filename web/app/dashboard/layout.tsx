@@ -19,6 +19,15 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { useAuth, signOutUser } from "@/lib/firebase";
 import { SSEProvider, useSSEContext } from "@/lib/sse-context";
 
@@ -64,6 +73,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const { connectionState } = useSSEContext();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => setSidebarOpen(false), [pathname]);
@@ -72,7 +83,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     return () => { document.body.style.overflow = ""; };
   }, [sidebarOpen]);
 
-  async function handleSignOut() {
+  async function confirmSignOut() {
+    setSigningOut(true);
     await signOutUser();
     router.push("/");
   }
@@ -186,7 +198,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
           {/* Sign-out */}
           <button
-            onClick={handleSignOut}
+            onClick={() => setSignOutOpen(true)}
             className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           >
             <LogOut className="h-4 w-4 shrink-0" />
@@ -194,6 +206,36 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </aside>
+
+      {/* ── Sign-out confirmation dialog ─────────────────────────── */}
+      <Dialog open={signOutOpen} onOpenChange={setSignOutOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Sign out</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to sign out of Karma?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setSignOutOpen(false)}
+              disabled={signingOut}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmSignOut}
+              disabled={signingOut}
+              className="gap-2"
+            >
+              {signingOut && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {signingOut ? "Signing out…" : "Sign out"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Main content ─────────────────────────────────────────── */}
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
