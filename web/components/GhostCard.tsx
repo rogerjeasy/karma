@@ -33,7 +33,7 @@ function extractDql(raw: string): string {
 function buildDtLink(dql: string): string | null {
   if (!DT_ENV) return null;
   return (
-    `https://${DT_ENV}.apps.dynatrace.com/ui/apps/dynatrace.grail.notebook/` +
+    `https://${DT_ENV}.apps.dynatrace.com/ui/apps/dynatrace.notebooks/` +
     `?query=${encodeURIComponent(dql)}`
   );
 }
