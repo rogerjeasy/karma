@@ -1,4 +1,4 @@
-export type ServicePhase = "registered" | "learning" | "haunting" | "completed" | "error";
+export type ServicePhase = "registered" | "learning" | "ready" | "haunting" | "completed" | "error";
 
 export interface ServiceRegistration {
   service_name: string;

@@ -47,6 +47,7 @@ function CopyButton({ value }: { value: string }) {
 const PHASE_DESC: Record<ServicePhase, string> = {
   registered: "Queued for observation. Learning has not started yet.",
   learning:   "Karma is analysing historical Dynatrace telemetry to discover implicit contracts.",
+  ready:      "Learning complete. Contracts have been discovered. Mark cutover when the replacement service is live.",
   haunting:   "Cutover complete. Watcher is comparing replacement service behaviour against learned contracts.",
   completed:  "Migration validated. No further agent runs scheduled.",
   error:      "The last agent run failed. See the error details below and retry.",
@@ -167,6 +168,7 @@ function ServiceDetailsDialog({
           <div className={cn(
             "rounded-lg border px-4 py-3 text-sm",
             service.phase === "learning"   && "bg-amber-500/8   border-amber-500/20   text-amber-300",
+            service.phase === "ready"      && "bg-emerald-500/8 border-emerald-500/20 text-emerald-300",
             service.phase === "haunting"   && "bg-red-500/8     border-red-500/20     text-red-300",
             service.phase === "completed"  && "bg-emerald-500/8 border-emerald-500/20 text-emerald-300",
             service.phase === "registered" && "bg-muted/40      border-border         text-muted-foreground",
@@ -233,8 +235,8 @@ function ServiceDetailsDialog({
           <div className="space-y-3 border-t border-border pt-4">
             <h3 className="text-sm font-semibold text-foreground">Actions</h3>
 
-            {/* Learning / registered / error: re-run learning */}
-            {(service.phase === "learning" || service.phase === "registered" || service.phase === "error") && (
+            {/* Learning / registered / ready / error: re-run learning + cutover form */}
+            {(service.phase === "learning" || service.phase === "registered" || service.phase === "ready" || service.phase === "error") && (
               <div className="space-y-3">
                 <Button
                   variant="outline"
@@ -688,6 +690,7 @@ const PHASE_CONFIG: Record<ServicePhase, {
 }> = {
   registered: { variant: "ghost",       dot: "bg-zinc-500",    label: "Registered" },
   learning:   { variant: "warning",     dot: "bg-amber-400",   label: "Learning"   },
+  ready:      { variant: "success",     dot: "bg-emerald-400", label: "Ready"      },
   haunting:   { variant: "destructive", dot: "bg-red-400",     label: "Haunting"   },
   completed:  { variant: "success",     dot: "bg-emerald-400", label: "Completed"  },
   error:      { variant: "destructive", dot: "bg-red-500",     label: "Error"      },

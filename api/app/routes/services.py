@@ -115,6 +115,9 @@ async def _run_learning_task(
             await firestore_client.update_service_phase(
                 service_id, "error", extra={"error_message": msg}
             )
+        else:
+            await firestore_client.update_service_phase(service_id, "ready")
+            log.info("learning_complete_phase_ready", service_id=service_id)
     except Exception as exc:
         log.error("learning_task_exception", error=str(exc))
         await firestore_client.update_service_phase(

@@ -25,7 +25,7 @@ class ServiceResponse(BaseModel):
     dynatrace_entity_id: str
     deprecation_date: datetime
     replacement_service_id: str | None
-    phase: Literal["registered", "learning", "haunting", "completed", "error"]
+    phase: Literal["registered", "learning", "ready", "haunting", "completed", "error"]
     error_message: str | None = None
     created_at: datetime
     updated_at: datetime
