@@ -48,9 +48,10 @@ async def trigger_watcher(
         task="check_contracts",
         payload={
             "service_id": old_service_id,
-            "replacement_service_id": new_service_id,
+            "new_service_id": new_service_id,
             "karma_service_id": karma_service_id,
             "contracts": contracts,
+            "check_window_minutes": 15,
         },
     )
 

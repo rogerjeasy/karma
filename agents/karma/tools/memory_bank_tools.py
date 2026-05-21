@@ -19,6 +19,8 @@ from karma.config import settings
 
 logger = structlog.get_logger(__name__)
 
+_APP_NAME = "karma"
+
 # Module-level singleton — initialized once per process.
 _memory_service: Any = None  # VertexAiMemoryBankService | None
 _init_attempted = False
@@ -48,7 +50,7 @@ def _get_memory_service() -> Any:
     return _memory_service
 
 
-def save_contracts_to_memory_bank(
+async def save_contracts_to_memory_bank(
     karma_service_id: str,
     contracts: list[dict[str, Any]],
 ) -> dict[str, Any]:
@@ -57,10 +59,6 @@ def save_contracts_to_memory_bank(
     Call this immediately after save_contracts_to_firestore — both stores are
     written so contracts are accessible from the dashboard (Firestore) and
     retrievable across agent restarts (Memory Bank).
-
-    Each contract is stored as a separate Memory entry tagged with
-    karma_service_id so the Watcher can retrieve the full contract set with
-    a single search_memories call.
 
     Args:
         karma_service_id: Karma service UUID from the begin_learning payload.
@@ -73,19 +71,29 @@ def save_contracts_to_memory_bank(
     if ms is None:
         return {"saved": 0, "skipped": len(contracts), "source": "not_configured"}
 
+    from google.adk.memory import MemoryEntry
+    from google.genai import types as genai_types
+
     saved = 0
     skipped = 0
     for c in contracts:
         try:
-            ms.add_memory(
-                content=json.dumps(c),
-                metadata={
+            entry = MemoryEntry(
+                content=genai_types.Content(
+                    role="user",
+                    parts=[genai_types.Part(text=json.dumps(c))],
+                ),
+                custom_metadata={
                     "karma_service_id": karma_service_id,
-                    "service_id": c.get("service_id", ""),
                     "category": c.get("category", ""),
                     "subcategory": c.get("subcategory", ""),
                     "contract_id": c.get("contract_id", ""),
                 },
+            )
+            await ms.add_memory(
+                app_name=_APP_NAME,
+                user_id=karma_service_id,
+                memories=[entry],
             )
             saved += 1
         except Exception as exc:
@@ -105,7 +113,7 @@ def save_contracts_to_memory_bank(
     return {"saved": saved, "skipped": skipped, "source": "memory_bank"}
 
 
-def load_contracts_from_memory_bank(
+async def load_contracts_from_memory_bank(
     karma_service_id: str,
     top_k: int = 50,
 ) -> dict[str, Any]:
@@ -133,20 +141,30 @@ def load_contracts_from_memory_bank(
         return {"contracts": [], "count": 0, "source": "not_configured"}
 
     try:
-        memories = ms.search_memories(
-            query=f"karma_service_id:{karma_service_id} implicit contract",
-            top_k=top_k,
+        response = await ms.search_memory(
+            app_name=_APP_NAME,
+            user_id=karma_service_id,
+            query=f"implicit contract karma_service_id:{karma_service_id}",
         )
         contracts: list[dict[str, Any]] = []
-        for m in memories:
-            # ADK Memory object exposes .content; fall back to str() if shape varies.
-            raw = getattr(m, "content", None) or getattr(m, "text", None) or str(m)
+        for m in response.memories:
+            raw: str | None = None
             try:
-                parsed = json.loads(raw)
-                if isinstance(parsed, dict):
-                    contracts.append(parsed)
-            except (json.JSONDecodeError, TypeError):
-                pass
+                parts = m.content.parts or []
+                for part in parts:
+                    text = getattr(part, "text", None)
+                    if text:
+                        raw = text
+                        break
+            except Exception:
+                raw = str(m)
+            if raw:
+                try:
+                    parsed = json.loads(raw)
+                    if isinstance(parsed, dict):
+                        contracts.append(parsed)
+                except (json.JSONDecodeError, TypeError):
+                    pass
 
         logger.info(
             "memory_bank_load_complete",

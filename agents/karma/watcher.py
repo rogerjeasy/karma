@@ -64,7 +64,7 @@ For each contract:
    - Replace every occurrence of `contract.service_id` (the OLD service entity ID)
      in the DQL with `new_service_id` (the NEW service entity ID from the task payload).
    - Replace any `from:now()-Xd` or `from:now()-Xh` time window with
-     `from:now()-{check_window_minutes}m` so the check uses only recent telemetry.
+     `from:now()-{{check_window_minutes}}m` so the check uses only recent telemetry.
    The stored DQL was learned from the old service — you must adapt both the entity
    ID and the time window before evaluating it against the replacement service.
 2. Call `execute_dql` with the rewritten DQL.
