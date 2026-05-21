@@ -35,7 +35,7 @@ def _get_memory_service() -> Any:
         return None
 
     try:
-        from google.adk.memory import VertexAiMemoryBankService  # type: ignore[import-untyped]
+        from google.adk.memory import VertexAiMemoryBankService
 
         _memory_service = VertexAiMemoryBankService(
             project=settings.gcp_project_id,

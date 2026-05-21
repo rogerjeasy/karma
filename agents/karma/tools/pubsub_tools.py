@@ -75,7 +75,7 @@ def publish_violation_to_pubsub(
     }
 
     try:
-        from google.cloud import pubsub_v1  # type: ignore[import-untyped]
+        from google.cloud import pubsub_v1  # type: ignore[attr-defined]
 
         publisher = pubsub_v1.PublisherClient()
         topic_path = publisher.topic_path(settings.gcp_project_id, _VIOLATIONS_TOPIC)
