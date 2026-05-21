@@ -82,6 +82,18 @@ async def get_user_service_ids(user_id: str) -> list[str]:
     return [s["service_id"] for s in services if "service_id" in s]
 
 
+async def list_all_haunting_services() -> list[dict[str, Any]]:
+    """Return all services in haunting phase across all users.
+
+    Called by the Cloud Scheduler Pub/Sub tick — no user filter.
+    """
+    db = get_db()
+    query = db.collection("services").where(
+        filter=FieldFilter("phase", "==", "haunting")
+    )
+    return [d async for doc in query.stream() if (d := doc.to_dict()) is not None]
+
+
 async def update_service_phase(
     service_id: str, phase: str, extra: dict[str, Any] | None = None
 ) -> None:

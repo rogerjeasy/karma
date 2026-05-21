@@ -47,6 +47,7 @@ export interface GhostReport {
   report_id: string;
   violation_id: string;
   contract_id: string;
+  karma_service_id?: string;
   category: ContractCategory;
   summary: string;
   root_cause: string;

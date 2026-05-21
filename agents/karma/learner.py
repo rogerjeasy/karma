@@ -20,6 +20,7 @@ from karma.tools.contract_validator_tool import validate_contract_predicate
 from karma.tools.dynatrace_api_tools import execute_dql
 from karma.tools.dynatrace_events import emit_karma_event
 from karma.tools.firestore_tools import save_contracts_to_firestore
+from karma.tools.memory_bank_tools import save_contracts_to_memory_bank
 from karma.tools.mcp_gateway_tools import (
     adaptive_anomaly_detection_via_mcp,
     detect_changepoints_via_mcp,
@@ -52,8 +53,9 @@ def create_learner_agent() -> Agent:
             adaptive_anomaly_detection_via_mcp,
             # Contract quality gate — runs predicate against historical data
             validate_contract_predicate,
-            # Persistence and self-observability
+            # Persistence — Firestore (dashboard) + Memory Bank (cross-session)
             emit_karma_event,
             save_contracts_to_firestore,
+            save_contracts_to_memory_bank,
         ],
     )

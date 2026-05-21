@@ -138,7 +138,7 @@ jobs:
                   memory_service = VertexAiMemoryBankService(
                       project=project,
                       location=os.environ.get("GCP_LOCATION", "us-central1"),
-                      memory_bank_id=memory_bank_id,
+                      agent_engine_id=memory_bank_id,
                   )
                   print(f"Memory Bank wired: {memory_bank_id}")
               except Exception as mb_exc:

@@ -133,7 +133,8 @@ result = validate_contract_predicate(
 | Tool name | What it does |
 |---|---|
 | `emit_karma_event` | Emits a BizEvent to Dynatrace marking a Karma decision (self-observability). Call this after completing learning and after each contract is validated. |
-| `save_contracts_to_firestore` | Persists all validated contracts to Firestore. **Must be called once at the end of Step 6** with all accepted contracts. Without this call, the dashboard will not display any contracts. |
+| `save_contracts_to_firestore` | Persists all validated contracts to Firestore. **Must be called in Step 6a** with all accepted contracts. Without this call, the dashboard will not display any contracts. |
+| `save_contracts_to_memory_bank` | Persists all validated contracts to Vertex AI Memory Bank. **Must be called in Step 6b** immediately after save_contracts_to_firestore. This proves contracts survive agent restarts — the visible proof Memory Bank is doing real work. |
 
 ---
 
@@ -257,7 +258,7 @@ Collect all contracts where:
 - At least 2 pieces of evidence
 - The `violation_predicate` is specific and unambiguous
 
-**Call `save_contracts_to_firestore` with ALL accepted contracts:**
+**6a. Save to Firestore** (dashboard reads from here):
 ```
 save_contracts_to_firestore(
     karma_service_id=<karma_service_id from the task payload>,
@@ -267,6 +268,18 @@ save_contracts_to_firestore(
 
 The `karma_service_id` is provided to you in the `begin_learning` task payload.
 Use it exactly as given — do not substitute the Dynatrace entity ID here.
+
+**6b. Save to Memory Bank** (proves contracts survive agent restarts):
+```
+save_contracts_to_memory_bank(
+    karma_service_id=<same karma_service_id>,
+    contracts=[<same list of contract objects>]
+)
+```
+
+Both calls use the same `karma_service_id` and the same contracts list.
+`save_contracts_to_memory_bank` is a no-op if `MEMORY_BANK_ID` is not configured —
+it will return `{"source": "not_configured"}` which is fine; continue regardless.
 
 After saving, call `emit_karma_event` one final time:
 ```json

@@ -1,17 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { BeforeAfterTimeline } from "@/components/BeforeAfterTimeline";
 import { ContractTimeline } from "@/components/ContractTimeline";
-import type { ContractResponse, ServiceResponse } from "@/lib/types";
+import type { ContractResponse, GhostReport, ServiceResponse } from "@/lib/types";
 import { apiFetch } from "@/lib/api";
+import { useSSEEvent } from "@/lib/sse-context";
 import { cn } from "@/lib/utils";
 
 export default function TimelinePage() {
   const [services, setServices]   = useState<ServiceResponse[]>([]);
   const [selectedId, setSelected] = useState<string | null>(null);
   const [contracts, setContracts] = useState<ContractResponse[]>([]);
-  const [loadingContracts, setLoadingContracts] = useState(false);
+  const [ghosts, setGhosts]       = useState<GhostReport[]>([]);
+  const [loading, setLoading]     = useState(false);
 
+  // Load service list once
   useEffect(() => {
     apiFetch<ServiceResponse[]>("/services")
       .then((data) => {
@@ -23,14 +27,51 @@ export default function TimelinePage() {
       .catch(() => {});
   }, []);
 
+  // Load contracts + ghosts whenever the selected service changes
   useEffect(() => {
     if (!selectedId) return;
-    setLoadingContracts(true);
-    apiFetch<ContractResponse[]>(`/contracts/${selectedId}`)
-      .then((data) => { if (Array.isArray(data)) setContracts(data); })
-      .catch(() => setContracts([]))
-      .finally(() => setLoadingContracts(false));
+    setLoading(true);
+    setContracts([]);
+    setGhosts([]);
+
+    const selectedSvc = services.find((s) => s.service_id === selectedId);
+    const isHaunting  = selectedSvc?.phase === "haunting";
+
+    Promise.all([
+      apiFetch<ContractResponse[]>(`/contracts/${selectedId}`).catch(() => []),
+      isHaunting
+        ? apiFetch<GhostReport[]>(`/ghosts?service_id=${selectedId}&limit=100`).catch(() => [])
+        : Promise.resolve([]),
+    ]).then(([contractData, ghostData]) => {
+      setContracts(Array.isArray(contractData) ? contractData : []);
+      setGhosts(Array.isArray(ghostData) ? ghostData : []);
+    }).finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
+
+  // Live: append new ghost reports for the selected service via SSE
+  useSSEEvent("ghost_report", (data) => {
+    const report = JSON.parse(data) as GhostReport;
+    if (report.karma_service_id !== selectedId) return;
+    setGhosts((prev) => [report, ...prev]);
+  });
+
+  // Live: re-fetch contracts when a service finishes learning
+  useSSEEvent("service_update", (data) => {
+    const updated = JSON.parse(data) as ServiceResponse;
+    setServices((prev) =>
+      prev.map((s) => s.service_id === updated.service_id ? { ...s, ...updated } : s)
+    );
+    if (updated.service_id === selectedId && updated.phase === "ready") {
+      apiFetch<ContractResponse[]>(`/contracts/${selectedId}`)
+        .then((d) => { if (Array.isArray(d)) setContracts(d); })
+        .catch(() => {});
+    }
+  });
+
+  const selectedSvc  = services.find((s) => s.service_id === selectedId);
+  const isHaunting   = selectedSvc?.phase === "haunting";
+  const replacementName = selectedSvc?.replacement_service_id ?? "Replacement service";
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -38,7 +79,9 @@ export default function TimelinePage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Contract Timeline</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Implicit contracts discovered and validated during the learning phase.
+          {isHaunting
+            ? "Before / After view — learned contracts vs. replacement service behaviour."
+            : "Implicit contracts discovered and validated during the learning phase."}
         </p>
       </div>
 
@@ -63,14 +106,30 @@ export default function TimelinePage() {
         </div>
       )}
 
-      {/* ── Timeline ── */}
-      {loadingContracts ? (
-        <div className="space-y-3">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-20 rounded-xl border border-border bg-card animate-pulse" />
+      {/* ── Skeleton ── */}
+      {loading && (
+        <div className="space-y-px rounded-xl overflow-hidden border border-border">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="grid grid-cols-2 divide-x divide-border">
+              <div className="h-20 bg-card animate-pulse" />
+              <div className="h-20 bg-card animate-pulse opacity-70" />
+            </div>
           ))}
         </div>
-      ) : (
+      )}
+
+      {/* ── Before/After split (haunting phase) ── */}
+      {!loading && isHaunting && (
+        <BeforeAfterTimeline
+          contracts={contracts}
+          ghosts={ghosts}
+          oldServiceName={selectedSvc?.service_name ?? "Deprecated service"}
+          newServiceName={replacementName}
+        />
+      )}
+
+      {/* ── Standard vertical list (learning / ready / other phases) ── */}
+      {!loading && !isHaunting && (
         <ContractTimeline contracts={contracts} />
       )}
     </div>
