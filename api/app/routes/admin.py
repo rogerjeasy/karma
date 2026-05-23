@@ -9,12 +9,18 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 from app import firestore_client
 from app.auth import require_admin
-from app.models import SystemServiceCreate, SystemServiceResponse
+from app.models import (
+    ContractResponse,
+    GhostReportResponse,
+    SystemServiceCreate,
+    SystemServiceResponse,
+    WatcherRunResponse,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -90,6 +96,70 @@ async def get_admin_stats(
     }
 
 
+@router.get("/system-services/{service_id}", response_model=SystemServiceResponse)
+async def get_system_service(
+    service_id: str,
+    _: dict[str, Any] = Depends(require_admin),
+) -> SystemServiceResponse:
+    """Return a single Karma infrastructure service by ID."""
+    svc = await firestore_client.get_service(service_id)
+    if svc is None or not svc.get("is_system"):
+        raise HTTPException(status_code=404, detail="System service not found")
+    return _to_system_response(svc)
+
+
+@router.get(
+    "/system-services/{service_id}/contracts",
+    response_model=list[ContractResponse],
+)
+async def get_system_service_contracts(
+    service_id: str,
+    _: dict[str, Any] = Depends(require_admin),
+) -> list[ContractResponse]:
+    """Return all contracts discovered for a system service."""
+    svc = await firestore_client.get_service(service_id)
+    if svc is None or not svc.get("is_system"):
+        raise HTTPException(status_code=404, detail="System service not found")
+    docs = await firestore_client.list_contracts_for_service(service_id)
+    return [_to_contract_response(d) for d in docs]
+
+
+@router.get(
+    "/system-services/{service_id}/ghosts",
+    response_model=list[GhostReportResponse],
+)
+async def get_system_service_ghosts(
+    service_id: str,
+    limit: int = Query(default=50, ge=1, le=200),
+    _: dict[str, Any] = Depends(require_admin),
+) -> list[GhostReportResponse]:
+    """Return ghost reports for a system service."""
+    svc = await firestore_client.get_service(service_id)
+    if svc is None or not svc.get("is_system"):
+        raise HTTPException(status_code=404, detail="System service not found")
+    docs = await firestore_client.list_ghost_reports(
+        user_id="system", service_id=service_id, limit=limit
+    )
+    return [_to_ghost_response(d) for d in docs]
+
+
+@router.get(
+    "/system-services/{service_id}/watcher-runs",
+    response_model=list[WatcherRunResponse],
+)
+async def get_system_service_watcher_runs(
+    service_id: str,
+    limit: int = Query(default=20, ge=1, le=100),
+    _: dict[str, Any] = Depends(require_admin),
+) -> list[WatcherRunResponse]:
+    """Return watcher run history for a system service."""
+    svc = await firestore_client.get_service(service_id)
+    if svc is None or not svc.get("is_system"):
+        raise HTTPException(status_code=404, detail="System service not found")
+    docs = await firestore_client.list_watcher_runs(service_id, limit)
+    return [_to_watcher_run_response(d) for d in docs]
+
+
 def _to_system_response(data: dict[str, Any]) -> SystemServiceResponse:
     return SystemServiceResponse(
         service_id=data["service_id"],
@@ -103,4 +173,53 @@ def _to_system_response(data: dict[str, Any]) -> SystemServiceResponse:
         is_system=data.get("is_system", True),
         created_at=data["created_at"],
         updated_at=data["updated_at"],
+    )
+
+
+def _to_contract_response(doc: dict[str, Any]) -> ContractResponse:
+    ts_raw = doc.get("saved_at") or doc.get("detected_at") or datetime.utcnow().isoformat()
+    return ContractResponse(
+        contract_id=doc["contract_id"],
+        service_id=doc.get("service_id") or doc.get("karma_service_id", ""),
+        category=doc["category"],
+        subcategory=doc["subcategory"],
+        description=doc["description"],
+        confidence=doc["confidence"],
+        validated=doc.get("validated", False),
+        detected_at=datetime.fromisoformat(str(ts_raw)),
+    )
+
+
+def _to_ghost_response(doc: dict[str, Any]) -> GhostReportResponse:
+    return GhostReportResponse(
+        report_id=doc["report_id"],
+        violation_id=doc["violation_id"],
+        contract_id=doc.get("contract", {}).get("contract_id", ""),
+        category=doc.get("contract", {}).get("category", ""),
+        summary=doc["summary"],
+        root_cause=doc["root_cause"],
+        downstream_impact=doc["downstream_impact"],
+        davis_ai_insights=doc.get("davis_ai_insights"),
+        severity=doc.get("severity", "medium"),
+        evidence_links=doc.get("evidence_links", []),
+        remediation_suggestions=doc.get("remediation_suggestions", []),
+        cost_estimate_usd=doc.get("cost_estimate_usd"),
+        investigation_input_tokens=doc.get("investigation_input_tokens"),
+        investigation_output_tokens=doc.get("investigation_output_tokens"),
+        dynatrace_event_id=doc.get("dynatrace_event_id"),
+        created_at=datetime.fromisoformat(
+            str(doc.get("created_at") or doc["saved_at"])
+        ),
+    )
+
+
+def _to_watcher_run_response(doc: dict[str, Any]) -> WatcherRunResponse:
+    return WatcherRunResponse(
+        run_id=doc["run_id"],
+        service_id=doc["service_id"],
+        service_name=doc.get("service_name"),
+        run_at=datetime.fromisoformat(str(doc["run_at"])),
+        contracts_checked=doc.get("contracts_checked", 0),
+        violations_found=doc.get("violations_found", 0),
+        duration_seconds=doc.get("duration_seconds"),
     )

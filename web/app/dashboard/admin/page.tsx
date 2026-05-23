@@ -12,6 +12,7 @@ import {
   Loader2,
   ExternalLink,
   RefreshCw,
+  ArrowRight,
 } from "lucide-react";
 import { useUserProfile } from "@/lib/user-profile-context";
 import { apiFetch } from "@/lib/api";
@@ -27,6 +28,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 import type { SystemService, AdminStats } from "@/lib/types";
 
 const PHASE_COLORS: Record<string, string> = {
@@ -247,6 +249,13 @@ function ServiceRow({ service }: { service: SystemService }) {
           <ExternalLink className="h-4 w-4" />
         </a>
       )}
+      <Link
+        href={`/dashboard/services/${service.service_id}`}
+        className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        View
+        <ArrowRight className="h-3.5 w-3.5" />
+      </Link>
     </div>
   );
 }
