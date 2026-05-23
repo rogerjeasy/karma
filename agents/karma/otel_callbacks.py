@@ -128,8 +128,6 @@ def make_telemetry_callbacks(
         model_name: Gemini model string (e.g. "gemini-2.5-pro") used for
                     token cost attribution when the LlmRequest model is unavailable.
     """
-    tracer = get_tracer("karma.agents")
-
     # ── 1. before_agent ───────────────────────────────────────────────────────
 
     def _before_agent(callback_context: Any) -> Any:
@@ -141,6 +139,7 @@ def make_telemetry_callbacks(
             from opentelemetry import context as otel_ctx
             from opentelemetry.trace import set_span_in_context
 
+            tracer = get_tracer("karma.agents")
             span = tracer.start_span(
                 SPAN_AGENT_RUN,
                 attributes={
@@ -211,6 +210,7 @@ def make_telemetry_callbacks(
             state.model_start_ns = time.perf_counter()
 
             # tracer inherits the attached agent context automatically
+            tracer = get_tracer("karma.agents")
             span = tracer.start_span(
                 SPAN_MODEL_CALL,
                 attributes={
@@ -319,6 +319,7 @@ def make_telemetry_callbacks(
                 for k, v in (args or {}).items()
             }
 
+            tracer = get_tracer("karma.agents")
             span = tracer.start_span(
                 SPAN_TOOL_CALL,
                 attributes={
