@@ -129,7 +129,7 @@ export default function LoginPage() {
           </div>
           <div>
             <h1 className="text-4xl font-bold tracking-tight gradient-text">Karma</h1>
-            <p className="mt-1.5 text-[13px] text-muted-foreground font-medium leading-snug">
+            <p className="mt-1.5 text-[13px] text-slate-300 font-medium leading-snug">
               The Reincarnation Agent for Deprecated Services
             </p>
           </div>
@@ -150,7 +150,7 @@ export default function LoginPage() {
                   "flex-1 rounded-md py-1.5 text-sm font-medium transition-all duration-150",
                   mode === m
                     ? "bg-card text-foreground shadow-sm border border-border/60"
-                    : "text-muted-foreground hover:text-foreground"
+                    : "text-slate-300 hover:text-foreground"
                 )}
               >
                 {m === "signin" ? "Sign in" : "Sign up"}
@@ -166,7 +166,7 @@ export default function LoginPage() {
             className="w-full flex items-center justify-center gap-3 rounded-xl border border-border/80 bg-secondary hover:bg-secondary/70 hover:border-primary/30 px-4 py-2.5 text-sm font-medium text-foreground transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-55 active:scale-[0.98]"
           >
             {googleLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
             ) : (
               <GoogleIcon />
             )}
@@ -179,7 +179,7 @@ export default function LoginPage() {
               <div className="w-full border-t border-border/50" />
             </div>
             <div className="relative flex justify-center">
-              <span className="bg-card px-3 text-[11px] text-muted-foreground/60 uppercase tracking-wider">
+              <span className="bg-card px-3 text-[11px] text-slate-400 uppercase tracking-wider">
                 or
               </span>
             </div>
@@ -190,7 +190,7 @@ export default function LoginPage() {
 
             {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label htmlFor="email" className="block text-xs font-medium text-slate-300 mb-1.5">
                 Email
               </label>
               <input
@@ -208,7 +208,7 @@ export default function LoginPage() {
 
             {/* Password */}
             <div>
-              <label htmlFor="password" className="block text-xs font-medium text-muted-foreground mb-1.5">
+              <label htmlFor="password" className="block text-xs font-medium text-slate-300 mb-1.5">
                 Password
               </label>
               <div className="relative">
@@ -227,7 +227,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   tabIndex={-1}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -238,7 +238,7 @@ export default function LoginPage() {
             {/* Confirm password (sign-up only) */}
             {mode === "signup" && (
               <div>
-                <label htmlFor="confirm-password" className="block text-xs font-medium text-muted-foreground mb-1.5">
+                <label htmlFor="confirm-password" className="block text-xs font-medium text-slate-300 mb-1.5">
                   Confirm password
                 </label>
                 <input
@@ -274,7 +274,7 @@ export default function LoginPage() {
           </form>
 
           {/* ── Toggle link ── */}
-          <p className="text-center text-xs text-muted-foreground/70">
+          <p className="text-center text-xs text-slate-400">
             {mode === "signin" ? "Don't have an account? " : "Already have an account? "}
             <button
               type="button"
@@ -286,7 +286,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <p className="mt-6 text-center text-[11px] text-muted-foreground/40">
+        <p className="mt-6 text-center text-[11px] text-slate-500">
           Google Cloud Rapid Agent Hackathon · Dynatrace Track
         </p>
       </div>

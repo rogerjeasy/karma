@@ -122,7 +122,7 @@ function DashboardShell({ children, onSignOut }: { children: React.ReactNode; on
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-[13px] font-bold text-foreground leading-none">Karma</span>
-            <span className="text-[10px] text-muted-foreground/70 leading-none mt-0.5 truncate">
+            <span className="text-[10px] text-slate-400 leading-none mt-0.5 truncate">
               Reincarnation Agent
             </span>
           </div>
@@ -137,7 +137,7 @@ function DashboardShell({ children, onSignOut }: { children: React.ReactNode; on
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
-          <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 select-none">
+          <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400 select-none">
             Main menu
           </p>
           {NAV_ITEMS.map((item) => (
@@ -146,10 +146,10 @@ function DashboardShell({ children, onSignOut }: { children: React.ReactNode; on
 
           <Separator className="my-3" />
 
-          <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 select-none">
+          <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400 select-none">
             System
           </p>
-          <div className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-muted-foreground/60 select-none">
+          <div className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-300 select-none">
             <Zap className="h-4 w-4 shrink-0" />
             <span>Dynatrace MCP</span>
             <ChevronRight className="ml-auto h-3 w-3 opacity-40" />
@@ -192,7 +192,7 @@ function DashboardShell({ children, onSignOut }: { children: React.ReactNode; on
                   ? "Connecting…"
                   : "Demo Mode"}
               </p>
-              <p className="text-[10px] text-muted-foreground/70 leading-none mt-0.5">
+              <p className="text-[10px] text-slate-400 leading-none mt-0.5">
                 {connectionState === "open"
                   ? "API connected"
                   : connectionState === "connecting"
@@ -318,10 +318,10 @@ function Breadcrumb() {
   return (
     <div className="flex items-center gap-1.5 text-sm">
       <Ghost className="h-3.5 w-3.5 text-primary/70" />
-      <span className="text-muted-foreground/60">Karma</span>
+      <span className="text-slate-300">Karma</span>
       {active && (
         <>
-          <ChevronRight className="h-3 w-3 text-muted-foreground/40" />
+          <ChevronRight className="h-3 w-3 text-slate-500" />
           <span className="font-medium text-foreground">{active.label}</span>
         </>
       )}

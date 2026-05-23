@@ -77,7 +77,7 @@ export function BeforeAfterTimeline({
       <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-card/30 px-6 py-16 text-center">
         <Ghost className="h-10 w-10 text-muted-foreground/30 mb-4" />
         <p className="text-sm font-medium">No contracts to compare</p>
-        <p className="mt-1 text-xs text-muted-foreground/60 max-w-xs">
+        <p className="mt-1 text-xs text-slate-300 max-w-xs">
           Run learning on the deprecated service to discover contracts before comparing.
         </p>
       </div>
@@ -89,13 +89,13 @@ export function BeforeAfterTimeline({
       {/* ── Column headers ── */}
       <div className="grid grid-cols-2 divide-x divide-border bg-muted/30">
         <div className="px-5 py-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">
             Before — deprecated
           </p>
           <p className="mt-0.5 text-sm font-semibold text-foreground truncate">{oldServiceName}</p>
         </div>
         <div className="px-5 py-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">
             After — replacement
           </p>
           <p className="mt-0.5 text-sm font-semibold text-foreground truncate">{newServiceName}</p>
@@ -143,13 +143,13 @@ function ContractCell({ contract }: { contract: ContractResponse }) {
           {CATEGORY_LABEL[contract.category] ?? contract.category.replace("_", " ")}
         </span>
         {contract.subcategory && (
-          <span className="text-[10px] text-muted-foreground/50">{contract.subcategory}</span>
+          <span className="text-[10px] text-slate-400">{contract.subcategory}</span>
         )}
-        <span className="ml-auto text-[10px] text-muted-foreground/40 tabular-nums shrink-0">
+        <span className="ml-auto text-[10px] text-slate-400 tabular-nums shrink-0">
           {Math.round(contract.confidence * 100)}% conf.
         </span>
       </div>
-      <p className="text-xs text-muted-foreground leading-snug line-clamp-3">
+      <p className="text-xs text-slate-300 leading-snug line-clamp-3">
         {contract.description}
       </p>
     </Link>
@@ -167,7 +167,7 @@ function StatusCell({
         <CheckCircle2 className="h-4 w-4 text-emerald-500/70 shrink-0 mt-0.5" />
         <div>
           <p className="text-xs font-medium text-emerald-400/80">No violation detected</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground/50 leading-snug">
+          <p className="mt-0.5 text-[11px] text-slate-400 leading-snug">
             Replacement honours this contract.
           </p>
         </div>
@@ -204,7 +204,7 @@ function StatusCell({
         </span>
       </div>
 
-      <p className="text-xs text-muted-foreground leading-snug line-clamp-3">
+      <p className="text-xs text-slate-300 leading-snug line-clamp-3">
         {latest.summary}
       </p>
 
@@ -214,7 +214,7 @@ function StatusCell({
         </p>
       )}
 
-      <div className="flex items-center gap-1 text-[10px] text-muted-foreground/40">
+      <div className="flex items-center gap-1 text-[10px] text-slate-400">
         <Clock className="h-3 w-3" />
         <span>{ago}</span>
         {violations.length > 1 && (

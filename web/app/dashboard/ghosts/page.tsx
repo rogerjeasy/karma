@@ -35,7 +35,7 @@ export default function GhostsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Ghosts</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-slate-300">
             Implicit contract violations detected in replacement services.
           </p>
         </div>
@@ -93,23 +93,23 @@ function EmptyState({ hasFilter, onClear }: { hasFilter: boolean; onClear: () =>
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-card/30 px-6 py-16 text-center">
       <div className="relative mb-5">
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-card shadow-card">
-          <Ghost className="h-7 w-7 text-muted-foreground/40" />
+          <Ghost className="h-7 w-7 text-slate-400" />
         </div>
         <div className="absolute -inset-2 rounded-2xl bg-primary/3 blur-xl" />
       </div>
       {hasFilter ? (
         <>
           <h3 className="text-base font-semibold">No ghosts at this severity</h3>
-          <p className="mt-2 text-sm text-muted-foreground">Try a different filter.</p>
+          <p className="mt-2 text-sm text-slate-300">Try a different filter.</p>
           <Button variant="outline" className="mt-5" onClick={onClear}>Clear filter</Button>
         </>
       ) : (
         <>
           <h3 className="text-base font-semibold">No ghosts detected yet</h3>
-          <p className="mt-2 text-sm text-muted-foreground max-w-xs leading-relaxed">
+          <p className="mt-2 text-sm text-slate-300 max-w-xs leading-relaxed">
             The haunting begins after cutover. Ghost reports appear here in real time as violations are detected.
           </p>
-          <p className="mt-3 text-xs text-muted-foreground/60 font-mono">
+          <p className="mt-3 text-xs text-slate-300 font-mono">
             Listening for events on /stream/ghosts…
           </p>
         </>

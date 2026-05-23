@@ -41,7 +41,7 @@ function CopyButton({ value }: { value: string }) {
     setTimeout(() => setCopied(false), 1500);
   }
   return (
-    <button onClick={copy} className="ml-1.5 text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+    <button onClick={copy} className="ml-1.5 text-slate-400 hover:text-muted-foreground transition-colors">
       {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
     </button>
   );
@@ -230,8 +230,8 @@ function ServiceDetailsDialog({
               </div>
             ) : contracts.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 px-4 py-6 text-center">
-                <p className="text-sm text-muted-foreground">No contracts discovered yet.</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">
+                <p className="text-sm text-slate-300">No contracts discovered yet.</p>
+                <p className="text-xs text-slate-300 mt-1">
                   {service.phase === "learning"
                     ? "The Learner agent is running — contracts will appear once analysis completes."
                     : "Trigger learning to discover contracts from Dynatrace telemetry."}
@@ -312,7 +312,7 @@ function ServiceDetailsDialog({
                     : <Eye className="h-3.5 w-3.5" />}
                   Run watcher now
                 </Button>
-                <p className="text-[11px] text-muted-foreground/60">
+                <p className="text-[11px] text-slate-300">
                   Auto-completes after 3 consecutive clean runs with no violations.
                 </p>
               </div>
@@ -399,7 +399,7 @@ function DetailRow({
 }) {
   return (
     <div className="space-y-0.5">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">{label}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>
       <div className="flex items-center">
         <p className={cn("text-[13px] text-foreground truncate", mono && "font-mono")}>{value}</p>
         {copy && <CopyButton value={value} />}
@@ -431,14 +431,14 @@ function ContractRow({ contract: c }: { contract: ContractResponse }) {
           {c.category.replace("_", " ")}
         </span>
         {c.subcategory && (
-          <span className="text-[10px] text-muted-foreground/60">{c.subcategory}</span>
+          <span className="text-[10px] text-slate-300">{c.subcategory}</span>
         )}
-        <span className="ml-auto text-[10px] text-muted-foreground/50 tabular-nums">
+        <span className="ml-auto text-[10px] text-slate-400 tabular-nums">
           {Math.round(c.confidence * 100)}% confidence
         </span>
-        <ExternalLink className="h-3 w-3 text-muted-foreground/30 shrink-0" />
+        <ExternalLink className="h-3 w-3 text-slate-500 shrink-0" />
       </div>
-      <p className="text-xs text-muted-foreground leading-snug">{c.description}</p>
+      <p className="text-xs text-slate-300 leading-snug">{c.description}</p>
     </Link>
   );
 }
@@ -458,7 +458,7 @@ export default function ServicesPage() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Services</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-slate-300">
             Manage deprecated services under observation and track their replacement status.
           </p>
         </div>
@@ -598,7 +598,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
     <div className="space-y-1.5">
       <Label>
         {label}
-        {hint && <span className="ml-1 text-muted-foreground/60 font-normal">({hint})</span>}
+        {hint && <span className="ml-1 text-slate-300 font-normal">({hint})</span>}
       </Label>
       {children}
     </div>
@@ -625,7 +625,7 @@ function ServiceCard({
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground leading-tight truncate">{svc.service_name}</p>
-            <p className="text-[11px] text-muted-foreground font-mono truncate mt-0.5">{svc.dynatrace_entity_id}</p>
+            <p className="text-[11px] text-slate-400 font-mono truncate mt-0.5">{svc.dynatrace_entity_id}</p>
           </div>
         </div>
         <PhaseBadge phase={svc.phase} />
@@ -647,7 +647,7 @@ function ServiceCard({
 
       {/* Footer */}
       <div className="flex items-center justify-between pt-1 border-t border-border/60">
-        <p className="text-[11px] font-mono text-muted-foreground/60 truncate">{svc.service_id?.slice(0, 12) ?? '—'}…</p>
+        <p className="text-[11px] font-mono text-slate-300 truncate">{svc.service_id?.slice(0, 12) ?? '—'}…</p>
         <button
           onClick={onDetails}
           className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors opacity-0 group-hover:opacity-100"
@@ -663,9 +663,9 @@ function ServiceCard({
 function MetaRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
   return (
     <div className="flex items-center gap-2 text-xs">
-      <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
-      <span className="text-muted-foreground/60">{label}:</span>
-      <span className="text-muted-foreground">{value}</span>
+      <Icon className="h-3.5 w-3.5 shrink-0 text-slate-300" />
+      <span className="text-slate-300">{label}:</span>
+      <span className="text-slate-300">{value}</span>
     </div>
   );
 }
@@ -701,10 +701,10 @@ function EmptyState({ onRegister }: { onRegister: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-card/30 px-6 py-16 text-center">
       <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-card shadow-card mb-5">
-        <Server className="h-6 w-6 text-muted-foreground/50" />
+        <Server className="h-6 w-6 text-slate-400" />
       </div>
       <h3 className="text-base font-semibold text-foreground">No services registered</h3>
-      <p className="mt-2 text-sm text-muted-foreground max-w-xs leading-relaxed">
+      <p className="mt-2 text-sm text-slate-300 max-w-xs leading-relaxed">
         Register your first service to begin learning its implicit contracts and detect silent regressions.
       </p>
       <Button className="mt-6 gap-2" onClick={onRegister}>

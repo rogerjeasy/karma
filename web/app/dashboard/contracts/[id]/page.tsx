@@ -39,7 +39,7 @@ function CopyButton({ value, className }: { value: string; className?: string })
   return (
     <button
       onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
-      className={cn("text-muted-foreground/50 hover:text-muted-foreground transition-colors", className)}
+      className={cn("text-slate-400 hover:text-muted-foreground transition-colors", className)}
     >
       {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
     </button>
@@ -54,7 +54,7 @@ function DqlBlock({ dql, label }: { dql: string; label?: string }) {
     <div className="rounded-lg border border-border bg-zinc-950/60 overflow-hidden">
       {label && (
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/60 bg-muted/20">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">{label}</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-300">{label}</span>
           <div className="flex items-center gap-2">
             <CopyButton value={dql} />
             {href && (
@@ -78,16 +78,16 @@ function EvidenceItem({ ev, index }: { ev: ContractEvidence; index: number }) {
     return (
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
             DQL Evidence #{index + 1}
           </span>
-          <span className="text-[10px] text-muted-foreground/40">
+          <span className="text-[10px] text-slate-400">
             · {ev.sample_count.toLocaleString()} samples · {ev.timespan}
           </span>
         </div>
         <DqlBlock dql={ev.dql} />
         {ev.result_summary && (
-          <p className="text-xs text-muted-foreground/70 pl-1">{ev.result_summary}</p>
+          <p className="text-xs text-slate-400 pl-1">{ev.result_summary}</p>
         )}
       </div>
     );
@@ -95,15 +95,15 @@ function EvidenceItem({ ev, index }: { ev: ContractEvidence; index: number }) {
   return (
     <div className="rounded-lg border border-border bg-card/50 px-4 py-3 space-y-1.5">
       <div className="flex items-center gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
           Trace Pattern #{index + 1}
         </span>
-        <span className="text-[10px] text-muted-foreground/40">
+        <span className="text-[10px] text-slate-400">
           · {ev.sample_count.toLocaleString()} samples
         </span>
       </div>
       <p className="text-xs font-mono text-foreground">{ev.pattern}</p>
-      <p className="text-xs text-muted-foreground/70">{ev.frequency}</p>
+      <p className="text-xs text-slate-400">{ev.frequency}</p>
     </div>
   );
 }
@@ -145,7 +145,7 @@ export default function ContractDetailPage() {
       <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">
         <FileCode2 className="h-10 w-10 text-muted-foreground/30" />
         <h2 className="text-lg font-semibold">Contract not found</h2>
-        <p className="text-sm text-muted-foreground">This contract may have been deleted.</p>
+        <p className="text-sm text-slate-300">This contract may have been deleted.</p>
         <button onClick={() => router.back()}
           className="text-sm text-primary hover:text-primary/80 transition-colors flex items-center gap-1">
           <ArrowLeft className="h-3.5 w-3.5" /> Go back
@@ -199,7 +199,7 @@ export default function ContractDetailPage() {
           {/* Confidence + metadata */}
           <div className="flex flex-wrap items-center gap-6 text-xs text-muted-foreground pt-1">
             <div className="flex items-center gap-2 min-w-36">
-              <span className="text-muted-foreground/60 shrink-0">Confidence</span>
+              <span className="text-slate-300 shrink-0">Confidence</span>
               <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden min-w-20">
                 <div
                   className={cn("h-full rounded-full transition-all", c.confidence >= 0.9 ? "bg-emerald-400" : c.confidence >= 0.7 ? "bg-amber-400" : "bg-red-400")}
@@ -216,7 +216,7 @@ export default function ContractDetailPage() {
             </div>
             <div className="flex items-center gap-1.5 font-mono">
               <FileCode2 className="h-3 w-3" />
-              <span className="text-muted-foreground/60">{id?.slice(0, 8)}</span>
+              <span className="text-slate-300">{id?.slice(0, 8)}</span>
               <CopyButton value={id ?? ""} />
             </div>
           </div>

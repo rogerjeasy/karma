@@ -99,12 +99,12 @@ export function GhostCard({ report }: GhostCardProps) {
               {report.severity}
             </Badge>
             <span className="text-xs text-muted-foreground font-mono">{report.category}</span>
-            <span className="text-muted-foreground/40 text-xs">·</span>
+            <span className="text-slate-400 text-xs">·</span>
             <span className="text-[11px] text-muted-foreground/70 font-mono">
               #{report.contract_id?.slice(0, 8) ?? '—'}
             </span>
           </div>
-          <div className="flex items-center gap-1 shrink-0 text-xs text-muted-foreground/60">
+          <div className="flex items-center gap-1 shrink-0 text-xs text-slate-300">
             <Clock className="h-3 w-3" />
             <time>{formatDistanceToNow(new Date(report.created_at), { addSuffix: true })}</time>
           </div>
@@ -115,7 +115,7 @@ export function GhostCard({ report }: GhostCardProps) {
 
         {/* ── Impact ── */}
         {report.downstream_impact && (
-          <p className="text-sm text-muted-foreground leading-relaxed">{report.downstream_impact}</p>
+          <p className="text-sm text-slate-300 leading-relaxed">{report.downstream_impact}</p>
         )}
 
         {/* ── Davis AI insights ── */}
@@ -127,7 +127,7 @@ export function GhostCard({ report }: GhostCardProps) {
                 Davis AI Insights
               </p>
             </div>
-            <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+            <p className="text-xs text-slate-300 leading-relaxed line-clamp-3">
               {report.davis_ai_insights}
             </p>
           </div>
@@ -142,7 +142,7 @@ export function GhostCard({ report }: GhostCardProps) {
             {report.remediation_suggestions.map((s, i) => (
               <div key={i} className="flex items-start gap-2 text-xs">
                 <ArrowRight className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary/70" />
-                <span className="text-muted-foreground leading-relaxed">{s}</span>
+                <span className="text-slate-300 leading-relaxed">{s}</span>
               </div>
             ))}
           </div>

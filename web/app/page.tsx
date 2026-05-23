@@ -87,14 +87,14 @@ function NavBar() {
           <nav className="hidden lg:flex items-center gap-0.5">
             {links.map((l) => (
               <a key={l.label} href={l.href}
-                className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground rounded-lg hover:bg-white/5 transition-colors whitespace-nowrap">
+                className="px-3 py-2 text-sm text-slate-300 hover:text-foreground rounded-lg hover:bg-white/5 transition-colors whitespace-nowrap">
                 {l.label}
               </a>
             ))}
           </nav>
           {/* CTA */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <Link href="/login" className="hidden sm:block text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <Link href="/login" className="hidden sm:block text-sm text-slate-300 hover:text-foreground transition-colors">
               Sign in
             </Link>
             <Link href="/login"
@@ -102,7 +102,7 @@ function NavBar() {
               Get started <ChevronRight className="h-3.5 w-3.5" />
             </Link>
             <button
-              className="lg:hidden rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
+              className="lg:hidden rounded-lg p-2 text-slate-300 hover:text-foreground hover:bg-white/5 transition-colors"
               onClick={() => setOpen(!open)} aria-label="Toggle menu">
               {open ? <X className="h-[18px] w-[18px]" /> : <Menu className="h-[18px] w-[18px]" />}
             </button>
@@ -113,7 +113,7 @@ function NavBar() {
           <div className="lg:hidden border-t border-border/40 pb-4 pt-2 space-y-0.5 animate-fade-in">
             {links.map((l) => (
               <a key={l.label} href={l.href} onClick={() => setOpen(false)}
-                className="block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors">
+                className="block rounded-lg px-3 py-2.5 text-sm text-slate-300 hover:text-foreground hover:bg-white/5 transition-colors">
                 {l.label}
               </a>
             ))}
@@ -154,7 +154,7 @@ const TERMINAL_LINES: { delay: number; type: string; text: string }[] = [
 function TerminalMockup() {
   const [count, setCount] = useState(0);
   const [cursor, setCursor] = useState(true);
-  const endRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const timers = TERMINAL_LINES.map((l, i) => setTimeout(() => setCount(i + 1), l.delay));
@@ -163,7 +163,9 @@ function TerminalMockup() {
   }, []);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
   }, [count]);
 
   const colorClass = (type: string) => {
@@ -172,7 +174,7 @@ function TerminalMockup() {
       case "success": return "text-emerald-400";
       case "warn":    return "text-amber-400";
       case "error":   return "text-red-400 font-medium";
-      default:        return "text-muted-foreground";
+      default:        return "text-slate-300";
     }
   };
 
@@ -183,14 +185,14 @@ function TerminalMockup() {
         <div className="h-2.5 w-2.5 rounded-full bg-red-500/70" />
         <div className="h-2.5 w-2.5 rounded-full bg-amber-500/70" />
         <div className="h-2.5 w-2.5 rounded-full bg-emerald-500/70" />
-        <span className="ml-3 text-[11px] text-muted-foreground/50 font-mono tracking-wider">karma · agent · v1.0</span>
+        <span className="ml-3 text-[11px] text-slate-400 font-mono tracking-wider">karma · agent · v1.0</span>
         <div className="ml-auto flex items-center gap-1.5">
           <span className="inline-flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
           <span className="text-[10px] text-primary/70 font-mono">live</span>
         </div>
       </div>
       {/* Body */}
-      <div className="p-4 sm:p-5 font-mono text-[11.5px] sm:text-[12.5px] space-y-1.5 min-h-[260px] max-h-[340px] overflow-y-auto overflow-x-hidden leading-relaxed">
+      <div ref={containerRef} className="p-4 sm:p-5 font-mono text-[11.5px] sm:text-[12.5px] space-y-1.5 min-h-[260px] max-h-[340px] overflow-y-auto overflow-x-hidden leading-relaxed">
         {TERMINAL_LINES.slice(0, count).map((line, i) =>
           line.type === "divider" ? (
             <div key={i} className="my-2 border-t border-border/25" />
@@ -204,7 +206,6 @@ function TerminalMockup() {
         {count < TERMINAL_LINES.length && (
           <span className={cn("inline-block w-[7px] h-[13px] rounded-[1px] align-middle bg-primary transition-opacity", cursor ? "opacity-100" : "opacity-0")} />
         )}
-        <div ref={endRef} />
       </div>
       <div className="absolute bottom-0 inset-x-0 h-20 bg-gradient-to-t from-primary/5 to-transparent pointer-events-none" />
     </div>
@@ -240,7 +241,7 @@ function HeroSection() {
                 <span className="text-foreground block">Your tests pass.</span>
                 <span className="gradient-text block">Production burns.</span>
               </h1>
-              <p className="text-base sm:text-lg text-muted-foreground leading-relaxed max-w-lg">
+              <p className="text-base sm:text-lg text-slate-300 leading-relaxed max-w-lg">
                 Karma learns what deprecated services secretly did, then watches replacements and flags silent regressions that pass every test.
               </p>
             </div>
@@ -252,12 +253,12 @@ function HeroSection() {
               </Link>
               <Link href="/dashboard"
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card/60 px-6 py-3.5 text-[14px] sm:text-[15px] font-medium text-foreground hover:bg-card transition-all w-full xs:w-auto">
-                Live dashboard <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                Live dashboard <ArrowRight className="h-4 w-4 text-slate-400 shrink-0" />
               </Link>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               {["Zero config setup", "No false positives", "Real-time alerts"].map((s) => (
-                <div key={s} className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <div key={s} className="flex items-center gap-1.5 text-sm text-slate-300">
                   <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
                   {s}
                 </div>
@@ -272,7 +273,7 @@ function HeroSection() {
       </div>
       {/* Scroll cue */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 opacity-35 animate-bounce">
-        <span className="text-[10px] text-muted-foreground tracking-[0.18em] uppercase">scroll</span>
+        <span className="text-[10px] text-slate-400 tracking-[0.18em] uppercase">scroll</span>
         <div className="h-8 w-px bg-gradient-to-b from-border to-transparent" />
       </div>
     </section>
@@ -342,7 +343,7 @@ function StatsStrip() {
                 {vals[i]}{s.suffix}
               </p>
               <p className="text-[13px] sm:text-[14px] font-semibold text-foreground">{s.label}</p>
-              <p className="text-xs text-muted-foreground">{s.sub}</p>
+              <p className="text-xs text-slate-300">{s.sub}</p>
             </div>
           ))}
         </div>
@@ -389,7 +390,7 @@ function ProblemSection() {
             Silent regressions are<br className="hidden sm:block" />
             <span className="gradient-text"> the hardest bugs to catch.</span>
           </h2>
-          <p className="mt-4 sm:mt-5 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+          <p className="mt-4 sm:mt-5 text-base sm:text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed">
             Service migrations hide an entire class of regression that no conventional test can find.
           </p>
         </div>
@@ -404,7 +405,7 @@ function ProblemSection() {
                   <Icon className="h-5 w-5" />
                 </div>
                 <h3 className="text-[15px] font-bold text-foreground leading-snug">{p.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{p.body}</p>
+                <p className="text-sm text-slate-300 leading-relaxed">{p.body}</p>
               </div>
             );
           })}
@@ -455,7 +456,7 @@ function HowItWorks() {
                 </div>
                 <div className="space-y-2">
                   <h3 className="text-[15px] font-bold text-foreground">{step.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{step.desc}</p>
+                  <p className="text-sm text-slate-300 leading-relaxed">{step.desc}</p>
                 </div>
               </div>
             );
@@ -623,7 +624,7 @@ function GhostSection() {
             <br />
             <span className="gradient-text">They haunt you.</span>
           </h2>
-          <p className="mt-4 sm:mt-5 text-base sm:text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
+          <p className="mt-4 sm:mt-5 text-base sm:text-lg text-slate-300 max-w-xl mx-auto leading-relaxed">
             Every deprecated service leaves a ghost — a behavioral shadow that lingers and watches its replacement for signs of betrayal.
           </p>
         </div>
@@ -677,7 +678,7 @@ function GhostSection() {
                 {/* Description */}
                 <div className="space-y-2 max-w-xs px-2">
                   <h3 className="text-lg sm:text-xl font-black text-foreground">{stage.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{stage.desc}</p>
+                  <p className="text-sm text-slate-300 leading-relaxed">{stage.desc}</p>
                 </div>
 
                 {/* Mobile vertical connector (not after last) */}
@@ -704,7 +705,7 @@ function GhostSection() {
           <p className="text-sm sm:text-base font-semibold text-foreground">
             &ldquo;In the deep, every ghost that goes undetected becomes a liability.&rdquo;
           </p>
-          <p className="text-xs sm:text-sm text-muted-foreground">
+          <p className="text-xs sm:text-sm text-slate-300">
             Karma ensures no ghost haunts your production system unchallenged.
           </p>
           <Link href="/login"
@@ -738,8 +739,8 @@ function FeaturesGrid() {
       <div className="relative mx-auto max-w-7xl px-4 sm:px-8">
         <div ref={ref} className={cn("text-center mb-12 sm:mb-16 transition-all duration-700", inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8")}>
           <div className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-1.5 mb-5">
-            <Layers className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span className="text-[11.5px] font-semibold text-muted-foreground">Features</span>
+            <Layers className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+            <span className="text-[11.5px] font-semibold text-slate-300">Features</span>
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight">
             Everything you need to
@@ -764,7 +765,7 @@ function FeaturesGrid() {
                 </div>
                 <div className="space-y-1.5">
                   <h3 className="text-[14px] sm:text-[15px] font-bold text-foreground">{f.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{f.desc}</p>
+                  <p className="text-sm text-slate-300 leading-relaxed">{f.desc}</p>
                 </div>
               </div>
             );
@@ -799,7 +800,7 @@ function TechStack() {
           <h2 className="text-3xl sm:text-4xl font-black tracking-tight">
             Built on a <span className="gradient-text">best-in-class stack.</span>
           </h2>
-          <p className="mt-4 text-muted-foreground max-w-md mx-auto leading-relaxed text-sm sm:text-base">
+          <p className="mt-4 text-slate-300 max-w-md mx-auto leading-relaxed text-sm sm:text-base">
             Cutting-edge AI agents fused with production-grade observability infrastructure.
           </p>
         </div>
@@ -838,7 +839,7 @@ function CTASection() {
           <h2 className="text-[clamp(2.2rem,7vw,4rem)] font-black tracking-tight leading-tight">
             Stop guessing.<br /><span className="gradient-text">Start knowing.</span>
           </h2>
-          <p className="text-base sm:text-lg text-muted-foreground leading-relaxed max-w-xl mx-auto">
+          <p className="text-base sm:text-lg text-slate-300 leading-relaxed max-w-xl mx-auto">
             Give your migration team the confidence to ship. Register your first deprecated service and let Karma do the rest.
           </p>
         </div>
@@ -854,7 +855,7 @@ function CTASection() {
             Explore dashboard
           </Link>
         </div>
-        <p className="text-xs text-muted-foreground/50">Google Cloud Rapid Agent Hackathon · Dynatrace Track · 2026</p>
+        <p className="text-xs text-slate-400">Google Cloud Rapid Agent Hackathon · Dynatrace Track · 2026</p>
       </div>
     </section>
   );
@@ -873,15 +874,15 @@ function Footer() {
               <Ghost className="h-[15px] w-[15px] text-primary" />
             </div>
             <span className="text-sm font-extrabold gradient-text">Karma</span>
-            <span className="text-xs text-muted-foreground/50 hidden sm:block">— The Reincarnation Agent</span>
+            <span className="text-xs text-slate-400 hidden sm:block">— The Reincarnation Agent</span>
           </div>
-          <p className="text-xs text-muted-foreground/45 text-center order-last sm:order-none">
+          <p className="text-xs text-slate-500 text-center order-last sm:order-none">
             © 2026 Karma · Google Cloud Rapid Agent Hackathon · Dynatrace Track
           </p>
           <div className="flex items-center gap-4 sm:gap-5">
-            <Link href="/login"         className="text-xs text-muted-foreground hover:text-foreground transition-colors">Sign in</Link>
-            <Link href="/dashboard"     className="text-xs text-muted-foreground hover:text-foreground transition-colors">Dashboard</Link>
-            <Link href="#ghost-lifecycle" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Ghost Lifecycle</Link>
+            <Link href="/login"         className="text-xs text-slate-300 hover:text-foreground transition-colors">Sign in</Link>
+            <Link href="/dashboard"     className="text-xs text-slate-300 hover:text-foreground transition-colors">Dashboard</Link>
+            <Link href="#ghost-lifecycle" className="text-xs text-slate-300 hover:text-foreground transition-colors">Ghost Lifecycle</Link>
           </div>
         </div>
       </div>

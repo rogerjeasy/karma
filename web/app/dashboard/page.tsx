@@ -180,7 +180,7 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-slate-300">
             Services under observation, ghost activity, and discovered contracts.
           </p>
         </div>
@@ -263,7 +263,7 @@ export default function DashboardPage() {
                 <div className={cn("rounded-lg p-2 border", card.iconClass)}>
                   <card.icon className="h-4 w-4" />
                 </div>
-                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-muted-foreground/70" />
+                <ArrowRight className="h-3.5 w-3.5 text-slate-400 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-muted-foreground/70" />
               </div>
               <div>
                 {stats === null ? (
@@ -271,7 +271,7 @@ export default function DashboardPage() {
                 ) : (
                   <p className="text-3xl font-bold tracking-tight tabular-nums">{card.value}</p>
                 )}
-                <p className="text-xs font-medium text-muted-foreground mt-0.5">{card.label}</p>
+                <p className="text-xs font-medium text-slate-300 mt-0.5">{card.label}</p>
               </div>
             </div>
           </Link>
@@ -285,30 +285,30 @@ export default function DashboardPage() {
             <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/25 bg-emerald-500/10">
               <BarChart3 className="h-3.5 w-3.5 text-emerald-400" />
             </div>
-            <span className="text-xs font-semibold text-muted-foreground">Platform Impact</span>
+            <span className="text-xs font-semibold text-slate-300">Platform Impact</span>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <FileCode2 className="h-3.5 w-3.5 text-teal-400 shrink-0" />
             <span className="font-mono font-semibold text-foreground">{platformStats.total_contracts}</span>
-            <span className="text-muted-foreground/60">contracts discovered</span>
+            <span className="text-slate-300">contracts discovered</span>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Ghost className="h-3.5 w-3.5 text-red-400 shrink-0" />
             <span className="font-mono font-semibold text-foreground">{platformStats.total_ghost_reports}</span>
-            <span className="text-muted-foreground/60">ghost reports generated</span>
+            <span className="text-slate-300">ghost reports generated</span>
           </div>
           {platformStats.avg_minutes_to_first_alert != null && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Timer className="h-3.5 w-3.5 text-amber-400 shrink-0" />
               <span className="font-mono font-semibold text-foreground">{platformStats.avg_minutes_to_first_alert.toFixed(1)} min</span>
-              <span className="text-muted-foreground/60">avg time to first alert</span>
+              <span className="text-slate-300">avg time to first alert</span>
             </div>
           )}
           {platformStats.pct_services_with_violations != null && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <AlertTriangle className="h-3.5 w-3.5 text-orange-400 shrink-0" />
               <span className="font-mono font-semibold text-foreground">{platformStats.pct_services_with_violations}%</span>
-              <span className="text-muted-foreground/60">services with violations caught</span>
+              <span className="text-slate-300">services with violations caught</span>
             </div>
           )}
         </div>
@@ -332,12 +332,12 @@ export default function DashboardPage() {
             <div className="flex flex-col items-center justify-center h-full p-10 text-center min-h-[260px]">
               <div className="relative mb-5">
                 <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-card shadow-card">
-                  <Ghost className="h-7 w-7 text-muted-foreground/50" />
+                  <Ghost className="h-7 w-7 text-slate-400" />
                 </div>
                 <div className="absolute -inset-1.5 rounded-2xl border border-primary/10 animate-pulse" />
               </div>
               <h3 className="text-base font-semibold text-foreground">No ghosts yet</h3>
-              <p className="mt-2 text-sm text-muted-foreground max-w-xs leading-relaxed">
+              <p className="mt-2 text-sm text-slate-300 max-w-xs leading-relaxed">
                 Register a deprecated service to start the learning phase and automatically discover implicit contracts.
               </p>
               <div className="mt-6 flex flex-col sm:flex-row items-center gap-3">
@@ -387,7 +387,7 @@ export default function DashboardPage() {
                 <div className={cn("mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border", p.icon)} />
                 <div>
                   <p className="text-[13px] font-medium text-foreground leading-none">{p.label}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{p.desc}</p>
+                  <p className="text-xs text-slate-300 mt-0.5 leading-snug">{p.desc}</p>
                 </div>
               </div>
             ))}
@@ -405,7 +405,7 @@ export default function DashboardPage() {
             <div className="flex items-center gap-2">
               <Eye className="h-4 w-4 text-blue-400" />
               <h3 className="text-sm font-semibold text-foreground">Recent Watcher Runs</h3>
-              <span className="text-xs text-muted-foreground/60">— live contract monitoring</span>
+              <span className="text-xs text-slate-300">— live contract monitoring</span>
             </div>
           </div>
           <div className="divide-y divide-border/50">
@@ -438,10 +438,10 @@ function GhostRow({ ghost }: { ghost: GhostReport }) {
       )}>
         {sev.label}
       </span>
-      <p className="flex-1 text-xs text-muted-foreground leading-snug line-clamp-2 min-w-0">
+      <p className="flex-1 text-xs text-slate-300 leading-snug line-clamp-2 min-w-0">
         {ghost.summary}
       </p>
-      <div className="flex items-center gap-1 shrink-0 text-[10px] text-muted-foreground/40">
+      <div className="flex items-center gap-1 shrink-0 text-[10px] text-slate-400">
         <Clock className="h-3 w-3" />
         {formatDistanceToNow(new Date(ghost.created_at), { addSuffix: true })}
       </div>
@@ -480,10 +480,10 @@ function WatcherRunRow({ run }: { run: WatcherRun }) {
       </p>
 
       {/* Contracts checked */}
-      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+      <div className="flex items-center gap-1 text-xs text-slate-300">
         <ShieldCheck className="h-3 w-3 shrink-0" />
         <span className="tabular-nums">{run.contracts_checked}</span>
-        <span className="text-muted-foreground/50">checked</span>
+        <span className="text-slate-400">checked</span>
       </div>
 
       {/* Violations */}
@@ -498,14 +498,14 @@ function WatcherRunRow({ run }: { run: WatcherRun }) {
 
       {/* Duration */}
       {run.duration_seconds != null && (
-        <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground/50">
+        <div className="hidden sm:flex items-center gap-1 text-xs text-slate-400">
           <Timer className="h-3 w-3" />
           <span className="tabular-nums">{run.duration_seconds.toFixed(1)}s</span>
         </div>
       )}
 
       {/* Timestamp */}
-      <div className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground/40 shrink-0">
+      <div className="ml-auto flex items-center gap-1 text-[10px] text-slate-400 shrink-0">
         <Clock className="h-3 w-3" />
         {formatDistanceToNow(new Date(run.run_at), { addSuffix: true })}
       </div>
@@ -554,7 +554,7 @@ function AIInvestigationsPanel({
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground tracking-tight truncate">AI Investigation Engine</p>
-            <p className="text-[11px] text-muted-foreground/55 mt-px truncate">Autonomous forensic analysis across every ghost report</p>
+            <p className="text-[11px] text-slate-400 mt-px truncate">Autonomous forensic analysis across every ghost report</p>
           </div>
         </div>
         {/* Live pill */}
@@ -577,7 +577,7 @@ function AIInvestigationsPanel({
             <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-amber-500/20 bg-amber-500/8 shrink-0">
               <Coins className="h-3.5 w-3.5 text-amber-400" />
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/60">Total Spend</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-300">Total Spend</span>
           </div>
           <p className="text-[2rem] sm:text-[2.25rem] font-bold tracking-tight font-mono text-foreground leading-none tabular-nums">
             ${totalCostUsd < 1 ? totalCostUsd.toFixed(4) : totalCostUsd.toFixed(2)}
@@ -586,7 +586,7 @@ function AIInvestigationsPanel({
             <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-400 whitespace-nowrap">
               ${avgCost.toFixed(4)} / case
             </span>
-            <span className="text-[10px] text-muted-foreground/40 whitespace-nowrap">${costPerKToken.toFixed(4)} / 1K tok</span>
+            <span className="text-[10px] text-slate-400 whitespace-nowrap">${costPerKToken.toFixed(4)} / 1K tok</span>
           </div>
         </div>
 
@@ -596,14 +596,14 @@ function AIInvestigationsPanel({
             <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-500/20 bg-blue-500/8 shrink-0">
               <Cpu className="h-3.5 w-3.5 text-blue-400" />
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/60">Tokens Consumed</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-300">Tokens Consumed</span>
           </div>
           <div className="flex flex-wrap items-end gap-2 leading-none">
             <p className="text-[2rem] sm:text-[2.25rem] font-bold tracking-tight font-mono text-foreground tabular-nums">
               {formatTokens(totalTokens)}
             </p>
             {totalTokens >= 1_000 && (
-              <p className="text-sm text-muted-foreground/35 font-mono mb-1 tabular-nums">
+              <p className="text-sm text-slate-500 font-mono mb-1 tabular-nums">
                 ({totalTokens.toLocaleString()})
               </p>
             )}
@@ -621,11 +621,11 @@ function AIInvestigationsPanel({
             <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/8 shrink-0">
               <Brain className="h-3.5 w-3.5 text-emerald-400" />
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/60">Davis AI Enriched</span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-300">Davis AI Enriched</span>
           </div>
           <div className="flex items-end gap-2 leading-none">
             <p className="text-[2rem] sm:text-[2.25rem] font-bold tracking-tight font-mono text-foreground tabular-nums">{davisEnriched}</p>
-            <p className="text-lg text-muted-foreground/30 font-mono mb-1">/ {investigationCount}</p>
+            <p className="text-lg text-slate-500 font-mono mb-1">/ {investigationCount}</p>
           </div>
           {/* Enrichment progress bar */}
           <div className="mt-3 space-y-2">
@@ -650,7 +650,7 @@ function AIInvestigationsPanel({
               )}>
                 {enrichPct}% enrichment rate
               </span>
-              <span className="text-[10px] text-muted-foreground/35 whitespace-nowrap">Davis AI · MCP</span>
+              <span className="text-[10px] text-slate-500 whitespace-nowrap">Davis AI · MCP</span>
             </div>
           </div>
         </div>
@@ -660,11 +660,11 @@ function AIInvestigationsPanel({
       <div className="relative flex flex-col gap-1.5 border-t border-violet-500/10 bg-violet-500/[0.02] px-5 py-2.5 sm:flex-row sm:items-center sm:gap-3 sm:px-6">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/50 shrink-0" />
-          <p className="text-[10px] text-muted-foreground/35 truncate">
+          <p className="text-[10px] text-slate-500 truncate">
             Cost estimates from Vertex AI pricing — actual billing may differ
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground/30 sm:ml-auto">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-500 sm:ml-auto">
           <span className="whitespace-nowrap">Gemini 2.5 Pro · Flash</span>
           <span aria-hidden>·</span>
           <span className="whitespace-nowrap">Root Cause Analysis</span>
@@ -704,7 +704,7 @@ function ContractCategoryWidget({ contracts, loading }: { contracts: ContractRes
   if (loading) {
     return (
       <div className="rounded-xl border border-border bg-card p-5 h-32 flex items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/40" />
+        <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
       </div>
     );
   }
@@ -738,7 +738,7 @@ function ContractCategoryWidget({ contracts, loading }: { contracts: ContractRes
           <Layers className="h-3.5 w-3.5 text-teal-400" />
         </div>
         <h3 className="text-sm font-semibold text-foreground">Contract Intelligence</h3>
-        <span className="text-xs text-muted-foreground/60">— coverage across all 8 implicit contract categories</span>
+        <span className="text-xs text-slate-300">— coverage across all 8 implicit contract categories</span>
         <span className="ml-auto rounded-full border border-teal-500/25 bg-teal-500/10 px-2 py-0.5 text-[11px] font-semibold text-teal-400 tabular-nums">
           {contracts.length} total
         </span>
@@ -761,7 +761,7 @@ function ContractCategoryWidget({ contracts, loading }: { contracts: ContractRes
                   </div>
                   <div className="flex items-center gap-2 text-[11px]">
                     <span className="font-mono font-semibold text-foreground tabular-nums">{s.count}</span>
-                    <span className="text-muted-foreground/50">·</span>
+                    <span className="text-slate-400">·</span>
                     <span className={cn("font-mono tabular-nums", s.avgConfidence >= 0.9 ? "text-emerald-400" : s.avgConfidence >= 0.8 ? "text-amber-400" : "text-muted-foreground")}>
                       {(s.avgConfidence * 100).toFixed(0)}%
                     </span>
@@ -778,14 +778,14 @@ function ContractCategoryWidget({ contracts, loading }: { contracts: ContractRes
           })}
         </div>
         <div className="p-5 flex flex-col justify-center gap-3">
-          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Coverage Summary</p>
+          <p className="text-[11px] font-semibold text-slate-300 uppercase tracking-wide">Coverage Summary</p>
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Categories discovered</span>
+              <span className="text-slate-300">Categories discovered</span>
               <span className="font-mono font-semibold text-foreground">{stats.length} / 8</span>
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Avg confidence</span>
+              <span className="text-slate-300">Avg confidence</span>
               <span className={cn("font-mono font-semibold tabular-nums",
                 contracts.length > 0 && contracts.reduce((s, c) => s + c.confidence, 0) / contracts.length >= 0.85
                   ? "text-emerald-400" : "text-amber-400"
@@ -796,7 +796,7 @@ function ContractCategoryWidget({ contracts, loading }: { contracts: ContractRes
               </span>
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Validated</span>
+              <span className="text-slate-300">Validated</span>
               <span className="font-mono font-semibold text-foreground">
                 {contracts.filter((c) => c.validated).length} / {contracts.length}
               </span>
