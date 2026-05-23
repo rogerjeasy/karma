@@ -189,8 +189,11 @@ Authorization: Api-Token <your-api-token>
 
 > Note: OTel ingest uses a **classic API token** (not a Platform Token). Create a separate API token with:
 > - `openTelemetryTrace.ingest`
-> - `logs.ingest` — also used for Karma self-observability events (§8)
+> - `logs.ingest`
 > - `metrics.ingest`
+> - `events.ingest` — required for `push_ghost_report_to_dynatrace` (service timeline annotations)
+> - `bizevents.ingest` — required for Karma self-observability BizEvents (§8); available on Dynatrace trials
+> - `slo.write` — required for `create_slo_from_contract` (auto-register contracts as Dynatrace SLOs)
 
 Store it as `dt-otel-token` in Secret Manager.
 
@@ -223,45 +226,53 @@ The agent code exposes the following derived URLs via `settings`:
 | `settings.dt_classic_base_url` | `https://<DT_ENV>.live.dynatrace.com` |
 | `settings.dt_mcp_endpoint` | `<dt_base_url>/platform-reserved/mcp-gateway/v0.1/servers/dynatrace-mcp/mcp` |
 | `settings.dt_logs_endpoint` | `<dt_classic_base_url>/api/v2/logs/ingest` |
+| `settings.dt_bizevents_endpoint` | `<dt_classic_base_url>/api/v2/bizevents/ingest` |
+| `settings.dt_slo_endpoint` | `<dt_classic_base_url>/api/v2/slo` |
 | `settings.dt_otel_endpoint` | `<dt_classic_base_url>/api/v2/otlp` |
 
 ---
 
-## 8. Logs Ingest (Karma Self-Observability)
+## 8. BizEvents Ingest (Karma Self-Observability)
 
-The Dynatrace MCP server does not expose a `send_event` tool. Karma instead
-calls the **Logs Ingest API v2** directly to record every agent decision as a
-structured log record in Grail.
+The Dynatrace MCP server does not expose a `send_event` tool. Karma calls the
+**BizEvents Ingest API v2** directly to emit every agent decision as a structured
+CloudEvent, visible as business-process telemetry in Dynatrace Grail.
 
-> **Why Logs Ingest instead of BizEvents?**
-> BizEvents requires `storage:bizevents:write`, which is unavailable on the
-> Dynatrace free trial (Business Analytics add-on). Logs Ingest works on all
-> plans and the required `logs.ingest` scope is already on the OTel classic token.
-
-**Endpoint** (derived from `settings.dt_logs_endpoint`):
+**Endpoint** (derived from `settings.dt_bizevents_endpoint`):
 ```
-POST https://<DT_ENV>.live.dynatrace.com/api/v2/logs/ingest
+POST https://<DT_ENV>.live.dynatrace.com/api/v2/bizevents/ingest
 ```
 
 **Authentication:**
 ```
 Authorization: Api-Token <DT_OTEL_TOKEN>
-Content-Type: application/json; charset=utf-8
+Content-Type: application/cloudevents+json
 ```
 
-**Required scope on the classic API token:** `logs.ingest` (already on `DT_OTEL_TOKEN`)
+**Required scope on the classic API token:** `bizevents.ingest`
+This is a classic API scope — distinct from the platform scope
+`storage:bizevents:write` — and is available on Dynatrace free trials.
 
 **Querying emitted events via DQL:**
 ```dql
-fetch logs
-| filter log.source == "karma-agent"
+fetch bizevents
+| filter startsWith(event.type, "karma.")
 | sort timestamp desc
 | limit 50
 ```
 
+```dql
+// Ghost reports only
+fetch bizevents
+| filter event.type == "karma.ghost_report.created"
+| fields timestamp, event.data.title, event.data.severity, event.data.report_id
+| sort timestamp desc
+| limit 10
+```
+
 Karma emits events under these types (defined in `dynatrace_events.py`):
 
-| Event type | Emitted by | When |
+| Event type (`event.type`) | Emitted by | When |
 |---|---|---|
 | `karma.learning.started` | Learner | After resolving the service entity ID |
 | `karma.contract.discovered` | Learner | After each validated contract |
@@ -269,6 +280,10 @@ Karma emits events under these types (defined in `dynatrace_events.py`):
 | `karma.learning.complete` | Learner | After all contracts are saved |
 | `karma.violation.detected` | Watcher (via Forensic) | When a predicate fails |
 | `karma.ghost_report.created` | Forensic | After producing a ghost report |
+
+The `dt_logs_endpoint` (`/api/v2/logs/ingest`) is still available for external
+service OTel logs. Karma self-observability moved to BizEvents in v1.1 so the
+demo runbook DQL queries (`fetch bizevents ...`) work as written.
 
 ---
 

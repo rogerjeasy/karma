@@ -97,6 +97,36 @@ Click contract #4 to expand it. The description should read:
 
 > *"Service writes a sliding-window summary to recent_charges:summary in Redis every ~30s. Downstream svc-reporting reads these keys directly without calling the API."*
 
+### 4a — Verify the Dynatrace SLOs created from contracts
+
+The Learner automatically registered contracts #1, #2, and #3 as Dynatrace SLOs.
+Verify in Dynatrace → **Observe & Explore → SLOs**:
+
+```dql
+// In a Dynatrace Grail Notebook:
+fetch slo
+| filter customInfo contains "karma-contract"
+| fields name, target, status, errorBudget, customInfo
+| sort name asc
+```
+
+You should see three SLOs:
+- `karma/svc-payments-v2/latency/p95_endpoint_band` — 95% target
+- `karma/svc-payments-v2/throughput/sustained_qps` — 95% target
+- `karma/svc-payments-v2/error-rate/idempotency_response` — 95% target
+
+These are live Dynatrace SLOs with burn-rate alerting enabled. If a judge looks at the Dynatrace SLO dashboard, they can see Karma's discovered contracts enforced as first-class SLOs.
+
+### 4b — Verify BizEvents
+
+```dql
+fetch bizevents
+| filter event.type == "karma.learning.complete"
+| fields timestamp, event.data.service_id, event.data.contracts_discovered, event.data.contracts_validated
+| sort timestamp desc
+| limit 5
+```
+
 If contract #4 is missing, run:
 
 ```bash
@@ -156,7 +186,16 @@ Click on the ghost report for contract #4. You should see:
 - **Root cause:** "svc-payments-v3 does not implement the Redis cache-warming background task present in v2"
 - **Downstream impact:** live svc-reporting metrics showing the p95 latency increase
 - **Evidence links:** clickable DQL queries that open in Dynatrace
-- **Dynatrace BizEvent link:** the `emit_karma_event` audit record — verify in Dynatrace with DQL: `fetch bizevents | filter event.type == "karma.ghost_report.created" | sort timestamp desc | limit 5`
+- **Dynatrace BizEvent link:** the `emit_karma_event` audit record — verify in Dynatrace with:
+  ```dql
+  fetch bizevents
+  | filter event.type == "karma.ghost_report.created"
+  | fields timestamp, event.data.title, event.data.severity, event.data.report_id
+  | sort timestamp desc
+  | limit 5
+  ```
+- **Dynatrace service annotation:** the `push_ghost_report_to_dynatrace` event — visible on the svc-payments-v3 service detail page under "Events"
+- **SLO burn rate:** the latency SLO should show increased burn rate since cutover — visible in **Observe & Explore → SLOs**
 
 ---
 

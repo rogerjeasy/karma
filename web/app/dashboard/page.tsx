@@ -9,13 +9,14 @@ import {
   ArrowRight, Plus, Zap, TrendingUp, Radio, Clock,
   Coins, Cpu, Brain, Eye, ShieldCheck, AlertTriangle,
   CheckCircle2, XCircle, Timer, BarChart3, FlaskConical, Loader2,
+  Layers, Skull,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useSSEContext, useSSEEvent } from "@/lib/sse-context";
 import { useDashboardData } from "@/lib/dashboard-context";
 import { apiFetch } from "@/lib/api";
-import type { GhostReport, PlatformStats, ViolationSeverity, WatcherRun } from "@/lib/types";
+import type { ContractCategory, ContractResponse, GhostReport, PlatformStats, ViolationSeverity, WatcherRun } from "@/lib/types";
 
 interface SeedResult {
   already_seeded: boolean;
@@ -40,6 +41,7 @@ export default function DashboardPage() {
   const [watcherRuns, setWatcherRuns] = useState<WatcherRun[]>([]);
   const [seeding, setSeeding] = useState(false);
   const [seedMsg, setSeedMsg] = useState<string | null>(null);
+  const [runningFullDemo, setRunningFullDemo] = useState(false);
 
   // ── Derive stats from shared context data ─────────────────────────────────
   const contractsLearned = Object.values(contracts).reduce((sum, c) => sum + c.length, 0);
@@ -99,6 +101,26 @@ export default function DashboardPage() {
       setSeedMsg(`Seed failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setSeeding(false);
+    }
+  }
+
+  // ── Full demo (seed + trigger watcher immediately) ─────────────────────────
+  async function runFullDemo() {
+    setRunningFullDemo(true);
+    setSeedMsg(null);
+    try {
+      const seed = await apiFetch<SeedResult>("/demo/seed", { method: "POST" });
+      setSeedMsg(
+        seed.already_seeded
+          ? "Demo already seeded — triggering watcher now…"
+          : `Seeded ${seed.contracts} contracts. Triggering watcher…`
+      );
+      await apiFetch("/cutover/watchers/run-now", { method: "POST" });
+      setSeedMsg("Full demo running — watch the ghost activity feed. Violations will appear within 30–60 seconds.");
+    } catch (e) {
+      setSeedMsg(`Full demo failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setRunningFullDemo(false);
     }
   }
 
@@ -181,12 +203,23 @@ export default function DashboardPage() {
             size="sm"
             variant="outline"
             className="gap-2 shrink-0"
-            disabled={seeding}
+            disabled={seeding || runningFullDemo}
             onClick={runSeedDemo}
             title="Pre-populate demo data (svc-payments scenario)"
           >
             {seeding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5" />}
             Seed demo
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-2 shrink-0 border-red-500/40 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+            disabled={seeding || runningFullDemo}
+            onClick={runFullDemo}
+            title="Seed demo data then immediately trigger the watcher to detect violations"
+          >
+            {runningFullDemo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Skull className="h-3.5 w-3.5" />}
+            Full demo
           </Button>
           <Link href="/dashboard/services">
             <Button size="sm" className="gap-2 shrink-0">
@@ -281,34 +314,14 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── AI investigation cost strip ── */}
+      {/* ── AI investigation engine panel ── */}
       {hasCostData && (
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-border bg-card px-5 py-3.5">
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-violet-500/25 bg-violet-500/10">
-              <Brain className="h-3.5 w-3.5 text-violet-400" />
-            </div>
-            <span className="text-xs font-semibold text-muted-foreground">AI Investigations</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Coins className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-            <span className="font-mono font-semibold text-foreground">${totalCostUsd.toFixed(4)}</span>
-            <span className="text-muted-foreground/60">total spend</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Cpu className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-            <span className="font-mono font-semibold text-foreground">{totalTokens.toLocaleString()}</span>
-            <span className="text-muted-foreground/60">tokens</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Brain className="h-3.5 w-3.5 text-violet-400 shrink-0" />
-            <span className="font-mono font-semibold text-foreground">{davisEnriched}</span>
-            <span className="text-muted-foreground/60">Davis AI enriched</span>
-          </div>
-          <span className="ml-auto text-[10px] text-muted-foreground/35 hidden sm:block">
-            Vertex AI · Gemini 2.5 Pro
-          </span>
-        </div>
+        <AIInvestigationsPanel
+          totalCostUsd={totalCostUsd}
+          totalTokens={totalTokens}
+          davisEnriched={davisEnriched}
+          investigationCount={ghosts.length}
+        />
       )}
 
       {/* ── Platform overview ── */}
@@ -381,6 +394,9 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Contract intelligence ── */}
+      <ContractCategoryWidget contracts={Object.values(contracts).flat()} loading={loading} />
 
       {/* ── Watcher run history ── */}
       {watcherRuns.length > 0 && (
@@ -492,6 +508,306 @@ function WatcherRunRow({ run }: { run: WatcherRun }) {
       <div className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground/40 shrink-0">
         <Clock className="h-3 w-3" />
         {formatDistanceToNow(new Date(run.run_at), { addSuffix: true })}
+      </div>
+    </div>
+  );
+}
+
+// ── AI Investigation Engine panel ────────────────────────────────────────────
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toLocaleString();
+}
+
+function AIInvestigationsPanel({
+  totalCostUsd,
+  totalTokens,
+  davisEnriched,
+  investigationCount,
+}: {
+  totalCostUsd: number;
+  totalTokens: number;
+  davisEnriched: number;
+  investigationCount: number;
+}) {
+  const avgCost = investigationCount > 0 ? totalCostUsd / investigationCount : 0;
+  const avgTokens = investigationCount > 0 ? Math.round(totalTokens / investigationCount) : 0;
+  const enrichPct = investigationCount > 0 ? Math.round((davisEnriched / investigationCount) * 100) : 0;
+  const costPerKToken = totalTokens > 0 ? (totalCostUsd / (totalTokens / 1000)) : 0;
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-violet-500/20 bg-card">
+      {/* Ambient glow blobs */}
+      <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-violet-500/[0.07] blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-indigo-500/[0.06] blur-3xl" />
+      <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 h-px w-3/4 bg-gradient-to-r from-transparent via-violet-500/30 to-transparent" />
+
+      {/* ── Header ── */}
+      <div className="relative flex flex-col gap-3 px-5 py-4 border-b border-violet-500/10 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6">
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Icon with animated ring */}
+          <div className="relative shrink-0 flex h-10 w-10 items-center justify-center rounded-xl border border-violet-500/30 bg-violet-500/10">
+            <Brain className="h-5 w-5 text-violet-400" />
+            <span className="absolute inset-0 rounded-xl border border-violet-500/25 animate-ping opacity-20" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground tracking-tight truncate">AI Investigation Engine</p>
+            <p className="text-[11px] text-muted-foreground/55 mt-px truncate">Autonomous forensic analysis across every ghost report</p>
+          </div>
+        </div>
+        {/* Live pill */}
+        <div className="self-start sm:self-auto shrink-0 flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/[0.08] px-3 py-1.5">
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className="absolute inline-flex h-full w-full rounded-full bg-violet-400 animate-ping opacity-50" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-violet-400" />
+          </span>
+          <span className="text-[11px] font-semibold text-violet-300 tracking-wide whitespace-nowrap">Vertex AI · Gemini 2.5 Pro</span>
+        </div>
+      </div>
+
+      {/* ── Three metric columns ── */}
+      <div className="relative grid grid-cols-1 sm:grid-cols-3 divide-y divide-violet-500/10 sm:divide-y-0 sm:divide-x">
+
+        {/* ── 1. Total Spend ── */}
+        <div className="group relative px-5 py-5 sm:px-6 sm:py-6 hover:bg-violet-500/[0.03] transition-colors duration-200">
+          <div className="absolute inset-y-0 left-0 w-px bg-gradient-to-b from-transparent via-amber-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="flex items-center gap-2 mb-3 sm:mb-4">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-amber-500/20 bg-amber-500/8 shrink-0">
+              <Coins className="h-3.5 w-3.5 text-amber-400" />
+            </div>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/60">Total Spend</span>
+          </div>
+          <p className="text-[2rem] sm:text-[2.25rem] font-bold tracking-tight font-mono text-foreground leading-none tabular-nums">
+            ${totalCostUsd < 1 ? totalCostUsd.toFixed(4) : totalCostUsd.toFixed(2)}
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-400 whitespace-nowrap">
+              ${avgCost.toFixed(4)} / case
+            </span>
+            <span className="text-[10px] text-muted-foreground/40 whitespace-nowrap">${costPerKToken.toFixed(4)} / 1K tok</span>
+          </div>
+        </div>
+
+        {/* ── 2. Tokens Consumed ── */}
+        <div className="group relative px-5 py-5 sm:px-6 sm:py-6 hover:bg-blue-500/[0.02] transition-colors duration-200">
+          <div className="flex items-center gap-2 mb-3 sm:mb-4">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-blue-500/20 bg-blue-500/8 shrink-0">
+              <Cpu className="h-3.5 w-3.5 text-blue-400" />
+            </div>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/60">Tokens Consumed</span>
+          </div>
+          <div className="flex flex-wrap items-end gap-2 leading-none">
+            <p className="text-[2rem] sm:text-[2.25rem] font-bold tracking-tight font-mono text-foreground tabular-nums">
+              {formatTokens(totalTokens)}
+            </p>
+            {totalTokens >= 1_000 && (
+              <p className="text-sm text-muted-foreground/35 font-mono mb-1 tabular-nums">
+                ({totalTokens.toLocaleString()})
+              </p>
+            )}
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[10px] font-semibold text-blue-400 whitespace-nowrap">
+              {formatTokens(avgTokens)} avg / case
+            </span>
+          </div>
+        </div>
+
+        {/* ── 3. Davis AI Enrichment ── */}
+        <div className="group relative px-5 py-5 sm:px-6 sm:py-6 hover:bg-emerald-500/[0.02] transition-colors duration-200">
+          <div className="flex items-center gap-2 mb-3 sm:mb-4">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/8 shrink-0">
+              <Brain className="h-3.5 w-3.5 text-emerald-400" />
+            </div>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/60">Davis AI Enriched</span>
+          </div>
+          <div className="flex items-end gap-2 leading-none">
+            <p className="text-[2rem] sm:text-[2.25rem] font-bold tracking-tight font-mono text-foreground tabular-nums">{davisEnriched}</p>
+            <p className="text-lg text-muted-foreground/30 font-mono mb-1">/ {investigationCount}</p>
+          </div>
+          {/* Enrichment progress bar */}
+          <div className="mt-3 space-y-2">
+            <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted/30">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all duration-1000",
+                  enrichPct >= 80 ? "bg-emerald-400" : enrichPct >= 50 ? "bg-amber-400" : "bg-red-400"
+                )}
+                style={{ width: `${enrichPct}%` }}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border whitespace-nowrap",
+                enrichPct >= 80
+                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                  : enrichPct >= 50
+                  ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
+                  : "bg-red-500/10 border-red-500/20 text-red-400"
+              )}>
+                {enrichPct}% enrichment rate
+              </span>
+              <span className="text-[10px] text-muted-foreground/35 whitespace-nowrap">Davis AI · MCP</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Footer ── */}
+      <div className="relative flex flex-col gap-1.5 border-t border-violet-500/10 bg-violet-500/[0.02] px-5 py-2.5 sm:flex-row sm:items-center sm:gap-3 sm:px-6">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/50 shrink-0" />
+          <p className="text-[10px] text-muted-foreground/35 truncate">
+            Cost estimates from Vertex AI pricing — actual billing may differ
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground/30 sm:ml-auto">
+          <span className="whitespace-nowrap">Gemini 2.5 Pro · Flash</span>
+          <span aria-hidden>·</span>
+          <span className="whitespace-nowrap">Root Cause Analysis</span>
+          <span aria-hidden>·</span>
+          <span className="whitespace-nowrap">Changepoint Detection</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Contract category breakdown widget ───────────────────────────────────────
+
+const CATEGORY_META: Record<ContractCategory, { label: string; color: string; bar: string; killer?: boolean }> = {
+  side_effect:     { label: "Side Effects",     color: "text-red-400",    bar: "bg-red-400",    killer: true },
+  latency:         { label: "Latency",           color: "text-blue-400",   bar: "bg-blue-400" },
+  error_semantics: { label: "Error Semantics",   color: "text-orange-400", bar: "bg-orange-400" },
+  throughput:      { label: "Throughput",         color: "text-teal-400",   bar: "bg-teal-400" },
+  dependency:      { label: "Dependency",         color: "text-violet-400", bar: "bg-violet-400" },
+  timing:          { label: "Timing",             color: "text-amber-400",  bar: "bg-amber-400" },
+  sequencing:      { label: "Sequencing",         color: "text-cyan-400",   bar: "bg-cyan-400" },
+  resource:        { label: "Resource",           color: "text-pink-400",   bar: "bg-pink-400" },
+};
+
+const ALL_CATEGORIES: ContractCategory[] = [
+  "side_effect", "latency", "error_semantics", "throughput",
+  "dependency", "timing", "sequencing", "resource",
+];
+
+interface CategoryStat {
+  category: ContractCategory;
+  count: number;
+  avgConfidence: number;
+}
+
+function ContractCategoryWidget({ contracts, loading }: { contracts: ContractResponse[]; loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-5 h-32 flex items-center justify-center">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/40" />
+      </div>
+    );
+  }
+
+  if (contracts.length === 0) return null;
+
+  const statsMap = contracts.reduce<Record<string, { count: number; totalConf: number }>>((acc, c) => {
+    if (!acc[c.category]) acc[c.category] = { count: 0, totalConf: 0 };
+    acc[c.category].count++;
+    acc[c.category].totalConf += c.confidence;
+    return acc;
+  }, {});
+
+  const stats: CategoryStat[] = ALL_CATEGORIES
+    .filter((cat) => statsMap[cat])
+    .map((cat) => ({
+      category: cat,
+      count: statsMap[cat].count,
+      avgConfidence: statsMap[cat].totalConf / statsMap[cat].count,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  if (stats.length === 0) return null;
+
+  const maxCount = Math.max(...stats.map((s) => s.count));
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-border/60">
+        <div className="flex h-6 w-6 items-center justify-center rounded-lg border border-teal-500/25 bg-teal-500/10">
+          <Layers className="h-3.5 w-3.5 text-teal-400" />
+        </div>
+        <h3 className="text-sm font-semibold text-foreground">Contract Intelligence</h3>
+        <span className="text-xs text-muted-foreground/60">— coverage across all 8 implicit contract categories</span>
+        <span className="ml-auto rounded-full border border-teal-500/25 bg-teal-500/10 px-2 py-0.5 text-[11px] font-semibold text-teal-400 tabular-nums">
+          {contracts.length} total
+        </span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-0 divide-y sm:divide-y-0 sm:divide-x divide-border/40 p-0">
+        <div className="p-5 space-y-3">
+          {stats.map((s) => {
+            const meta = CATEGORY_META[s.category];
+            const pct = Math.round((s.count / maxCount) * 100);
+            return (
+              <div key={s.category} className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className={cn("text-[11px] font-semibold", meta.color)}>{meta.label}</span>
+                    {meta.killer && (
+                      <span className="rounded-full border border-red-500/30 bg-red-500/10 px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-red-400">
+                        killer
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <span className="font-mono font-semibold text-foreground tabular-nums">{s.count}</span>
+                    <span className="text-muted-foreground/50">·</span>
+                    <span className={cn("font-mono tabular-nums", s.avgConfidence >= 0.9 ? "text-emerald-400" : s.avgConfidence >= 0.8 ? "text-amber-400" : "text-muted-foreground")}>
+                      {(s.avgConfidence * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-muted/40 overflow-hidden">
+                  <div
+                    className={cn("h-full rounded-full transition-all duration-700", meta.bar)}
+                    style={{ width: `${pct}%`, opacity: 0.75 }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="p-5 flex flex-col justify-center gap-3">
+          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Coverage Summary</p>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Categories discovered</span>
+              <span className="font-mono font-semibold text-foreground">{stats.length} / 8</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Avg confidence</span>
+              <span className={cn("font-mono font-semibold tabular-nums",
+                contracts.length > 0 && contracts.reduce((s, c) => s + c.confidence, 0) / contracts.length >= 0.85
+                  ? "text-emerald-400" : "text-amber-400"
+              )}>
+                {contracts.length > 0
+                  ? `${(contracts.reduce((s, c) => s + c.confidence, 0) / contracts.length * 100).toFixed(1)}%`
+                  : "—"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Validated</span>
+              <span className="font-mono font-semibold text-foreground">
+                {contracts.filter((c) => c.validated).length} / {contracts.length}
+              </span>
+            </div>
+          </div>
+          <div className="mt-1 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2.5">
+            <p className="text-[10px] text-red-400/80 font-medium leading-snug">
+              Side effects are the <span className="text-red-400 font-bold">killer category</span> — cache warming, async writes, and pre-warmed connections that no test checks.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

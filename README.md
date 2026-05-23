@@ -81,12 +81,12 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full system diagram.
 
 ### Four-agent system (Google ADK v1.0)
 
-| Agent | When | Gemini model | Key MCP tools |
-|-------|------|-------------|---------------|
-| **Coordinator** | Always — entry point | 2.5 Flash | All, via delegation |
-| **Learner** | Phase 1 (manual / scheduled) | 2.5 Pro | `generate_dql_from_natural_language`, `execute_dql`, `execute_davis_analyzer`, `find_entity_by_name` |
-| **Watcher** | Phase 2, every 10 min | 2.5 Flash | `verify_dql`, `execute_dql`, `list_problems` |
-| **Forensic** | On violation trigger | 2.5 Pro | `execute_dql`, `chat_with_davis_copilot`, `send_event` |
+| Agent | When | Gemini model | Key tools |
+|-------|------|-------------|-----------|
+| **Coordinator** | Always — entry point | 2.5 Flash | Route via `transfer_to_agent` |
+| **Learner** | Phase 1 (manual / scheduled) | 2.5 Pro | `execute_dql`, MCP: `get-entity-id`, `timeseries-novelty-detection`, `adaptive-anomaly-detector`; `create_slo_from_contract` |
+| **Watcher** | Phase 2, every 10 min | 2.5 Flash | `execute_dql`, MCP: `query-problems`, `get-entity-name`; `publish_violation_to_pubsub` |
+| **Forensic** | On violation trigger | 2.5 Pro | `execute_dql`, MCP: `get-problem-by-id`, `timeseries-novelty-detection`, `ask-dynatrace-docs`; `push_ghost_report_to_dynatrace` |
 
 ---
 

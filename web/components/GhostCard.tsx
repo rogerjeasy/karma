@@ -148,8 +148,8 @@ export function GhostCard({ report }: GhostCardProps) {
           </div>
         )}
 
-        {/* ── Evidence links + Dynatrace event link ── */}
-        {(report.evidence_links.length > 0 || report.dynatrace_event_id) && (
+        {/* ── Evidence links + Dynatrace event links ── */}
+        {(report.evidence_links.length > 0 || report.dynatrace_event_id || DT_ENV) && (
           <div className="flex flex-wrap gap-2 pt-1">
             {report.evidence_links.map((link, i) => (
               <EvidenceLink key={i} raw={link} index={i + 1} />
@@ -160,10 +160,27 @@ export function GhostCard({ report }: GhostCardProps) {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 font-mono transition-colors"
-                title={`Dynatrace event: ${report.dynatrace_event_id}`}
+                title={`Dynatrace service annotation: ${report.dynatrace_event_id}`}
               >
                 <ExternalLink className="h-3 w-3" />
                 dt event
+              </a>
+            )}
+            {DT_ENV && (
+              <a
+                href={
+                  `https://${DT_ENV}.apps.dynatrace.com/ui/apps/dynatrace.notebooks/` +
+                  `?query=${encodeURIComponent(
+                    `fetch bizevents\n| filter event.type == "karma.ghost_report.created"\n| filter event.data.report_id == "${report.report_id}"`
+                  )}`
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-teal-400 hover:text-teal-300 font-mono transition-colors"
+                title="Open BizEvent in Dynatrace Notebooks"
+              >
+                <ExternalLink className="h-3 w-3" />
+                bizevent
               </a>
             )}
           </div>
