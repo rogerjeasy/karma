@@ -9,6 +9,7 @@ Collections:
 """
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 from datetime import datetime
 from typing import Any
@@ -19,6 +20,7 @@ from google.auth.exceptions import DefaultCredentialsError
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 
+from app import webhooks
 from app.config import settings
 
 logger = structlog.get_logger(__name__)
@@ -133,6 +135,12 @@ async def save_contract(contract_id: str, data: dict[str, Any]) -> None:
     await db.collection("contracts").document(contract_id).set(data)
 
 
+async def get_contract_by_id(contract_id: str) -> dict[str, Any] | None:
+    db = get_db()
+    doc = await db.collection("contracts").document(contract_id).get()
+    return doc.to_dict() if doc.exists else None
+
+
 async def list_contracts_for_service(service_id: str) -> list[dict[str, Any]]:
     db = get_db()
     query = db.collection("contracts").where(
@@ -146,6 +154,7 @@ async def list_contracts_for_service(service_id: str) -> list[dict[str, Any]]:
 async def save_ghost_report(report_id: str, data: dict[str, Any]) -> None:
     db = get_db()
     await db.collection("ghost_reports").document(report_id).set(data)
+    asyncio.create_task(webhooks.notify_ghost_report(data))
 
 
 async def list_ghost_reports(
@@ -305,6 +314,38 @@ async def compute_platform_stats() -> dict[str, Any]:
         "pct_services_with_violations": pct_violations,
     }
 
+
+# ── Watcher runs ──────────────────────────────────────────────────────────────
+
+async def save_watcher_run(run_id: str, data: dict[str, Any]) -> None:
+    db = get_db()
+    await db.collection("watcher_runs").document(run_id).set(data)
+
+
+async def list_watcher_runs(service_id: str, limit: int = 20) -> list[dict[str, Any]]:
+    db = get_db()
+    query = (
+        db.collection("watcher_runs")
+        .where(filter=FieldFilter("service_id", "==", service_id))
+        .limit(limit * 2)  # over-fetch; sorted in Python to avoid composite index
+    )
+    docs = [d async for doc in query.stream() if (d := doc.to_dict()) is not None]
+    docs.sort(key=lambda d: str(d.get("run_at", "")), reverse=True)
+    return docs[:limit]
+
+
+async def list_recent_watcher_runs(limit: int = 30) -> list[dict[str, Any]]:
+    """Most recent runs across all services — for the dashboard overview panel."""
+    db = get_db()
+    query = (
+        db.collection("watcher_runs")
+        .order_by("run_at", direction=firestore.Query.DESCENDING)
+        .limit(limit)
+    )
+    return [d async for doc in query.stream() if (d := doc.to_dict()) is not None]
+
+
+# ── Service cascade delete ─────────────────────────────────────────────────────
 
 async def delete_service_cascade(service_id: str) -> dict[str, Any]:
     """Delete a service and all its associated Firestore data.

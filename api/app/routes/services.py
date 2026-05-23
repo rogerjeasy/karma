@@ -8,11 +8,11 @@ from datetime import datetime
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app import agent_client, firestore_client
 from app.auth import get_current_user
-from app.models import ServiceRegistration, ServiceResponse
+from app.models import ServiceRegistration, ServiceResponse, WatcherRunResponse
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/services", tags=["services"])
@@ -180,6 +180,28 @@ async def _run_learning_task(
         await firestore_client.update_service_phase(
             service_id, "error", extra={"error_message": str(exc)}
         )
+
+
+@router.get("/{service_id}/watcher-runs", response_model=list[WatcherRunResponse])
+async def list_watcher_runs(
+    service_id: str,
+    limit: int = Query(default=20, ge=1, le=100),
+    user: dict[str, Any] = Depends(get_current_user),
+) -> list[WatcherRunResponse]:
+    await _get_owned_service(service_id, user["uid"])
+    docs = await firestore_client.list_watcher_runs(service_id, limit)
+    return [
+        WatcherRunResponse(
+            run_id=d["run_id"],
+            service_id=d["service_id"],
+            service_name=d.get("service_name"),
+            run_at=_parse_dt(d["run_at"]),
+            contracts_checked=d.get("contracts_checked", 0),
+            violations_found=d.get("violations_found", 0),
+            duration_seconds=d.get("duration_seconds"),
+        )
+        for d in docs
+    ]
 
 
 def _doc_to_response(doc: dict[str, Any]) -> ServiceResponse:

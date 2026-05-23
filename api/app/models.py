@@ -6,7 +6,7 @@ models in agents/karma/schemas/contract.py.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -76,8 +76,36 @@ class GhostReportResponse(BaseModel):
     created_at: datetime
 
 
+class ContractDetailResponse(BaseModel):
+    contract_id: str
+    service_id: str
+    karma_service_id: str | None = None
+    category: str
+    subcategory: str
+    description: str
+    confidence: float
+    validated: bool
+    detected_at: datetime
+    predicate_type: str | None = None
+    predicate_test_dql: str | None = None
+    predicate_threshold: str | None = None
+    predicate_tolerance_seconds: int | None = None
+    evidence: list[dict[str, Any]] | None = None
+    downstream_dependents: list[str] | None = None
+
+
 class WatcherRunRequest(BaseModel):
     service_id: str | None = None  # None = run for all active services
+
+
+class WatcherRunResponse(BaseModel):
+    run_id: str
+    service_id: str
+    service_name: str | None = None
+    run_at: datetime
+    contracts_checked: int
+    violations_found: int
+    duration_seconds: float | None = None
 
 
 class UserSyncResponse(BaseModel):

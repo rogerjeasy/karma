@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     # to automatically transition a service from haunting → completed.
     watcher_clean_runs_to_complete: int = 3
 
+    # Optional webhook URL — receives a POST when a ghost report is saved.
+    # Leave blank to disable.
+    webhook_url: str = ""
+
     @field_validator("gcp_project_id", mode="after")
     @classmethod
     def _require_gcp_project(cls, v: str) -> str:
