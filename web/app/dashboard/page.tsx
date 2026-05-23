@@ -7,6 +7,7 @@ import { formatDistanceToNow } from "date-fns";
 import {
   Server, Ghost, FileCode2, Activity,
   ArrowRight, Plus, Zap, TrendingUp, Radio, Clock,
+  Coins, Cpu, Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,12 @@ export default function DashboardPage() {
     contractsLearned,
     hauntingPhase:    services.filter((s) => s.phase === "haunting").length,
   };
+
+  // ── AI cost totals derived from ghost reports ─────────────────────────────
+  const totalCostUsd   = ghosts.reduce((sum, g) => sum + (g.cost_estimate_usd ?? 0), 0);
+  const totalTokens    = ghosts.reduce((sum, g) => sum + (g.investigation_input_tokens ?? 0) + (g.investigation_output_tokens ?? 0), 0);
+  const davisEnriched  = ghosts.filter((g) => g.davis_ai_insights && g.davis_ai_insights !== "not available").length;
+  const hasCostData    = !loading && ghosts.some((g) => g.cost_estimate_usd != null);
 
   // ── Bump animation only — data already handled by context ─────────────────
   const { connectionState: sseState } = useSSEContext();
@@ -161,6 +168,36 @@ export default function DashboardPage() {
           </Link>
         ))}
       </div>
+
+      {/* ── AI investigation cost strip ── */}
+      {hasCostData && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-border bg-card px-5 py-3.5">
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-violet-500/25 bg-violet-500/10">
+              <Brain className="h-3.5 w-3.5 text-violet-400" />
+            </div>
+            <span className="text-xs font-semibold text-muted-foreground">AI Investigations</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Coins className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            <span className="font-mono font-semibold text-foreground">${totalCostUsd.toFixed(4)}</span>
+            <span className="text-muted-foreground/60">total spend</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Cpu className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+            <span className="font-mono font-semibold text-foreground">{totalTokens.toLocaleString()}</span>
+            <span className="text-muted-foreground/60">tokens</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Brain className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+            <span className="font-mono font-semibold text-foreground">{davisEnriched}</span>
+            <span className="text-muted-foreground/60">Davis AI enriched</span>
+          </div>
+          <span className="ml-auto text-[10px] text-muted-foreground/35 hidden sm:block">
+            Vertex AI · Gemini 2.5 Pro
+          </span>
+        </div>
+      )}
 
       {/* ── Platform overview ── */}
       <div className="grid gap-4 lg:grid-cols-3">

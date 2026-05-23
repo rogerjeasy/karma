@@ -52,8 +52,13 @@ export interface GhostReport {
   summary: string;
   root_cause: string;
   downstream_impact: string;
+  davis_ai_insights?: string | null;
   severity: ViolationSeverity;
   evidence_links: string[];
   remediation_suggestions: string[];
+  cost_estimate_usd?: number | null;
+  investigation_input_tokens?: number | null;
+  investigation_output_tokens?: number | null;
+  dynatrace_event_id?: string | null;
   created_at: string;
 }

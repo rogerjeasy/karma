@@ -145,8 +145,10 @@ const TERMINAL_LINES: { delay: number; type: string; text: string }[] = [
   { delay: 6100, type: "warn",    text: "⚠  P95 latency: 847 ms → 2.1 s" },
   { delay: 6800, type: "error",   text: "✗  CRITICAL  side_effect — inventory skipped" },
   { delay: 7400, type: "error",   text: "✗  HIGH      error_semantics — 400 → 500" },
-  { delay: 8000, type: "info",    text: "Alerting → Slack #payments-oncall" },
-  { delay: 8600, type: "success", text: "✓ Ghost report generated: GHO-00142" },
+  { delay: 8000, type: "info",    text: "Querying Davis AI docs via MCP..." },
+  { delay: 8700, type: "success", text: "✓ Davis AI: 3 remediation steps retrieved" },
+  { delay: 9300, type: "success", text: "✓ Ghost report GHO-00142 · cost: $0.0031" },
+  { delay: 9900, type: "info",    text: "→ Annotation pushed to Dynatrace timeline" },
 ];
 
 function TerminalMockup() {
@@ -720,12 +722,12 @@ function GhostSection() {
    FEATURES GRID
 ══════════════════════════════════════════════════════════════════════════ */
 const FEATURES = [
-  { icon: Brain,       title: "AI Contract Learning",      desc: "The Learner Agent uses Google ADK + Gemini to analyze Dynatrace traces and extract implicit behavioral contracts — zero manual spec writing.",               badge: "ADK v1.0",    badgeColor: "bg-blue-500/15 text-blue-400 border-blue-500/25",     accent: "group-hover:border-blue-500/30"    },
-  { icon: Ghost,       title: "Ghost Detection Engine",    desc: "The Haunter Agent continuously compares replacement behavior against every learned contract, generating structured violation reports the moment drift is detected.", badge: "Real-time",  badgeColor: "bg-primary/15 text-primary border-primary/30",         accent: "group-hover:border-primary/30"     },
-  { icon: Activity,    title: "Dynatrace Native",          desc: "Built on the official Dynatrace MCP server. No new agents to deploy, no SDK changes. Karma reads the observability data you already collect.",                   badge: "MCP",         badgeColor: "bg-violet-500/15 text-violet-400 border-violet-500/25", accent: "group-hover:border-violet-500/30" },
-  { icon: Cpu,         title: "Multi-Agent Orchestration", desc: "Orchestrator, Learner, and Haunter agents coordinate via ADK to cover the full migration lifecycle from first observation to final sign-off.",                   badge: "3 agents",   badgeColor: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25", accent: "group-hover:border-emerald-500/30" },
-  { icon: Bell,        title: "Live Violation Alerts",     desc: "Ghost reports stream to the dashboard via Server-Sent Events the instant they're generated. Severity triage and remediation suggestions included.",              badge: "SSE",         badgeColor: "bg-red-500/15 text-red-400 border-red-500/25",         accent: "group-hover:border-red-500/30"     },
-  { icon: TrendingUp,  title: "Contract Timeline",         desc: "A visual audit trail of every contract discovered, validated, or violated across the full migration window — sorted by priority and confidence.",                badge: "Audit trail", badgeColor: "bg-amber-500/15 text-amber-400 border-amber-500/25",   accent: "group-hover:border-amber-500/30"  },
+  { icon: Brain,       title: "AI Contract Learning",       desc: "The Learner Agent uses Google ADK + Gemini 2.5 Pro to analyze Dynatrace traces and extract implicit behavioral contracts — zero manual spec writing.",                                                                    badge: "ADK v1.0",    badgeColor: "bg-blue-500/15 text-blue-400 border-blue-500/25",        accent: "group-hover:border-blue-500/30"    },
+  { icon: Ghost,       title: "Ghost Detection Engine",     desc: "The Forensic Agent continuously compares replacement behavior against every learned contract, generating structured violation reports the moment drift is detected.",                                                      badge: "Real-time",   badgeColor: "bg-primary/15 text-primary border-primary/30",            accent: "group-hover:border-primary/30"     },
+  { icon: Activity,    title: "Davis AI Forensics",         desc: "Every violation triggers mandatory Davis AI correlation via the Dynatrace MCP server — root-cause analysis, changepoint detection, and AI-powered remediation guides surfaced in every ghost report.",                    badge: "MCP · Davis", badgeColor: "bg-violet-500/15 text-violet-400 border-violet-500/25",  accent: "group-hover:border-violet-500/30"  },
+  { icon: Cpu,         title: "Full OTel Observability",    desc: "All four agents emit gen_ai.* OpenTelemetry spans with token usage, latency, and cost. Routed via Bindplane to Dynatrace — every agent run is a first-class trace in Grail.",                                           badge: "OTel",        badgeColor: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25", accent: "group-hover:border-emerald-500/30" },
+  { icon: Bell,        title: "Bidirectional Dynatrace",    desc: "Ghost reports push CUSTOM_ANNOTATION events back to the violated service's Dynatrace timeline. SREs navigate from a Dynatrace problem directly to the Karma ghost report and vice versa.",                              badge: "Events API",  badgeColor: "bg-red-500/15 text-red-400 border-red-500/25",            accent: "group-hover:border-red-500/30"     },
+  { icon: TrendingUp,  title: "Investigation Cost Tracking", desc: "Every forensic report includes exact token counts and estimated USD cost from the Gemini 2.5 Pro investigation session. Cumulative AI spend visible in the dashboard — no surprise bills.",                          badge: "Cost",        badgeColor: "bg-amber-500/15 text-amber-400 border-amber-500/25",     accent: "group-hover:border-amber-500/30"  },
 ];
 
 function FeaturesGrid() {
@@ -780,10 +782,11 @@ const TECH = [
   { name: "Google ADK v1.0",    icon: Cpu,      color: "border-blue-500/30 bg-blue-500/8 text-blue-300 hover:bg-blue-500/14" },
   { name: "Dynatrace MCP",      icon: Activity, color: "border-violet-500/30 bg-violet-500/8 text-violet-300 hover:bg-violet-500/14" },
   { name: "Gemini 2.5 Pro",     icon: Brain,    color: "border-primary/30 bg-primary/8 text-primary hover:bg-primary/14" },
+  { name: "OpenTelemetry",      icon: TrendingUp, color: "border-cyan-500/30 bg-cyan-500/8 text-cyan-300 hover:bg-cyan-500/14" },
+  { name: "Bindplane",          icon: Layers,   color: "border-indigo-500/30 bg-indigo-500/8 text-indigo-300 hover:bg-indigo-500/14" },
   { name: "FastAPI",            icon: Zap,      color: "border-emerald-500/30 bg-emerald-500/8 text-emerald-300 hover:bg-emerald-500/14" },
   { name: "Next.js 15",         icon: Code2,    color: "border-border bg-card text-foreground hover:bg-card/80" },
   { name: "Firebase Auth",      icon: Shield,   color: "border-amber-500/30 bg-amber-500/8 text-amber-300 hover:bg-amber-500/14" },
-  { name: "Tailwind CSS",       icon: Layers,   color: "border-sky-500/30 bg-sky-500/8 text-sky-300 hover:bg-sky-500/14" },
   { name: "Server-Sent Events", icon: Bell,     color: "border-red-500/30 bg-red-500/8 text-red-300 hover:bg-red-500/14" },
 ];
 

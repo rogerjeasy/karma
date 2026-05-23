@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, ArrowRight, Clock, Copy, Check } from "lucide-react";
+import { ExternalLink, ArrowRight, Clock, Copy, Check, Brain, Coins, Cpu } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { GhostReport, ViolationSeverity } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
@@ -118,6 +118,21 @@ export function GhostCard({ report }: GhostCardProps) {
           <p className="text-sm text-muted-foreground leading-relaxed">{report.downstream_impact}</p>
         )}
 
+        {/* ── Davis AI insights ── */}
+        {report.davis_ai_insights && report.davis_ai_insights !== "not available" && (
+          <div className="space-y-1.5 rounded-lg bg-violet-500/5 border border-violet-500/20 p-3">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <Brain className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-violet-400/80">
+                Davis AI Insights
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+              {report.davis_ai_insights}
+            </p>
+          </div>
+        )}
+
         {/* ── Remediation suggestions ── */}
         {report.remediation_suggestions.length > 0 && (
           <div className="space-y-1.5 rounded-lg bg-muted/40 border border-border/60 p-3">
@@ -133,12 +148,43 @@ export function GhostCard({ report }: GhostCardProps) {
           </div>
         )}
 
-        {/* ── Evidence links ── */}
-        {report.evidence_links.length > 0 && (
+        {/* ── Evidence links + Dynatrace event link ── */}
+        {(report.evidence_links.length > 0 || report.dynatrace_event_id) && (
           <div className="flex flex-wrap gap-2 pt-1">
             {report.evidence_links.map((link, i) => (
               <EvidenceLink key={i} raw={link} index={i + 1} />
             ))}
+            {report.dynatrace_event_id && DT_ENV && (
+              <a
+                href={`https://${DT_ENV}.apps.dynatrace.com/ui/apps/dynatrace.events/events?filter=${encodeURIComponent(report.dynatrace_event_id)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 font-mono transition-colors"
+                title={`Dynatrace event: ${report.dynatrace_event_id}`}
+              >
+                <ExternalLink className="h-3 w-3" />
+                dt event
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* ── Investigation cost ── */}
+        {report.cost_estimate_usd != null && (
+          <div className="flex items-center gap-4 pt-0.5 border-t border-border/40">
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground/50">
+              <Coins className="h-3 w-3" />
+              <span>${report.cost_estimate_usd.toFixed(4)}</span>
+            </div>
+            {(report.investigation_input_tokens != null || report.investigation_output_tokens != null) && (
+              <div className="flex items-center gap-1 text-[10px] text-muted-foreground/50">
+                <Cpu className="h-3 w-3" />
+                <span>
+                  {((report.investigation_input_tokens ?? 0) + (report.investigation_output_tokens ?? 0)).toLocaleString()} tokens
+                </span>
+              </div>
+            )}
+            <span className="text-[10px] text-muted-foreground/30 ml-auto">investigation cost</span>
           </div>
         )}
       </div>
