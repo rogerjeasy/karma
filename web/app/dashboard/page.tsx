@@ -1,19 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Route } from "next";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import {
   Server, Ghost, FileCode2, Activity,
   ArrowRight, Plus, Zap, TrendingUp, Radio, Clock,
-  Coins, Cpu, Brain,
+  Coins, Cpu, Brain, Eye, ShieldCheck, AlertTriangle,
+  CheckCircle2, XCircle, Timer, BarChart3, FlaskConical, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useSSEContext, useSSEEvent } from "@/lib/sse-context";
 import { useDashboardData } from "@/lib/dashboard-context";
-import type { GhostReport, ViolationSeverity } from "@/lib/types";
+import { apiFetch } from "@/lib/api";
+import type { GhostReport, PlatformStats, ViolationSeverity, WatcherRun } from "@/lib/types";
+
+interface SeedResult {
+  already_seeded: boolean;
+  service_id: string;
+  contracts: number;
+  ghost_reports?: number;
+}
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 interface Stats {
   totalServices: number;
@@ -25,6 +36,10 @@ interface Stats {
 export default function DashboardPage() {
   const { services, ghosts, contracts, loading } = useDashboardData();
   const [liveGhostBump, setLiveGhostBump] = useState(false);
+  const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
+  const [watcherRuns, setWatcherRuns] = useState<WatcherRun[]>([]);
+  const [seeding, setSeeding] = useState(false);
+  const [seedMsg, setSeedMsg] = useState<string | null>(null);
 
   // ── Derive stats from shared context data ─────────────────────────────────
   const contractsLearned = Object.values(contracts).reduce((sum, c) => sum + c.length, 0);
@@ -36,12 +51,58 @@ export default function DashboardPage() {
   };
 
   // ── AI cost totals derived from ghost reports ─────────────────────────────
-  const totalCostUsd   = ghosts.reduce((sum, g) => sum + (g.cost_estimate_usd ?? 0), 0);
-  const totalTokens    = ghosts.reduce((sum, g) => sum + (g.investigation_input_tokens ?? 0) + (g.investigation_output_tokens ?? 0), 0);
-  const davisEnriched  = ghosts.filter((g) => g.davis_ai_insights && g.davis_ai_insights !== "not available").length;
-  const hasCostData    = !loading && ghosts.some((g) => g.cost_estimate_usd != null);
+  const totalCostUsd  = ghosts.reduce((sum, g) => sum + (g.cost_estimate_usd ?? 0), 0);
+  const totalTokens   = ghosts.reduce((sum, g) => sum + (g.investigation_input_tokens ?? 0) + (g.investigation_output_tokens ?? 0), 0);
+  const davisEnriched = ghosts.filter((g) => g.davis_ai_insights && g.davis_ai_insights !== "not available").length;
+  const hasCostData   = !loading && ghosts.some((g) => g.cost_estimate_usd != null);
 
-  // ── Bump animation only — data already handled by context ─────────────────
+  // ── Fetch public /stats (no auth needed) ─────────────────────────────────
+  useEffect(() => {
+    fetch(`${API_BASE}/stats`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => d && setPlatformStats(d as PlatformStats))
+      .catch(() => {});
+  }, []);
+
+  // ── Fetch recent watcher runs across all services ─────────────────────────
+  useEffect(() => {
+    if (services.length === 0) return;
+    const haunting = services.filter((s) => s.phase === "haunting" || s.phase === "completed");
+    if (haunting.length === 0) return;
+
+    Promise.all(
+      haunting.slice(0, 5).map((s) =>
+        apiFetch<WatcherRun[]>(`/services/${s.service_id}/watcher-runs?limit=5`)
+          .catch(() => [] as WatcherRun[])
+      )
+    ).then((arrays) => {
+      const all = arrays.flat().sort(
+        (a, b) => new Date(b.run_at).getTime() - new Date(a.run_at).getTime()
+      );
+      setWatcherRuns(all.slice(0, 10));
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [services.length]);
+
+  // ── Seed demo ─────────────────────────────────────────────────────────────
+  async function runSeedDemo() {
+    setSeeding(true);
+    setSeedMsg(null);
+    try {
+      const result = await apiFetch<SeedResult>("/demo/seed", { method: "POST" });
+      setSeedMsg(
+        result.already_seeded
+          ? "Demo data already seeded — refresh the page to see it."
+          : `Demo seeded: ${result.contracts} contracts + ${result.ghost_reports ?? 1} ghost report. Refresh to see the data.`
+      );
+    } catch (e) {
+      setSeedMsg(`Seed failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSeeding(false);
+    }
+  }
+
+  // ── Live ghost bump animation ─────────────────────────────────────────────
   const { connectionState: sseState } = useSSEContext();
   useSSEEvent("ghost_report", () => {
     setLiveGhostBump(true);
@@ -102,7 +163,6 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-3 self-start sm:self-auto">
-          {/* SSE connection indicator */}
           <span
             title={`Stream ${sseState}`}
             className={cn(
@@ -117,7 +177,17 @@ export default function DashboardPage() {
             <Radio className="h-3 w-3" />
             {sseState === "open" ? "Live" : sseState === "connecting" ? "Connecting…" : "Offline"}
           </span>
-
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-2 shrink-0"
+            disabled={seeding}
+            onClick={runSeedDemo}
+            title="Pre-populate demo data (svc-payments scenario)"
+          >
+            {seeding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5" />}
+            Seed demo
+          </Button>
           <Link href="/dashboard/services">
             <Button size="sm" className="gap-2 shrink-0">
               <Plus className="h-3.5 w-3.5" />
@@ -126,6 +196,19 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* ── Seed demo feedback ── */}
+      {seedMsg && (
+        <div className={cn(
+          "rounded-lg border px-4 py-2.5 text-sm flex items-center gap-2",
+          seedMsg.startsWith("Seed failed")
+            ? "border-destructive/30 bg-destructive/8 text-destructive"
+            : "border-emerald-500/30 bg-emerald-500/8 text-emerald-400"
+        )}>
+          <FlaskConical className="h-4 w-4 shrink-0" />
+          {seedMsg}
+        </div>
+      )}
 
       {/* ── Stats grid ── */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -141,14 +224,7 @@ export default function DashboardPage() {
               card.bump && "animate-ghost-pulse"
             )}
           >
-            {/* Background gradient */}
-            <div
-              className={cn(
-                "absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-100 transition-opacity duration-300",
-                card.accent
-              )}
-            />
-
+            <div className={cn("absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-100 transition-opacity duration-300", card.accent)} />
             <div className="relative">
               <div className="flex items-center justify-between mb-4">
                 <div className={cn("rounded-lg p-2 border", card.iconClass)}>
@@ -168,6 +244,42 @@ export default function DashboardPage() {
           </Link>
         ))}
       </div>
+
+      {/* ── Platform impact stats strip ── */}
+      {platformStats && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-border bg-card px-5 py-3.5">
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/25 bg-emerald-500/10">
+              <BarChart3 className="h-3.5 w-3.5 text-emerald-400" />
+            </div>
+            <span className="text-xs font-semibold text-muted-foreground">Platform Impact</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <FileCode2 className="h-3.5 w-3.5 text-teal-400 shrink-0" />
+            <span className="font-mono font-semibold text-foreground">{platformStats.total_contracts}</span>
+            <span className="text-muted-foreground/60">contracts discovered</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Ghost className="h-3.5 w-3.5 text-red-400 shrink-0" />
+            <span className="font-mono font-semibold text-foreground">{platformStats.total_ghost_reports}</span>
+            <span className="text-muted-foreground/60">ghost reports generated</span>
+          </div>
+          {platformStats.avg_minutes_to_first_alert != null && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Timer className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+              <span className="font-mono font-semibold text-foreground">{platformStats.avg_minutes_to_first_alert.toFixed(1)} min</span>
+              <span className="text-muted-foreground/60">avg time to first alert</span>
+            </div>
+          )}
+          {platformStats.pct_services_with_violations != null && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <AlertTriangle className="h-3.5 w-3.5 text-orange-400 shrink-0" />
+              <span className="font-mono font-semibold text-foreground">{platformStats.pct_services_with_violations}%</span>
+              <span className="text-muted-foreground/60">services with violations caught</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── AI investigation cost strip ── */}
       {hasCostData && (
@@ -201,7 +313,7 @@ export default function DashboardPage() {
 
       {/* ── Platform overview ── */}
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* Ghost activity feed / empty state */}
+        {/* Ghost activity feed */}
         <div className="lg:col-span-2 rounded-xl border border-border bg-card overflow-hidden min-h-[260px]">
           {ghosts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full p-10 text-center min-h-[260px]">
@@ -232,7 +344,6 @@ export default function DashboardPage() {
             </div>
           ) : (
             <>
-              {/* Header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
                 <div className="flex items-center gap-2">
                   <Ghost className="h-4 w-4 text-red-400" />
@@ -245,7 +356,6 @@ export default function DashboardPage() {
                   View all <ArrowRight className="h-3 w-3" />
                 </Link>
               </div>
-              {/* List */}
               <div className="divide-y divide-border/50">
                 {ghosts.slice(0, 6).map((g) => (
                   <GhostRow key={g.report_id} ghost={g} />
@@ -271,9 +381,29 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Watcher run history ── */}
+      {watcherRuns.length > 0 && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
+            <div className="flex items-center gap-2">
+              <Eye className="h-4 w-4 text-blue-400" />
+              <h3 className="text-sm font-semibold text-foreground">Recent Watcher Runs</h3>
+              <span className="text-xs text-muted-foreground/60">— live contract monitoring</span>
+            </div>
+          </div>
+          <div className="divide-y divide-border/50">
+            {watcherRuns.map((run) => (
+              <WatcherRunRow key={run.run_id} run={run} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+// ── Ghost row ─────────────────────────────────────────────────────────────────
 
 const SEVERITY_CFG: Record<ViolationSeverity, { label: string; cls: string }> = {
   critical: { label: "Critical", cls: "bg-red-500/20 text-red-400 border-red-500/40" },
@@ -302,6 +432,72 @@ function GhostRow({ ghost }: { ghost: GhostReport }) {
     </div>
   );
 }
+
+// ── Watcher run row ────────────────────────────────────────────────────────────
+
+function WatcherRunRow({ run }: { run: WatcherRun }) {
+  const hasViolations = run.violations_found > 0;
+  const isSkipped = run.skipped;
+
+  return (
+    <div className="flex items-center gap-4 px-5 py-3 hover:bg-muted/20 transition-colors">
+      {/* Status icon */}
+      <div className="shrink-0">
+        {isSkipped ? (
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-500/10 border border-zinc-500/20">
+            <Clock className="h-3 w-3 text-zinc-400" />
+          </div>
+        ) : hasViolations ? (
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-red-500/10 border border-red-500/25">
+            <XCircle className="h-3.5 w-3.5 text-red-400" />
+          </div>
+        ) : (
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/25">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+          </div>
+        )}
+      </div>
+
+      {/* Service name */}
+      <p className="text-xs font-medium text-foreground min-w-0 truncate w-36">
+        {run.service_name ?? run.service_id.slice(0, 12) + "…"}
+      </p>
+
+      {/* Contracts checked */}
+      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        <ShieldCheck className="h-3 w-3 shrink-0" />
+        <span className="tabular-nums">{run.contracts_checked}</span>
+        <span className="text-muted-foreground/50">checked</span>
+      </div>
+
+      {/* Violations */}
+      <div className={cn(
+        "flex items-center gap-1 text-xs",
+        hasViolations ? "text-red-400" : "text-emerald-400/70"
+      )}>
+        <Ghost className="h-3 w-3 shrink-0" />
+        <span className="tabular-nums font-medium">{run.violations_found}</span>
+        <span className="opacity-70">violation{run.violations_found !== 1 ? "s" : ""}</span>
+      </div>
+
+      {/* Duration */}
+      {run.duration_seconds != null && (
+        <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground/50">
+          <Timer className="h-3 w-3" />
+          <span className="tabular-nums">{run.duration_seconds.toFixed(1)}s</span>
+        </div>
+      )}
+
+      {/* Timestamp */}
+      <div className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground/40 shrink-0">
+        <Clock className="h-3 w-3" />
+        {formatDistanceToNow(new Date(run.run_at), { addSuffix: true })}
+      </div>
+    </div>
+  );
+}
+
+// ── Phase legend data ──────────────────────────────────────────────────────────
 
 const PHASES = [
   {

@@ -41,6 +41,53 @@ export interface ContractResponse {
   detected_at: string;
 }
 
+export interface DqlEvidence {
+  type: "dql_query";
+  dql: string;
+  sample_count: number;
+  timespan: string;
+  result_summary?: string | null;
+}
+
+export interface TracePatternEvidence {
+  type: "trace_pattern";
+  pattern: string;
+  frequency: string;
+  sample_count: number;
+}
+
+export type ContractEvidence = DqlEvidence | TracePatternEvidence;
+
+export interface ContractDetail extends ContractResponse {
+  karma_service_id?: string | null;
+  predicate_type?: string | null;
+  predicate_test_dql?: string | null;
+  predicate_threshold?: string | null;
+  predicate_tolerance_seconds?: number | null;
+  evidence?: ContractEvidence[] | null;
+  downstream_dependents?: string[] | null;
+}
+
+export interface PlatformStats {
+  total_services: number;
+  total_contracts: number;
+  total_ghost_reports: number;
+  avg_contracts_per_service: number | null;
+  avg_minutes_to_first_alert: number | null;
+  pct_services_with_violations: number | null;
+}
+
+export interface WatcherRun {
+  run_id: string;
+  service_id: string;
+  service_name?: string | null;
+  run_at: string;
+  contracts_checked: number;
+  violations_found: number;
+  duration_seconds?: number | null;
+  skipped?: boolean;
+}
+
 export type ViolationSeverity = "low" | "medium" | "high" | "critical";
 
 export interface GhostReport {

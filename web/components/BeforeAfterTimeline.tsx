@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import type { Route } from "next";
 import { formatDistanceToNow } from "date-fns";
 import { CheckCircle2, Clock, Ghost } from "lucide-react";
 import type { ContractCategory, ContractResponse, GhostReport, ViolationSeverity } from "@/lib/types";
@@ -129,7 +131,10 @@ export function BeforeAfterTimeline({
 function ContractCell({ contract }: { contract: ContractResponse }) {
   const colorClass = CATEGORY_COLOR[contract.category] ?? "bg-muted/30 text-muted-foreground border-border";
   return (
-    <div className="px-5 py-4 space-y-2">
+    <Link
+      href={`/dashboard/contracts/${contract.contract_id}` as Route}
+      className="block px-5 py-4 space-y-2 hover:bg-muted/20 transition-colors"
+    >
       <div className="flex items-center gap-2 flex-wrap">
         <span className={cn(
           "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shrink-0",
@@ -147,7 +152,7 @@ function ContractCell({ contract }: { contract: ContractResponse }) {
       <p className="text-xs text-muted-foreground leading-snug line-clamp-3">
         {contract.description}
       </p>
-    </div>
+    </Link>
   );
 }
 

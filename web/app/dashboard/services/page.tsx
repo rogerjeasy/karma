@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { Route } from "next";
+import Link from "next/link";
 import {
   Plus, Server, Calendar, Clock, ExternalLink, Loader2, AlertCircle,
   Copy, Check, Eye, GitMerge, RefreshCw, FileCode2, Trash2,
@@ -420,7 +422,10 @@ const CATEGORY_COLOR: Record<string, string> = {
 function ContractRow({ contract: c }: { contract: ContractResponse }) {
   const colorClass = CATEGORY_COLOR[c.category] ?? "bg-muted/30 text-muted-foreground border-border";
   return (
-    <div className="rounded-lg border border-border bg-card/50 px-3 py-2.5 space-y-1.5">
+    <Link
+      href={`/dashboard/contracts/${c.contract_id}` as Route}
+      className="block rounded-lg border border-border bg-card/50 px-3 py-2.5 space-y-1.5 hover:border-border/70 hover:bg-card transition-colors"
+    >
       <div className="flex items-center gap-2">
         <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide", colorClass)}>
           {c.category.replace("_", " ")}
@@ -431,9 +436,10 @@ function ContractRow({ contract: c }: { contract: ContractResponse }) {
         <span className="ml-auto text-[10px] text-muted-foreground/50 tabular-nums">
           {Math.round(c.confidence * 100)}% confidence
         </span>
+        <ExternalLink className="h-3 w-3 text-muted-foreground/30 shrink-0" />
       </div>
       <p className="text-xs text-muted-foreground leading-snug">{c.description}</p>
-    </div>
+    </Link>
   );
 }
 
