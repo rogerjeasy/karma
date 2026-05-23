@@ -65,9 +65,14 @@ class GhostReportResponse(BaseModel):
     summary: str
     root_cause: str
     downstream_impact: str
+    davis_ai_insights: str | None = None
     severity: Literal["low", "medium", "high", "critical"]
     evidence_links: list[str]
     remediation_suggestions: list[str]
+    cost_estimate_usd: float | None = None
+    investigation_input_tokens: int | None = None
+    investigation_output_tokens: int | None = None
+    dynatrace_event_id: str | None = None
     created_at: datetime
 
 

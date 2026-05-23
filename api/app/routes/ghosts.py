@@ -59,8 +59,13 @@ def _doc_to_response(doc: dict[str, Any]) -> GhostReportResponse:
         summary=doc["summary"],
         root_cause=doc["root_cause"],
         downstream_impact=doc["downstream_impact"],
+        davis_ai_insights=doc.get("davis_ai_insights"),
         severity=doc.get("severity", "medium"),
         evidence_links=doc.get("evidence_links", []),
         remediation_suggestions=doc.get("remediation_suggestions", []),
+        cost_estimate_usd=doc.get("cost_estimate_usd"),
+        investigation_input_tokens=doc.get("investigation_input_tokens"),
+        investigation_output_tokens=doc.get("investigation_output_tokens"),
+        dynatrace_event_id=doc.get("dynatrace_event_id"),
         created_at=datetime.fromisoformat(str(doc.get("created_at") or doc["saved_at"])),
     )
