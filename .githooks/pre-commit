@@ -36,6 +36,7 @@ done
 # ── Staged file categories ─────────────────────────────────────────────────────
 staged_all=$(git diff --cached --name-only --diff-filter=ACMR)
 staged_api=$(printf '%s\n' "$staged_all" | grep -E '^api/.*\.py$' || true)
+staged_agents=$(printf '%s\n' "$staged_all" | grep -E '^agents/.*\.py$' || true)
 staged_web=$(printf '%s\n' "$staged_all" | grep -E '^web/.*\.(ts|tsx|js|jsx)$' \
              | grep -v node_modules || true)
 
@@ -149,7 +150,31 @@ if [ -n "$staged_api" ]; then
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 4. Web lint — ESLint  (only when web/ TS/JS files are staged)
+# 4. Agents lint — ruff  (only when agents/ Python files are staged)
+# ══════════════════════════════════════════════════════════════════════════════
+if [ -n "$staged_agents" ]; then
+    if [ -z "$PYTHON" ]; then
+        printf "\n⚠ Python not found — skipping agents ruff + mypy\n"
+    else
+        header "Agents lint (ruff)"
+        if (cd "$ROOT/agents" && "$PYTHON" -m ruff check karma/ 2>&1); then
+            ok "ruff"
+        else
+            err "ruff  →  cd agents && python -m ruff check karma/ --fix"
+        fi
+
+        # ── 5. Agents types — mypy ───────────────────────────────────────────
+        header "Agents types (mypy)"
+        if (cd "$ROOT/agents" && "$PYTHON" -m mypy karma/ --ignore-missing-imports 2>&1); then
+            ok "mypy"
+        else
+            err "mypy  →  cd agents && python -m mypy karma/ --ignore-missing-imports"
+        fi
+    fi
+fi
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 6. Web lint — ESLint  (only when web/ TS/JS files are staged)
 # ══════════════════════════════════════════════════════════════════════════════
 if [ -n "$staged_web" ]; then
     if [ ! -d "$ROOT/web/node_modules" ]; then
@@ -162,7 +187,7 @@ if [ -n "$staged_web" ]; then
             err "ESLint  →  cd web && npm run lint"
         fi
 
-        # ── 5. Web types — TypeScript ────────────────────────────────────────
+        # ── 7. Web types — TypeScript ────────────────────────────────────────
         header "Web types (TypeScript)"
         if (cd "$ROOT/web" && npm run type-check --silent 2>&1); then
             ok "TypeScript"

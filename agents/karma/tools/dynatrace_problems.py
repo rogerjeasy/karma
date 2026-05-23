@@ -124,7 +124,7 @@ def push_ghost_report_to_dynatrace(
         if resp.is_success:
             data: dict[str, Any] = resp.json() if resp.content else {}
             # Dynatrace returns {"reportCount": 1} on success; grab any event IDs
-            event_ids: list[str] = data.get("eventIngestResults", [{}])
+            event_ids: list[dict[str, Any]] = data.get("eventIngestResults", [{}])
             dynatrace_event_id = (
                 event_ids[0].get("correlationId", report_id)
                 if event_ids
@@ -207,7 +207,7 @@ def _get_current_invocation_id() -> str | None:
         span = trace.get_current_span()
         if span is None or not span.is_recording():
             return None
-        attrs = span.attributes
+        attrs = getattr(span, "attributes", None)
         if attrs is None:
             return None
         val = attrs.get("karma.invocation_id")

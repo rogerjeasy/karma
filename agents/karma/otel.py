@@ -120,7 +120,7 @@ def setup_otel(endpoint: str = "", token: str = "") -> bool:
         import os
 
         endpoint = endpoint or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
-        token = token or os.getenv("DT_OTEL_TOKEN") or os.getenv("DT_API_TOKEN", "")
+        token = token or os.getenv("DT_OTEL_TOKEN", "") or os.getenv("DT_API_TOKEN", "")
 
         if not endpoint:
             logger.warning(
