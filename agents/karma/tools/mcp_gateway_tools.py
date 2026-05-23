@@ -32,7 +32,7 @@ logger = structlog.get_logger(__name__)
 
 _TIMEOUT = 120.0
 _MCP_CLIENT_INFO = {"name": "karma-agent", "version": "1.0"}
-_PROTOCOL_VERSION = "2025-03-26"
+_PROTOCOL_VERSION = "2025-06-18"
 
 
 # ── Internal JSON-RPC transport ───────────────────────────────────────────────
