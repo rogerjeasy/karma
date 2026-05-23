@@ -357,8 +357,20 @@ class TestCutover:
 
 class TestUsers:
     async def test_sync_user_returns_200(self, client: AsyncClient) -> None:
+        mock_profile = {
+            "uid": "test-uid",
+            "email": "test@example.com",
+            "display_name": "Test User",
+            "photo_url": "",
+            "roles": ["user"],
+        }
         with (
             patch("app.firestore_client.upsert_user", new_callable=AsyncMock),
+            patch(
+                "app.firestore_client.get_user",
+                new_callable=AsyncMock,
+                return_value=mock_profile,
+            ),
             patch("app.main.stream.start_firestore_listener"),
         ):
             response = await client.post("/users/sync")
@@ -366,3 +378,4 @@ class TestUsers:
         data = response.json()
         assert data["uid"] == "test-uid"
         assert data["email"] == "test@example.com"
+        assert data["roles"] == ["user"]
