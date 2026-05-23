@@ -1,83 +1,208 @@
 {
   "metadata": {
     "configurationVersions": [7],
-    "clusterVersion": "1.297.0"
+    "clusterVersion": "1.285.0"
   },
-  "type": "dashboard",
+  "id": "karma-agent-observability-v1",
   "dashboardMetadata": {
-    "name": "Karma — Implicit Contract Monitor",
+    "name": "Karma — Agent Observability",
     "shared": true,
-    "owner": "karma-agent-system",
-    "tags": ["karma", "gen-ai", "implicit-contracts", "adk", "vertex-ai"],
+    "owner": "karma",
     "preset": false,
-    "popularity": 0
+    "tags": ["karma", "gen-ai", "opentelemetry", "adk"],
+    "hasConsistentColors": true
   },
   "tiles": [
     {
-      "name": "Contracts Discovered",
+      "name": "Markdown",
+      "tileType": "MARKDOWN",
+      "configured": true,
+      "bounds": { "top": 0, "left": 0, "width": 1824, "height": 38 },
+      "tileFilter": {},
+      "markdown": "## Karma Agent Observability  |  Multi-agent implicit contract discovery — Google ADK + Gemini 2.5 Pro + Dynatrace MCP"
+    },
+    {
+      "name": "Markdown",
+      "tileType": "MARKDOWN",
+      "configured": true,
+      "bounds": { "top": 38, "left": 0, "width": 456, "height": 38 },
+      "tileFilter": {},
+      "markdown": "### Token Spend & Cost"
+    },
+    {
+      "name": "Markdown",
+      "tileType": "MARKDOWN",
+      "configured": true,
+      "bounds": { "top": 38, "left": 456, "width": 456, "height": 38 },
+      "tileFilter": {},
+      "markdown": "### Business Events"
+    },
+    {
+      "name": "Markdown",
+      "tileType": "MARKDOWN",
+      "configured": true,
+      "bounds": { "top": 38, "left": 912, "width": 456, "height": 38 },
+      "tileFilter": {},
+      "markdown": "### Tool Call Health"
+    },
+    {
+      "name": "Markdown",
+      "tileType": "MARKDOWN",
+      "configured": true,
+      "bounds": { "top": 38, "left": 1368, "width": 456, "height": 38 },
+      "tileFilter": {},
+      "markdown": "### Agent Latency"
+    },
+    {
+      "name": "Input Tokens",
       "tileType": "DATA_EXPLORER",
       "configured": true,
-      "bounds": { "top": 0, "left": 0, "width": 304, "height": 304 },
-      "customName": "Contracts Discovered",
+      "bounds": { "top": 76, "left": 0, "width": 228, "height": 228 },
+      "tileFilter": {},
+      "customName": "Input Tokens",
       "queries": [
         {
           "id": "A",
-          "spaceAggregation": "AUTO",
+          "metricSelector": "gen_ai.usage.input_tokens:sum",
+          "spaceAggregation": "SUM",
           "timeAggregation": "DEFAULT",
-          "metricSelector": "karma.contracts_discovered.total:sum:names",
-          "type": "METRIC_HEATMAP",
-          "displayName": "Total Contracts",
+          "splitBy": [],
+          "type": "SINGLE_VALUE",
           "enabled": true
         }
       ],
       "visualConfig": {
         "type": "SINGLE_VALUE",
-        "global": {},
-        "rules": [
-          {
-            "matcher": "A:",
-            "properties": { "color": "DEFAULT", "seriesType": "LINE" },
-            "seriesOverrides": []
-          }
-        ],
+        "global": { "hideLegend": false },
+        "rules": [{ "matcher": "A:", "properties": { "color": "DEFAULT", "seriesType": "LINE" }, "seriesOverrides": [] }],
         "axes": { "xAxis": { "displayName": "", "visible": true }, "yAxes": [] },
         "heatmapSettings": { "yAxis": "VALUE" },
-        "thresholds": [{ "axisTarget": "LEFT", "rules": [], "queryId": "", "visible": true }],
+        "singleValueSettings": { "showTrend": true, "showSparkLine": true, "linkTileColorToThreshold": false },
+        "thresholds": [],
         "tableSettings": { "hiddenColumns": [] },
         "graphChartSettings": { "connectNulls": false },
         "honeycombSettings": { "showHive": true, "showLegend": true, "showLabels": false }
       }
     },
     {
-      "name": "Contract Violations Detected",
+      "name": "Output Tokens",
       "tileType": "DATA_EXPLORER",
       "configured": true,
-      "bounds": { "top": 0, "left": 304, "width": 304, "height": 304 },
-      "customName": "Contract Violations",
+      "bounds": { "top": 76, "left": 228, "width": 228, "height": 228 },
+      "tileFilter": {},
+      "customName": "Output Tokens",
       "queries": [
         {
           "id": "A",
-          "spaceAggregation": "AUTO",
+          "metricSelector": "gen_ai.usage.output_tokens:sum",
+          "spaceAggregation": "SUM",
           "timeAggregation": "DEFAULT",
-          "metricSelector": "karma.violations_detected.total:sum:names",
-          "type": "METRIC_HEATMAP",
-          "displayName": "Total Violations",
+          "splitBy": [],
+          "type": "SINGLE_VALUE",
           "enabled": true
         }
       ],
       "visualConfig": {
         "type": "SINGLE_VALUE",
-        "global": {},
-        "rules": [
-          {
-            "matcher": "A:",
-            "properties": { "color": "DEFAULT", "seriesType": "LINE" },
-            "seriesOverrides": []
-          }
-        ],
+        "global": { "hideLegend": false },
+        "rules": [{ "matcher": "A:", "properties": { "color": "DEFAULT", "seriesType": "LINE" }, "seriesOverrides": [] }],
         "axes": { "xAxis": { "displayName": "", "visible": true }, "yAxes": [] },
         "heatmapSettings": { "yAxis": "VALUE" },
-        "thresholds": [{ "axisTarget": "LEFT", "rules": [], "queryId": "", "visible": true }],
+        "singleValueSettings": { "showTrend": true, "showSparkLine": true, "linkTileColorToThreshold": false },
+        "thresholds": [],
+        "tableSettings": { "hiddenColumns": [] },
+        "graphChartSettings": { "connectNulls": false },
+        "honeycombSettings": { "showHive": true, "showLegend": true, "showLabels": false }
+      }
+    },
+    {
+      "name": "Estimated Cost USD",
+      "tileType": "DATA_EXPLORER",
+      "configured": true,
+      "bounds": { "top": 76, "left": 456, "width": 228, "height": 228 },
+      "tileFilter": {},
+      "customName": "Est. Cost (USD)",
+      "queries": [
+        {
+          "id": "A",
+          "metricSelector": "karma.estimated_cost_usd:sum",
+          "spaceAggregation": "SUM",
+          "timeAggregation": "DEFAULT",
+          "splitBy": [],
+          "type": "SINGLE_VALUE",
+          "enabled": true
+        }
+      ],
+      "visualConfig": {
+        "type": "SINGLE_VALUE",
+        "global": { "hideLegend": false },
+        "rules": [{ "matcher": "A:", "properties": { "color": "YELLOW", "seriesType": "LINE" }, "seriesOverrides": [] }],
+        "axes": { "xAxis": { "displayName": "", "visible": true }, "yAxes": [] },
+        "heatmapSettings": { "yAxis": "VALUE" },
+        "singleValueSettings": { "showTrend": true, "showSparkLine": true, "linkTileColorToThreshold": false },
+        "thresholds": [],
+        "tableSettings": { "hiddenColumns": [] },
+        "graphChartSettings": { "connectNulls": false },
+        "honeycombSettings": { "showHive": true, "showLegend": true, "showLabels": false }
+      }
+    },
+    {
+      "name": "Contracts Discovered",
+      "tileType": "DATA_EXPLORER",
+      "configured": true,
+      "bounds": { "top": 76, "left": 684, "width": 228, "height": 228 },
+      "tileFilter": {},
+      "customName": "Contracts Discovered",
+      "queries": [
+        {
+          "id": "A",
+          "metricSelector": "karma.contracts_discovered.total:sum",
+          "spaceAggregation": "SUM",
+          "timeAggregation": "DEFAULT",
+          "splitBy": [],
+          "type": "SINGLE_VALUE",
+          "enabled": true
+        }
+      ],
+      "visualConfig": {
+        "type": "SINGLE_VALUE",
+        "global": { "hideLegend": false },
+        "rules": [{ "matcher": "A:", "properties": { "color": "BLUE", "seriesType": "LINE" }, "seriesOverrides": [] }],
+        "axes": { "xAxis": { "displayName": "", "visible": true }, "yAxes": [] },
+        "heatmapSettings": { "yAxis": "VALUE" },
+        "singleValueSettings": { "showTrend": true, "showSparkLine": true, "linkTileColorToThreshold": false },
+        "thresholds": [],
+        "tableSettings": { "hiddenColumns": [] },
+        "graphChartSettings": { "connectNulls": false },
+        "honeycombSettings": { "showHive": true, "showLegend": true, "showLabels": false }
+      }
+    },
+    {
+      "name": "Violations Detected",
+      "tileType": "DATA_EXPLORER",
+      "configured": true,
+      "bounds": { "top": 76, "left": 912, "width": 228, "height": 228 },
+      "tileFilter": {},
+      "customName": "Violations Detected",
+      "queries": [
+        {
+          "id": "A",
+          "metricSelector": "karma.violations_detected.total:sum",
+          "spaceAggregation": "SUM",
+          "timeAggregation": "DEFAULT",
+          "splitBy": [],
+          "type": "SINGLE_VALUE",
+          "enabled": true
+        }
+      ],
+      "visualConfig": {
+        "type": "SINGLE_VALUE",
+        "global": { "hideLegend": false },
+        "rules": [{ "matcher": "A:", "properties": { "color": "RED", "seriesType": "LINE" }, "seriesOverrides": [] }],
+        "axes": { "xAxis": { "displayName": "", "visible": true }, "yAxes": [] },
+        "heatmapSettings": { "yAxis": "VALUE" },
+        "singleValueSettings": { "showTrend": true, "showSparkLine": true, "linkTileColorToThreshold": false },
+        "thresholds": [{ "axisTarget": "LEFT", "columnId": "Violations Detected", "rules": [{ "color": "ERROR", "value": 1 }], "visible": true }],
         "tableSettings": { "hiddenColumns": [] },
         "graphChartSettings": { "connectNulls": false },
         "honeycombSettings": { "showHive": true, "showLegend": true, "showLabels": false }
@@ -87,292 +212,153 @@
       "name": "Ghost Reports Created",
       "tileType": "DATA_EXPLORER",
       "configured": true,
-      "bounds": { "top": 0, "left": 608, "width": 304, "height": 304 },
-      "customName": "Ghost Reports Created",
+      "bounds": { "top": 76, "left": 1140, "width": 228, "height": 228 },
+      "tileFilter": {},
+      "customName": "Ghost Reports",
       "queries": [
         {
           "id": "A",
-          "spaceAggregation": "AUTO",
+          "metricSelector": "karma.ghost_reports_created.total:sum",
+          "spaceAggregation": "SUM",
           "timeAggregation": "DEFAULT",
-          "metricSelector": "karma.ghost_reports_created.total:sum:names",
-          "type": "METRIC_HEATMAP",
-          "displayName": "Total Ghost Reports",
+          "splitBy": [],
+          "type": "SINGLE_VALUE",
           "enabled": true
         }
       ],
       "visualConfig": {
         "type": "SINGLE_VALUE",
-        "global": {},
-        "rules": [
-          {
-            "matcher": "A:",
-            "properties": { "color": "DEFAULT", "seriesType": "LINE" },
-            "seriesOverrides": []
-          }
-        ],
+        "global": { "hideLegend": false },
+        "rules": [{ "matcher": "A:", "properties": { "color": "PURPLE", "seriesType": "LINE" }, "seriesOverrides": [] }],
         "axes": { "xAxis": { "displayName": "", "visible": true }, "yAxes": [] },
         "heatmapSettings": { "yAxis": "VALUE" },
-        "thresholds": [{ "axisTarget": "LEFT", "rules": [], "queryId": "", "visible": true }],
+        "singleValueSettings": { "showTrend": true, "showSparkLine": true, "linkTileColorToThreshold": false },
+        "thresholds": [],
         "tableSettings": { "hiddenColumns": [] },
         "graphChartSettings": { "connectNulls": false },
         "honeycombSettings": { "showHive": true, "showLegend": true, "showLabels": false }
       }
     },
     {
-      "name": "Estimated Total Cost (USD)",
+      "name": "Tool Calls vs Errors",
       "tileType": "DATA_EXPLORER",
       "configured": true,
-      "bounds": { "top": 0, "left": 912, "width": 304, "height": 304 },
-      "customName": "Estimated Cost (USD)",
+      "bounds": { "top": 76, "left": 1368, "width": 456, "height": 228 },
+      "tileFilter": {},
+      "customName": "Tool Call Health (calls vs errors by agent)",
       "queries": [
         {
           "id": "A",
-          "spaceAggregation": "AUTO",
+          "metricSelector": "karma.tool_calls.total:sum",
+          "spaceAggregation": "SUM",
           "timeAggregation": "DEFAULT",
-          "metricSelector": "karma.estimated_cost_usd:sum:names",
-          "type": "METRIC_HEATMAP",
-          "displayName": "Cost USD",
-          "enabled": true
-        }
-      ],
-      "visualConfig": {
-        "type": "SINGLE_VALUE",
-        "global": {},
-        "rules": [
-          {
-            "matcher": "A:",
-            "properties": { "color": "DEFAULT", "seriesType": "LINE" },
-            "seriesOverrides": []
-          }
-        ],
-        "axes": { "xAxis": { "displayName": "", "visible": true }, "yAxes": [] },
-        "heatmapSettings": { "yAxis": "VALUE" },
-        "thresholds": [{ "axisTarget": "LEFT", "rules": [], "queryId": "", "visible": true }],
-        "tableSettings": { "hiddenColumns": [] },
-        "graphChartSettings": { "connectNulls": false },
-        "honeycombSettings": { "showHive": true, "showLegend": true, "showLabels": false }
-      }
-    },
-    {
-      "name": "Token Usage by Agent (Input vs Output)",
-      "tileType": "DATA_EXPLORER",
-      "configured": true,
-      "bounds": { "top": 304, "left": 0, "width": 608, "height": 304 },
-      "customName": "Token Usage by Agent",
-      "queries": [
-        {
-          "id": "A",
-          "spaceAggregation": "AUTO",
-          "timeAggregation": "DEFAULT",
-          "metricSelector": "gen_ai.usage.input_tokens:sum:splitBy(gen_ai.agent.name):names",
-          "type": "METRIC_HEATMAP",
-          "displayName": "Input Tokens",
+          "splitBy": ["karma.agent"],
+          "type": "LINE",
           "enabled": true
         },
         {
           "id": "B",
-          "spaceAggregation": "AUTO",
+          "metricSelector": "karma.tool_errors.total:sum",
+          "spaceAggregation": "SUM",
           "timeAggregation": "DEFAULT",
-          "metricSelector": "gen_ai.usage.output_tokens:sum:splitBy(gen_ai.agent.name):names",
-          "type": "METRIC_HEATMAP",
-          "displayName": "Output Tokens",
+          "splitBy": ["karma.agent"],
+          "type": "LINE",
           "enabled": true
         }
       ],
       "visualConfig": {
         "type": "GRAPH_CHART",
-        "global": {},
+        "global": { "hideLegend": false },
         "rules": [
-          {
-            "matcher": "A:",
-            "properties": { "color": "BLUE", "seriesType": "BAR" },
-            "seriesOverrides": []
-          },
-          {
-            "matcher": "B:",
-            "properties": { "color": "GREEN", "seriesType": "BAR" },
-            "seriesOverrides": []
-          }
+          { "matcher": "A:", "properties": { "color": "BLUE", "seriesType": "LINE" }, "seriesOverrides": [] },
+          { "matcher": "B:", "properties": { "color": "RED", "seriesType": "LINE" }, "seriesOverrides": [] }
         ],
         "axes": { "xAxis": { "displayName": "", "visible": true }, "yAxes": [] },
         "heatmapSettings": { "yAxis": "VALUE" },
-        "thresholds": [{ "axisTarget": "LEFT", "rules": [], "queryId": "", "visible": true }],
+        "singleValueSettings": { "showTrend": true, "showSparkLine": true, "linkTileColorToThreshold": false },
+        "thresholds": [],
         "tableSettings": { "hiddenColumns": [] },
         "graphChartSettings": { "connectNulls": false },
         "honeycombSettings": { "showHive": true, "showLegend": true, "showLabels": false }
       }
     },
     {
-      "name": "Cost Over Time by Agent",
+      "name": "Token spend over time — by agent",
       "tileType": "DATA_EXPLORER",
       "configured": true,
-      "bounds": { "top": 304, "left": 608, "width": 608, "height": 304 },
-      "customName": "Cost Over Time by Agent",
+      "bounds": { "top": 304, "left": 0, "width": 912, "height": 304 },
+      "tileFilter": {},
+      "customName": "Token Spend Over Time (by Agent)",
       "queries": [
         {
           "id": "A",
-          "spaceAggregation": "AUTO",
+          "metricSelector": "gen_ai.usage.input_tokens:sum",
+          "spaceAggregation": "SUM",
           "timeAggregation": "DEFAULT",
-          "metricSelector": "karma.estimated_cost_usd:sum:splitBy(gen_ai.agent.name):names",
-          "type": "METRIC_HEATMAP",
-          "displayName": "Cost USD",
+          "splitBy": ["karma.agent"],
+          "type": "LINE",
+          "enabled": true
+        },
+        {
+          "id": "B",
+          "metricSelector": "gen_ai.usage.output_tokens:sum",
+          "spaceAggregation": "SUM",
+          "timeAggregation": "DEFAULT",
+          "splitBy": ["karma.agent"],
+          "type": "LINE",
           "enabled": true
         }
       ],
       "visualConfig": {
         "type": "GRAPH_CHART",
-        "global": {},
+        "global": { "hideLegend": false },
         "rules": [
-          {
-            "matcher": "A:",
-            "properties": { "color": "ORANGE", "seriesType": "LINE" },
-            "seriesOverrides": []
-          }
+          { "matcher": "A:", "properties": { "color": "BLUE", "seriesType": "LINE" }, "seriesOverrides": [] },
+          { "matcher": "B:", "properties": { "color": "GREEN", "seriesType": "LINE" }, "seriesOverrides": [] }
         ],
         "axes": { "xAxis": { "displayName": "", "visible": true }, "yAxes": [] },
         "heatmapSettings": { "yAxis": "VALUE" },
-        "thresholds": [{ "axisTarget": "LEFT", "rules": [], "queryId": "", "visible": true }],
+        "singleValueSettings": { "showTrend": true, "showSparkLine": true, "linkTileColorToThreshold": false },
+        "thresholds": [],
         "tableSettings": { "hiddenColumns": [] },
         "graphChartSettings": { "connectNulls": false },
         "honeycombSettings": { "showHive": true, "showLegend": true, "showLabels": false }
       }
     },
     {
-      "name": "MCP Tool Calls",
-      "tileType": "DATA_EXPLORER",
-      "configured": true,
-      "bounds": { "top": 608, "left": 0, "width": 304, "height": 304 },
-      "customName": "MCP Tool Calls",
-      "queries": [
-        {
-          "id": "A",
-          "spaceAggregation": "AUTO",
-          "timeAggregation": "DEFAULT",
-          "metricSelector": "karma.tool_calls.total:sum:names",
-          "type": "METRIC_HEATMAP",
-          "displayName": "Tool Calls",
-          "enabled": true
-        }
-      ],
-      "visualConfig": {
-        "type": "SINGLE_VALUE",
-        "global": {},
-        "rules": [
-          {
-            "matcher": "A:",
-            "properties": { "color": "DEFAULT", "seriesType": "LINE" },
-            "seriesOverrides": []
-          }
-        ],
-        "axes": { "xAxis": { "displayName": "", "visible": true }, "yAxes": [] },
-        "heatmapSettings": { "yAxis": "VALUE" },
-        "thresholds": [{ "axisTarget": "LEFT", "rules": [], "queryId": "", "visible": true }],
-        "tableSettings": { "hiddenColumns": [] },
-        "graphChartSettings": { "connectNulls": false },
-        "honeycombSettings": { "showHive": true, "showLegend": true, "showLabels": false }
-      }
-    },
-    {
-      "name": "Tool Errors",
-      "tileType": "DATA_EXPLORER",
-      "configured": true,
-      "bounds": { "top": 608, "left": 304, "width": 304, "height": 304 },
-      "customName": "Tool Errors",
-      "queries": [
-        {
-          "id": "A",
-          "spaceAggregation": "AUTO",
-          "timeAggregation": "DEFAULT",
-          "metricSelector": "karma.tool_errors.total:sum:names",
-          "type": "METRIC_HEATMAP",
-          "displayName": "Tool Errors",
-          "enabled": true
-        }
-      ],
-      "visualConfig": {
-        "type": "SINGLE_VALUE",
-        "global": {},
-        "rules": [
-          {
-            "matcher": "A:",
-            "properties": { "color": "RED", "seriesType": "LINE" },
-            "seriesOverrides": []
-          }
-        ],
-        "axes": { "xAxis": { "displayName": "", "visible": true }, "yAxes": [] },
-        "heatmapSettings": { "yAxis": "VALUE" },
-        "thresholds": [{ "axisTarget": "LEFT", "rules": [], "queryId": "", "visible": true }],
-        "tableSettings": { "hiddenColumns": [] },
-        "graphChartSettings": { "connectNulls": false },
-        "honeycombSettings": { "showHive": true, "showLegend": true, "showLabels": false }
-      }
-    },
-    {
-      "name": "Agent Activity Log (Grail)",
+      "name": "Agent Invocation Traces — DQL",
       "tileType": "LOG",
       "configured": true,
-      "bounds": { "top": 608, "left": 608, "width": 608, "height": 304 },
-      "customName": "Agent Activity Log",
-      "logQuery": "fetch logs | filter log.source == \"karma-agent\" | sort timestamp desc | limit 50"
+      "bounds": { "top": 304, "left": 912, "width": 912, "height": 304 },
+      "tileFilter": {},
+      "customName": "Agent Invocation Traces",
+      "logQuery": "fetch spans | filter span.name == \"karma.agent_run\" | fields timestamp, karma.agent, karma.model, karma.model_turns, gen_ai.usage.input_tokens, gen_ai.usage.output_tokens, karma.estimated_cost_usd, duration | sort timestamp desc | limit 50"
     },
     {
-      "name": "Cached Token Usage",
-      "tileType": "DATA_EXPLORER",
-      "configured": true,
-      "bounds": { "top": 912, "left": 0, "width": 608, "height": 304 },
-      "customName": "Cached Token Savings",
-      "queries": [
-        {
-          "id": "A",
-          "spaceAggregation": "AUTO",
-          "timeAggregation": "DEFAULT",
-          "metricSelector": "gen_ai.usage.cache_read_input_tokens:sum:splitBy(gen_ai.agent.name):names",
-          "type": "METRIC_HEATMAP",
-          "displayName": "Cached Tokens Read",
-          "enabled": true
-        }
-      ],
-      "visualConfig": {
-        "type": "GRAPH_CHART",
-        "global": {},
-        "rules": [
-          {
-            "matcher": "A:",
-            "properties": { "color": "PURPLE", "seriesType": "BAR" },
-            "seriesOverrides": []
-          }
-        ],
-        "axes": { "xAxis": { "displayName": "", "visible": true }, "yAxes": [] },
-        "heatmapSettings": { "yAxis": "VALUE" },
-        "thresholds": [{ "axisTarget": "LEFT", "rules": [], "queryId": "", "visible": true }],
-        "tableSettings": { "hiddenColumns": [] },
-        "graphChartSettings": { "connectNulls": false },
-        "honeycombSettings": { "showHive": true, "showLegend": true, "showLabels": false }
-      }
-    },
-    {
-      "name": "Ghost Reports — Recent Events (Grail)",
+      "name": "MCP Tool Calls — DQL",
       "tileType": "LOG",
       "configured": true,
-      "bounds": { "top": 912, "left": 608, "width": 608, "height": 304 },
-      "customName": "Ghost Report BizEvents",
-      "logQuery": "fetch bizevents | filter event.type == \"karma.ghost_report.created\" | fields timestamp, event.provider, event.type, properties[\"karma.severity\"], properties[\"report_id\"], properties[\"service_id\"], properties[\"karma.summary\"] | sort timestamp desc | limit 25"
+      "bounds": { "top": 608, "left": 0, "width": 912, "height": 304 },
+      "tileFilter": {},
+      "customName": "Dynatrace MCP Tool Calls",
+      "logQuery": "fetch spans | filter span.name == \"karma.mcp_tool_call\" | fields timestamp, karma.agent, gen_ai.tool.name, karma.tool.duration_seconds, karma.tool.error | sort timestamp desc | limit 50"
     },
     {
-      "name": "Violations by Contract Category (Grail)",
+      "name": "DQL Query Executions — DQL",
       "tileType": "LOG",
       "configured": true,
-      "bounds": { "top": 1216, "left": 0, "width": 608, "height": 304 },
-      "customName": "Violations by Category",
-      "logQuery": "fetch bizevents | filter event.type == \"karma.ghost_report.created\" | summarize count(), by: {properties[\"karma.contract_category\"]} | sort count() desc"
+      "bounds": { "top": 608, "left": 912, "width": 912, "height": 304 },
+      "tileFilter": {},
+      "customName": "Grail DQL Queries",
+      "logQuery": "fetch spans | filter span.name == \"karma.dql_query\" | fields timestamp, karma.agent, karma.dql.state, karma.dql.record_count, karma.tool.duration_seconds | sort timestamp desc | limit 50"
     },
     {
-      "name": "Investigation Cost per Report (Grail)",
-      "tileType": "LOG",
+      "name": "Metric reference footer",
+      "tileType": "MARKDOWN",
       "configured": true,
-      "bounds": { "top": 1216, "left": 608, "width": 608, "height": 304 },
-      "customName": "Investigation Cost per Report",
-      "logQuery": "fetch bizevents | filter event.type == \"karma.ghost_report.created\" | fields timestamp, properties[\"report_id\"], properties[\"karma.severity\"], properties[\"cost_usd\"] | sort timestamp desc | limit 50"
+      "bounds": { "top": 912, "left": 0, "width": 1824, "height": 76 },
+      "tileFilter": {},
+      "markdown": "**OTel GenAI metrics** (service: `karma-agent-system`): `gen_ai.usage.input_tokens` · `gen_ai.usage.output_tokens` · `gen_ai.usage.cache_read_input_tokens` · `gen_ai.client.operation.duration`\n\n**Karma custom metrics**: `karma.estimated_cost_usd` · `karma.contracts_discovered.total` · `karma.violations_detected.total` · `karma.ghost_reports_created.total` · `karma.tool_calls.total` · `karma.tool_errors.total` · `karma.dql_query.duration_seconds` · `karma.mcp_tool.duration_seconds`\n\n**Import**: `POST https://{env}.live.dynatrace.com/api/config/v1/dashboards` with this file as the request body."
     }
   ]
 }

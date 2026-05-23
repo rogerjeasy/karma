@@ -72,5 +72,5 @@ jobs:
           env_vars: >
             OTEL_SERVICE_NAME=${{ matrix.service.name }},
             OTEL_EXPORTER_OTLP_ENDPOINT=https://${{ vars.DT_ENV }}.live.dynatrace.com/api/v2/otlp/v1/traces,
-            PAYMENTS_URL=https://karma-svc-payments-v3-957527396263.us-central1.run.app,
+            PAYMENTS_URL=${{ vars.PAYMENTS_URL }},
             REDIS_URL=${{ vars.REDIS_URL }}
