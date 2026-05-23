@@ -21,9 +21,23 @@ Karma catches it.
 
 ---
 
+## Live Deployment
+
+| Service | URL |
+|---------|-----|
+| **Web dashboard** | https://karma-web-957527396263.us-central1.run.app |
+| **API (REST)** | https://karma-api-957527396263.us-central1.run.app |
+| **API docs (Swagger)** | https://karma-api-957527396263.us-central1.run.app/docs |
+| **Dynatrace tenant** | https://slm61962.apps.dynatrace.com |
+| **Demo: svc-payments-v2** | https://karma-svc-payments-v2-957527396263.us-central1.run.app |
+| **Demo: svc-payments-v3** | https://karma-svc-payments-v3-957527396263.us-central1.run.app |
+| **Demo: svc-reporting** | https://karma-svc-reporting-957527396263.us-central1.run.app |
+
+---
+
 ## Demo
 
-[**Watch the 2:45 demo video**](#) · [**Try the live demo**](#) · [**Devpost submission**](https://rapid-agent.devpost.com)
+[**Watch the 2:45 demo video**](#) · [**Try the live demo**](https://karma-web-957527396263.us-central1.run.app) · [**Devpost submission**](https://rapid-agent.devpost.com)
 
 ### The marquee finding
 
