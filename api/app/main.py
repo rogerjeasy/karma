@@ -16,6 +16,7 @@ from google.auth.exceptions import DefaultCredentialsError, TransportError
 
 from app.config import settings
 from app.models import HealthResponse
+from app.otel import setup_otel
 from app.routes import (
     admin,
     contracts,
@@ -51,6 +52,8 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
         lifespan=lifespan,
     )
+
+    setup_otel(application)
 
     @application.middleware("http")
     async def catch_gcp_errors(request: Request, call_next):  # type: ignore[no-untyped-def]

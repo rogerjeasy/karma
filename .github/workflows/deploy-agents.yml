@@ -167,14 +167,18 @@ jobs:
           # The CI env: block above makes these available to this script,
           # but Agent Engine runs in a separate isolated environment and
           # does NOT inherit the GitHub Actions environment automatically.
+          _dt_env = os.environ.get("DT_ENV", "")
           env_vars = {
-              "DT_ENV":             os.environ.get("DT_ENV", ""),
-              "DT_API_TOKEN":       os.environ.get("DT_API_TOKEN", ""),
-              "DT_OTEL_TOKEN":      os.environ.get("DT_OTEL_TOKEN", ""),
-              "GCP_PROJECT_ID":     os.environ.get("GCP_PROJECT_ID", ""),
-              "GCP_LOCATION":       os.environ.get("GCP_LOCATION", "us-central1"),
-              "MEMORY_BANK_ID":     os.environ.get("MEMORY_BANK_ID", ""),
-              "FIRESTORE_DATABASE": os.environ.get("FIRESTORE_DATABASE", "(default)"),
+              "DT_ENV":                          _dt_env,
+              "DT_API_TOKEN":                    os.environ.get("DT_API_TOKEN", ""),
+              "DT_OTEL_TOKEN":                   os.environ.get("DT_OTEL_TOKEN", ""),
+              "OTEL_EXPORTER_OTLP_ENDPOINT":     (
+                  f"https://{_dt_env}.live.dynatrace.com/api/v2/otlp" if _dt_env else ""
+              ),
+              "GCP_PROJECT_ID":                  os.environ.get("GCP_PROJECT_ID", ""),
+              "GCP_LOCATION":                    os.environ.get("GCP_LOCATION", "us-central1"),
+              "MEMORY_BANK_ID":                  os.environ.get("MEMORY_BANK_ID", ""),
+              "FIRESTORE_DATABASE":               os.environ.get("FIRESTORE_DATABASE", "(default)"),
           }
 
           # Fail fast — these must be present or agents cannot call Dynatrace.

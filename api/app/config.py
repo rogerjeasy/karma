@@ -57,6 +57,18 @@ class Settings(BaseSettings):
     # Leave blank to disable.
     webhook_url: str = ""
 
+    # ── Dynatrace / OpenTelemetry ─────────────────────────────────────────────
+    # DT environment ID, e.g. "slm61962" — used to derive the OTLP endpoint.
+    dt_env: str = ""
+    # DT API token with openTelemetryTrace.ingest + metrics.ingest scopes.
+    dt_otel_token: str = ""
+
+    @property
+    def dt_otel_endpoint(self) -> str:
+        if self.dt_env:
+            return f"https://{self.dt_env}.live.dynatrace.com/api/v2/otlp"
+        return ""
+
     @field_validator("gcp_project_id", mode="after")
     @classmethod
     def _require_gcp_project(cls, v: str) -> str:
