@@ -101,6 +101,7 @@ export function DashboardDataProvider({ children }: { children: React.ReactNode 
       delete next[id];
       return next;
     });
+    setGhosts((prev) => prev.filter((g) => g.karma_service_id !== id));
   }, []);
 
   const refreshContracts = useCallback(async (serviceId: string) => {
