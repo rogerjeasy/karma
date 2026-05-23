@@ -1,0 +1,170 @@
+# Bindplane Google Edition — Karma Agent OTel Pipeline
+#
+# Collects traces, metrics, and logs from the Karma ADK agents running in
+# Google Cloud Agent Engine (Vertex AI) and routes them to Dynatrace via OTLP.
+#
+# Protocol references:
+#   Traces/Metrics: OTLP/HTTP → https://<dt_env>.live.dynatrace.com/api/v2/otlp
+#   Logs:           OTLP/HTTP → https://<dt_env>.live.dynatrace.com/api/v2/otlp
+#
+# Authentication:
+#   Dynatrace classic API token with scopes:
+#     openTelemetryTrace.ingest
+#     metrics.ingest
+#     logs.ingest
+#   Set as DT_OTEL_TOKEN in your environment or Secret Manager.
+#
+# Usage:
+#   1. Replace <DT_ENV> and <DT_OTEL_TOKEN> with your values.
+#   2. bindplane apply -f pipeline.yaml
+#   3. bindplane rollout start karma-pipeline
+#
+# Bindplane Google Edition docs:
+#   https://cloud.google.com/bindplane/docs
+
+apiVersion: bindplane.observiq.com/v1
+kind: Configuration
+metadata:
+  name: karma-pipeline
+  labels:
+    app: karma
+    environment: production
+    team: platform
+
+spec:
+  # ── Sources ────────────────────────────────────────────────────────────────
+  sources:
+    - name: karma-otlp-receiver
+      type: otlp
+      parameters:
+        # Karma agents export to this receiver via OTLP/HTTP
+        endpoint: "0.0.0.0:4318"
+        protocols:
+          grpc:
+            enabled: true
+            endpoint: "0.0.0.0:4317"
+          http:
+            enabled: true
+            endpoint: "0.0.0.0:4318"
+
+    - name: karma-hostmetrics
+      type: hostmetrics
+      parameters:
+        collection_interval: 60s
+        scrapers:
+          - cpu
+          - memory
+          - disk
+          - network
+
+  # ── Processors ────────────────────────────────────────────────────────────
+  processors:
+    - name: karma-resource-detection
+      type: resource_detection
+      parameters:
+        detectors:
+          - gcp
+          - env
+        # GCP detector adds: cloud.provider, cloud.platform, cloud.region,
+        # k8s.cluster.name, host.name, service.instance.id
+        timeout: 5s
+
+    - name: karma-batch
+      type: batch
+      parameters:
+        send_batch_size: 1024
+        timeout: 5s
+        send_batch_max_size: 2048
+
+    - name: karma-memory-limiter
+      type: memory_limiter
+      parameters:
+        check_interval: 1s
+        limit_percentage: 75
+        spike_limit_percentage: 15
+
+    - name: karma-filter-internal
+      type: filter
+      parameters:
+        # Drop noisy health-check traces to keep Dynatrace storage clean
+        traces:
+          span:
+            - 'attributes["http.route"] == "/health"'
+            - 'attributes["http.route"] == "/healthz"'
+            - 'attributes["http.route"] == "/readyz"'
+
+    - name: karma-attributes
+      type: attributes
+      parameters:
+        # Enrich all signals with Karma-specific resource attributes
+        actions:
+          - key: karma.pipeline.version
+            value: "1.0.0"
+            action: insert
+          - key: deployment.environment
+            from_attribute: DEPLOYMENT_ENV
+            action: insert
+
+  # ── Destinations ──────────────────────────────────────────────────────────
+  destinations:
+    - name: dynatrace-otlp
+      type: otlphttp
+      parameters:
+        endpoint: "https://<DT_ENV>.live.dynatrace.com/api/v2/otlp"
+        headers:
+          Authorization: "Api-Token <DT_OTEL_TOKEN>"
+        compression: gzip
+        sending_queue:
+          enabled: true
+          num_consumers: 4
+          queue_size: 1000
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 300s
+        tls:
+          insecure: false
+
+  # ── Pipelines ─────────────────────────────────────────────────────────────
+  pipelines:
+    - name: karma-traces
+      telemetry_types:
+        - traces
+      sources:
+        - karma-otlp-receiver
+      processors:
+        - karma-memory-limiter
+        - karma-resource-detection
+        - karma-filter-internal
+        - karma-attributes
+        - karma-batch
+      destinations:
+        - dynatrace-otlp
+
+    - name: karma-metrics
+      telemetry_types:
+        - metrics
+      sources:
+        - karma-otlp-receiver
+        - karma-hostmetrics
+      processors:
+        - karma-memory-limiter
+        - karma-resource-detection
+        - karma-attributes
+        - karma-batch
+      destinations:
+        - dynatrace-otlp
+
+    - name: karma-logs
+      telemetry_types:
+        - logs
+      sources:
+        - karma-otlp-receiver
+      processors:
+        - karma-memory-limiter
+        - karma-resource-detection
+        - karma-attributes
+        - karma-batch
+      destinations:
+        - dynatrace-otlp
