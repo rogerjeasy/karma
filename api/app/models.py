@@ -111,6 +111,40 @@ class WatcherRunResponse(BaseModel):
 class UserSyncResponse(BaseModel):
     uid: str
     email: str
+    roles: list[str] = Field(default_factory=lambda: ["user"])
+
+
+class UserProfile(BaseModel):
+    uid: str
+    email: str
+    display_name: str = ""
+    photo_url: str = ""
+    roles: list[str] = Field(default_factory=lambda: ["user"])
+
+
+class SystemServiceCreate(BaseModel):
+    service_name: str = Field(description="Human-readable name, e.g. 'Karma API'")
+    dynatrace_entity_id: str = Field(description="Dynatrace entity ID (SERVICE-…)")
+    replacement_service_id: str | None = Field(
+        default=None,
+        description="Entity ID of the new version currently being monitored",
+    )
+    description: str | None = None
+    url: str | None = Field(default=None, description="Cloud Run service URL")
+
+
+class SystemServiceResponse(BaseModel):
+    service_id: str
+    service_name: str
+    dynatrace_entity_id: str
+    replacement_service_id: str | None = None
+    phase: Literal["registered", "learning", "ready", "haunting", "completed", "error"]
+    error_message: str | None = None
+    description: str | None = None
+    url: str | None = None
+    is_system: bool = True
+    created_at: datetime
+    updated_at: datetime
 
 
 class StatsResponse(BaseModel):

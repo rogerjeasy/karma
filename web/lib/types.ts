@@ -90,6 +90,35 @@ export interface WatcherRun {
 
 export type ViolationSeverity = "low" | "medium" | "high" | "critical";
 
+export interface UserProfile {
+  uid: string;
+  email: string;
+  display_name: string;
+  photo_url: string;
+  roles: string[];
+}
+
+export interface SystemService {
+  service_id: string;
+  service_name: string;
+  dynatrace_entity_id: string;
+  replacement_service_id: string | null;
+  phase: ServicePhase;
+  error_message?: string | null;
+  description?: string | null;
+  url?: string | null;
+  is_system: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminStats {
+  total_users: number;
+  total_system_services: number;
+  system_services_haunting: number;
+  system_ghost_reports: number;
+}
+
 export interface GhostReport {
   report_id: string;
   violation_id: string;

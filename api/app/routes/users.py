@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends
 
 from app import firestore_client
 from app.auth import get_current_user
-from app.models import UserSyncResponse
+from app.models import UserProfile, UserSyncResponse
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -32,4 +32,23 @@ async def sync_user(user: dict[str, Any] = Depends(get_current_user)) -> UserSyn
             "last_seen_at": datetime.now(dt.UTC),
         },
     )
-    return UserSyncResponse(uid=uid, email=user.get("email", ""))
+    profile = await firestore_client.get_user(uid)
+    roles: list[str] = (profile or {}).get("roles", ["user"])
+    return UserSyncResponse(uid=uid, email=user.get("email", ""), roles=roles)
+
+
+@router.get("/me", response_model=UserProfile)
+async def get_me(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> UserProfile:
+    """Return the authenticated user's full profile including roles."""
+    profile = await firestore_client.get_user(user["uid"])
+    if not profile:
+        return UserProfile(uid=user["uid"], email=user.get("email", ""))
+    return UserProfile(
+        uid=profile["uid"],
+        email=profile.get("email", user.get("email", "")),
+        display_name=profile.get("display_name", ""),
+        photo_url=profile.get("photo_url", ""),
+        roles=profile.get("roles", ["user"]),
+    )

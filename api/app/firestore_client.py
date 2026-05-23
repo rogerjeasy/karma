@@ -51,7 +51,21 @@ def get_db() -> firestore.AsyncClient:
 
 async def upsert_user(uid: str, data: dict[str, Any]) -> None:
     db = get_db()
-    await db.collection("users").document(uid).set(data, merge=True)
+    ref = db.collection("users").document(uid)
+    doc = await ref.get()
+    if not doc.exists:
+        # First sign-up — seed with default role. roles is a list so
+        # array_contains queries work natively in Firestore.
+        await ref.set({**data, "roles": ["user"]})
+    else:
+        # Subsequent syncs — update profile fields only; never overwrite roles.
+        await ref.set(data, merge=True)
+
+
+async def get_user(uid: str) -> dict[str, Any] | None:
+    db = get_db()
+    doc = await db.collection("users").document(uid).get()
+    return doc.to_dict() if doc.exists else None
 
 
 # ── Services ──────────────────────────────────────────────────────────────────
@@ -75,7 +89,24 @@ async def list_services(user_id: str) -> list[dict[str, Any]]:
     query = db.collection("services").where(
         filter=FieldFilter("user_id", "==", user_id)
     )
+    svcs = [d async for doc in query.stream() if (d := doc.to_dict()) is not None]
+    # System services are shown only in the admin panel, not in the user's list.
+    return [s for s in svcs if not s.get("is_system")]
+
+
+async def list_system_services() -> list[dict[str, Any]]:
+    """Return all services tagged as Karma infrastructure (is_system=True)."""
+    db = get_db()
+    query = db.collection("services").where(
+        filter=FieldFilter("is_system", "==", True)
+    )
     return [d async for doc in query.stream() if (d := doc.to_dict()) is not None]
+
+
+async def save_service_doc(service_id: str, data: dict[str, Any]) -> None:
+    """Write a service document verbatim — used by admin to create system services."""
+    db = get_db()
+    await db.collection("services").document(service_id).set(data)
 
 
 async def get_user_service_ids(user_id: str) -> list[str]:

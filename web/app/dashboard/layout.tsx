@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { Route } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -13,8 +14,10 @@ import {
   X,
   Zap,
   ChevronRight,
+  ChevronUp,
   LogOut,
   Loader2,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -31,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth, signOutUser } from "@/lib/firebase";
 import { SSEProvider, useSSEContext } from "@/lib/sse-context";
 import { DashboardDataProvider } from "@/lib/dashboard-context";
+import { UserProfileProvider, useUserProfile } from "@/lib/user-profile-context";
 
 type NavItem = { href: string; label: string; icon: LucideIcon; exact?: boolean };
 
@@ -40,6 +44,12 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard/ghosts",   label: "Ghosts",    icon: Ghost },
   { href: "/dashboard/timeline", label: "Timeline",  icon: Activity },
 ];
+
+const ADMIN_NAV_ITEM: NavItem = {
+  href: "/dashboard/admin",
+  label: "Admin",
+  icon: ShieldCheck,
+};
 
 // ── Auth guard + SSE provider ─────────────────────────────────────────────────
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -68,17 +78,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const sseUrl = `${process.env.NEXT_PUBLIC_API_URL ?? ""}/stream/ghosts`;
 
   return (
-    <SSEProvider url={sseUrl}>
-      <DashboardDataProvider>
-        <DashboardShell onSignOut={handleSignOut}>{children}</DashboardShell>
-      </DashboardDataProvider>
-    </SSEProvider>
+    <UserProfileProvider>
+      <SSEProvider url={sseUrl}>
+        <DashboardDataProvider>
+          <DashboardShell onSignOut={handleSignOut}>{children}</DashboardShell>
+        </DashboardDataProvider>
+      </SSEProvider>
+    </UserProfileProvider>
   );
 }
 
 // ── Shell (rendered inside SSEProvider) ──────────────────────────────────────
 function DashboardShell({ children, onSignOut }: { children: React.ReactNode; onSignOut: () => Promise<void> }) {
   const { connectionState } = useSSEContext();
+  const { isAdmin } = useUserProfile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -154,6 +167,15 @@ function DashboardShell({ children, onSignOut }: { children: React.ReactNode; on
             <span>Dynatrace MCP</span>
             <ChevronRight className="ml-auto h-3 w-3 opacity-40" />
           </div>
+          {isAdmin && (
+            <>
+              <Separator className="my-3" />
+              <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-amber-400/80 select-none">
+                Admin
+              </p>
+              <NavLink item={ADMIN_NAV_ITEM} />
+            </>
+          )}
         </nav>
 
         {/* Footer: SSE-derived API status + sign-out */}
@@ -202,14 +224,7 @@ function DashboardShell({ children, onSignOut }: { children: React.ReactNode; on
             </div>
           </div>
 
-          {/* Sign-out */}
-          <button
-            onClick={() => setSignOutOpen(true)}
-            className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
-            <LogOut className="h-4 w-4 shrink-0" />
-            <span className="text-[13px] font-medium">Sign out</span>
-          </button>
+          <UserMenu onSignOut={() => setSignOutOpen(true)} />
         </div>
       </aside>
 
@@ -312,7 +327,8 @@ function NavLink({ item }: { item: NavItem }) {
 
 function Breadcrumb() {
   const pathname = usePathname();
-  const active = NAV_ITEMS.find((i) =>
+  const ALL_ITEMS = [...NAV_ITEMS, ADMIN_NAV_ITEM];
+  const active = ALL_ITEMS.find((i) =>
     i.exact ? pathname === i.href : pathname.startsWith(i.href)
   );
   return (
@@ -331,8 +347,149 @@ function Breadcrumb() {
 
 function CurrentPageLabel() {
   const pathname = usePathname();
-  const active = NAV_ITEMS.find((i) =>
+  const ALL_ITEMS = [...NAV_ITEMS, ADMIN_NAV_ITEM];
+  const active = ALL_ITEMS.find((i) =>
     i.exact ? pathname === i.href : pathname.startsWith(i.href)
   );
   return active ? <span className="font-medium text-foreground">{active.label}</span> : null;
+}
+
+// ── User avatar menu ──────────────────────────────────────────────────────────
+function UserMenu({ onSignOut }: { onSignOut: () => void }) {
+  const { user }             = useAuth();
+  const { profile, isAdmin } = useUserProfile();
+  const [open, setOpen]      = useState(false);
+  const containerRef         = useRef<HTMLDivElement>(null);
+
+  // Close when clicking outside
+  useEffect(() => {
+    if (!open) return;
+    function handle(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [open]);
+
+  const displayName = profile?.display_name || user?.displayName || user?.email?.split("@")[0] || "User";
+  const email       = profile?.email || user?.email || "";
+  const photoUrl    = profile?.photo_url || user?.photoURL || "";
+  const initials    = displayName
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const roles = profile?.roles ?? ["user"];
+
+  return (
+    <div className="relative" ref={containerRef}>
+      {/* Popover — floats above the trigger */}
+      {open && (
+        <div className="absolute bottom-full left-0 right-0 mb-2 rounded-xl border border-border bg-card shadow-lg overflow-hidden z-50">
+          {/* User info */}
+          <div className="flex items-center gap-3 px-4 py-3">
+            <Avatar photoUrl={photoUrl} initials={initials} size="lg" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold text-foreground truncate">{displayName}</p>
+              <p className="text-[11px] text-muted-foreground truncate">{email}</p>
+              {/* Role badges */}
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {roles.map((role) => (
+                  <span
+                    key={role}
+                    className={cn(
+                      "inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide border",
+                      role === "admin"
+                        ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                        : role === "premium"
+                        ? "bg-violet-500/15 text-violet-400 border-violet-500/30"
+                        : "bg-slate-500/15 text-slate-400 border-slate-500/30"
+                    )}
+                  >
+                    {role}
+                  </span>
+                ))}
+                {isAdmin && !roles.includes("admin") && null}
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-border" />
+
+          {/* Sign out */}
+          <button
+            onClick={() => { setOpen(false); onSignOut(); }}
+            className="w-full flex items-center gap-2.5 px-4 py-3 text-[13px] text-muted-foreground hover:text-red-400 hover:bg-red-500/5 transition-colors"
+          >
+            <LogOut className="h-3.5 w-3.5 shrink-0" />
+            Sign out
+          </button>
+        </div>
+      )}
+
+      {/* Trigger button */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors",
+          open
+            ? "bg-accent text-foreground"
+            : "text-muted-foreground hover:text-foreground hover:bg-accent"
+        )}
+      >
+        <Avatar photoUrl={photoUrl} initials={initials} size="sm" />
+        <span className="flex-1 min-w-0 text-left text-[13px] font-medium truncate">
+          {displayName}
+        </span>
+        <ChevronUp
+          className={cn(
+            "h-3 w-3 shrink-0 opacity-50 transition-transform duration-200",
+            open ? "rotate-180" : ""
+          )}
+        />
+      </button>
+    </div>
+  );
+}
+
+function Avatar({
+  photoUrl,
+  initials,
+  size,
+}: {
+  photoUrl: string;
+  initials: string;
+  size: "sm" | "lg";
+}) {
+  const dim = size === "lg" ? 36 : 28;
+  const cls = size === "lg"
+    ? "h-9 w-9 text-[13px]"
+    : "h-7 w-7 text-[11px]";
+
+  if (photoUrl) {
+    return (
+      <Image
+        src={photoUrl}
+        alt="Avatar"
+        width={dim}
+        height={dim}
+        className={cn("shrink-0 rounded-full object-cover ring-1 ring-border", cls)}
+        unoptimized={!photoUrl.includes("googleusercontent.com")}
+      />
+    );
+  }
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center font-semibold text-primary",
+        cls,
+      )}
+    >
+      {initials || "?"}
+    </span>
+  );
 }

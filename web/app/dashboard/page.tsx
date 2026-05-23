@@ -65,7 +65,6 @@ export default function DashboardPage() {
       .then((d) => d && setPlatformStats(d as PlatformStats))
       .catch(() => {});
   // Re-fetch whenever the service or ghost count changes (add, delete, SSE).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [services.length, ghosts.length]);
 
   // ── Fetch recent watcher runs across all services ─────────────────────────

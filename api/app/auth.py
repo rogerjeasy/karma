@@ -77,3 +77,21 @@ async def get_current_user(
             detail="Invalid authentication token",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
+
+
+async def require_admin(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Dependency that additionally verifies the user has the 'admin' role.
+
+    Raises 403 if the Firestore user document does not list 'admin' in roles.
+    """
+    from app.firestore_client import get_user as _get_user_profile
+    profile = await _get_user_profile(user["uid"])
+    roles: list[str] = (profile or {}).get("roles", ["user"])
+    if "admin" not in roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required",
+        )
+    return user
