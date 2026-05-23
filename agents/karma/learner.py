@@ -16,6 +16,7 @@ from pathlib import Path
 from google.adk.agents import Agent
 
 from karma.config import settings
+from karma.otel_callbacks import make_telemetry_callbacks
 from karma.tools.contract_validator_tool import validate_contract_predicate
 from karma.tools.dynatrace_api_tools import execute_dql
 from karma.tools.dynatrace_events import emit_karma_event
@@ -58,4 +59,5 @@ def create_learner_agent() -> Agent:
             save_contracts_to_firestore,
             save_contracts_to_memory_bank,
         ],
+        **make_telemetry_callbacks("karma_learner", settings.model_pro),
     )

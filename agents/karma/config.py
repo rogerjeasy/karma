@@ -132,6 +132,16 @@ class Settings(BaseSettings):
         """OTLP/HTTP ingest endpoint for the synthetic environment services."""
         return f"{self.dt_classic_base_url}{_OTEL_PATH}"
 
+    @property
+    def dt_events_endpoint(self) -> str:
+        """Dynatrace Events Ingest API v2 endpoint (classic API, Api-Token auth).
+
+        Used by push_ghost_report_to_dynatrace to create custom annotation events
+        visible in the Dynatrace service problem timeline.
+        Required classic token scope: events.ingest
+        """
+        return f"{self.dt_classic_base_url}/api/v2/events/ingest"
+
     def _assert_dt_env(self) -> None:
         if not self.dt_env:
             raise ValueError(

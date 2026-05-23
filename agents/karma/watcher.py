@@ -12,6 +12,7 @@ from __future__ import annotations
 from google.adk.agents import Agent
 
 from karma.config import settings
+from karma.otel_callbacks import make_telemetry_callbacks
 from karma.tools.dynatrace_api_tools import execute_dql
 from karma.tools.mcp_gateway_tools import get_entity_name_via_mcp, query_problems_via_mcp
 from karma.tools.memory_bank_tools import load_contracts_from_memory_bank
@@ -146,4 +147,5 @@ def create_watcher_agent() -> Agent:
             get_entity_name_via_mcp,
             publish_violation_to_pubsub,
         ],
+        **make_telemetry_callbacks("karma_watcher", settings.model_pro),
     )

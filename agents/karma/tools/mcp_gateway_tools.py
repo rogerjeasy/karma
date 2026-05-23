@@ -10,6 +10,11 @@ Protocol: MCP Streamable HTTP (spec 2025-03-26)
 Endpoint: settings.dt_mcp_endpoint
   → https://{dt_env}.apps.dynatrace.com/platform-reserved/mcp-gateway/v0.1/servers/dynatrace-mcp/mcp
 Auth: Authorization: Bearer <DT_API_TOKEN>
+
+OTel instrumentation: every _call_mcp_tool invocation emits a karma.mcp_tool_call
+span with the tool name, session ID, duration, and success/error status.  When
+called from within a gen_ai.tool.call span (set up by otel_callbacks), the MCP
+span is automatically nested as a child of that tool span.
 """
 from __future__ import annotations
 
@@ -21,6 +26,7 @@ import httpx
 import structlog
 
 from karma.config import settings
+from karma.otel import SPAN_MCP_TOOL, get_tracer
 
 logger = structlog.get_logger(__name__)
 
@@ -35,97 +41,146 @@ _PROTOCOL_VERSION = "2025-03-26"
 def _call_mcp_tool(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     """Call a Dynatrace MCP tool via the MCP Streamable HTTP protocol.
 
+    Emits a karma.mcp_tool_call OTel span that nests under whatever tool span
+    is currently active (set by otel_callbacks.before_tool_callback).
+
     Implements the full MCP session lifecycle:
     1. POST initialize → capture Mcp-Session-Id header
     2. POST notifications/initialized (required by spec)
     3. POST tools/call → parse JSON or SSE response
     4. DELETE session (best-effort cleanup)
     """
-    endpoint = settings.dt_mcp_endpoint
-    if not endpoint:
-        return {"error": "DT_ENV not configured — cannot reach Dynatrace MCP gateway"}
-    if not settings.dt_api_token:
-        return {"error": "DT_API_TOKEN not configured"}
+    tracer = get_tracer("karma.tools")
 
-    base_headers: dict[str, str] = {
-        "Authorization": f"Bearer {settings.dt_api_token}",
-        "Content-Type": "application/json",
-        "Accept": "application/json, text/event-stream",
-    }
+    with tracer.start_as_current_span(SPAN_MCP_TOOL) as span:
+        span.set_attribute("gen_ai.tool.name", tool_name)
+        span.set_attribute("karma.mcp.protocol", "streamable-http")
+        span.set_attribute("karma.mcp.protocol_version", _PROTOCOL_VERSION)
 
-    try:
-        with httpx.Client(timeout=_TIMEOUT) as client:
-            # 1. Initialize
-            init_resp = client.post(
-                endpoint,
-                json={
-                    "jsonrpc": "2.0",
-                    "id": 0,
-                    "method": "initialize",
-                    "params": {
-                        "protocolVersion": _PROTOCOL_VERSION,
-                        "capabilities": {},
-                        "clientInfo": _MCP_CLIENT_INFO,
+        endpoint = settings.dt_mcp_endpoint
+        if not endpoint:
+            err = "DT_ENV not configured — cannot reach Dynatrace MCP gateway"
+            span.set_attribute("karma.mcp.error", err)
+            _set_span_error(span, err)
+            return {"error": err}
+        if not settings.dt_api_token:
+            err = "DT_API_TOKEN not configured"
+            span.set_attribute("karma.mcp.error", err)
+            _set_span_error(span, err)
+            return {"error": err}
+
+        base_headers: dict[str, str] = {
+            "Authorization": f"Bearer {settings.dt_api_token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+        }
+
+        try:
+            with httpx.Client(timeout=_TIMEOUT) as client:
+                # 1. Initialize
+                init_resp = client.post(
+                    endpoint,
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": 0,
+                        "method": "initialize",
+                        "params": {
+                            "protocolVersion": _PROTOCOL_VERSION,
+                            "capabilities": {},
+                            "clientInfo": _MCP_CLIENT_INFO,
+                        },
                     },
-                },
-                headers=base_headers,
-            )
+                    headers=base_headers,
+                )
 
-            session_headers = dict(base_headers)
-            session_id = init_resp.headers.get("Mcp-Session-Id")
-            if session_id:
-                session_headers["Mcp-Session-Id"] = session_id
+                session_headers = dict(base_headers)
+                session_id = init_resp.headers.get("Mcp-Session-Id")
+                if session_id:
+                    session_headers["Mcp-Session-Id"] = session_id
+                    span.set_attribute("karma.mcp.session_id", session_id)
 
-            # 2. Send initialized notification (no response expected)
-            client.post(
-                endpoint,
-                json={"jsonrpc": "2.0", "method": "notifications/initialized"},
-                headers=session_headers,
-            )
+                # 2. Send initialized notification (no response expected)
+                client.post(
+                    endpoint,
+                    json={"jsonrpc": "2.0", "method": "notifications/initialized"},
+                    headers=session_headers,
+                )
 
-            # 3. Call the tool
-            call_id = 1
-            tool_resp = client.post(
-                endpoint,
-                json={
-                    "jsonrpc": "2.0",
-                    "id": call_id,
-                    "method": "tools/call",
-                    "params": {"name": tool_name, "arguments": arguments},
-                },
-                headers=session_headers,
-            )
+                # 3. Call the tool
+                call_id = 1
+                tool_resp = client.post(
+                    endpoint,
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": call_id,
+                        "method": "tools/call",
+                        "params": {"name": tool_name, "arguments": arguments},
+                    },
+                    headers=session_headers,
+                )
 
-            # 4. Terminate session (best effort)
-            if session_id:
-                with contextlib.suppress(Exception):
-                    client.request("DELETE", endpoint, headers=session_headers)
+                span.set_attribute("karma.mcp.http_status", tool_resp.status_code)
 
-        if not tool_resp.is_success:
-            logger.warning(
-                "mcp_tool_http_error",
-                tool=tool_name,
-                status=tool_resp.status_code,
-            )
-            return {
-                "error": f"MCP tool call failed: HTTP {tool_resp.status_code}",
-                "detail": tool_resp.text[:500],
-            }
+                # 4. Terminate session (best effort)
+                if session_id:
+                    with contextlib.suppress(Exception):
+                        client.request("DELETE", endpoint, headers=session_headers)
 
-        content_type = tool_resp.headers.get("content-type", "")
-        if "text/event-stream" in content_type:
-            return _parse_sse_response(tool_resp.text, call_id)
+            if not tool_resp.is_success:
+                logger.warning(
+                    "mcp_tool_http_error",
+                    tool=tool_name,
+                    status=tool_resp.status_code,
+                )
+                err = f"MCP tool call failed: HTTP {tool_resp.status_code}"
+                span.set_attribute("karma.mcp.error", err)
+                _set_span_error(span, err)
+                return {"error": err, "detail": tool_resp.text[:500]}
 
-        rpc_resp: dict[str, Any] = tool_resp.json()
-        if "error" in rpc_resp:
-            err = rpc_resp["error"]
-            return {"error": err.get("message", str(err)) if isinstance(err, dict) else str(err)}
+            content_type = tool_resp.headers.get("content-type", "")
+            if "text/event-stream" in content_type:
+                result = _parse_sse_response(tool_resp.text, call_id)
+            else:
+                rpc_resp: dict[str, Any] = tool_resp.json()
+                if "error" in rpc_resp:
+                    err_payload = rpc_resp["error"]
+                    err_msg = (
+                        err_payload.get("message", str(err_payload))
+                        if isinstance(err_payload, dict)
+                        else str(err_payload)
+                    )
+                    span.set_attribute("karma.mcp.error", err_msg)
+                    _set_span_error(span, err_msg)
+                    return {"error": err_msg}
+                result = _extract_mcp_content(rpc_resp.get("result", {}))
 
-        return _extract_mcp_content(rpc_resp.get("result", {}))
+            # Mark success
+            _set_span_ok(span)
+            return result
 
-    except Exception as exc:
-        logger.error("mcp_tool_exception", tool=tool_name, error=str(exc))
-        return {"error": str(exc)}
+        except Exception as exc:
+            logger.error("mcp_tool_exception", tool=tool_name, error=str(exc))
+            span.set_attribute("karma.mcp.error", str(exc)[:300])
+            _set_span_error(span, str(exc))
+            with contextlib.suppress(Exception):
+                span.record_exception(exc)
+            return {"error": str(exc)}
+
+
+def _set_span_ok(span: Any) -> None:
+    try:
+        from opentelemetry.trace import Status, StatusCode
+        span.set_status(Status(StatusCode.OK))
+    except ImportError:
+        pass
+
+
+def _set_span_error(span: Any, message: str) -> None:
+    try:
+        from opentelemetry.trace import Status, StatusCode
+        span.set_status(Status(StatusCode.ERROR, message))
+    except ImportError:
+        pass
 
 
 def _parse_sse_response(sse_text: str, request_id: int) -> dict[str, Any]:
@@ -151,7 +206,11 @@ def _extract_mcp_content(result: dict[str, Any]) -> dict[str, Any]:
     if not content:
         return result
 
-    texts = [item.get("text", "") for item in content if isinstance(item, dict) and item.get("type") == "text"]
+    texts = [
+        item.get("text", "")
+        for item in content
+        if isinstance(item, dict) and item.get("type") == "text"
+    ]
     if not texts:
         return result
 
@@ -276,6 +335,50 @@ def detect_changepoints_via_mcp(
             "timeSeriesData": dql_query,
         },
     )
+
+
+def ask_dynatrace_docs_via_mcp(
+    question: str,
+    context: str = "",
+) -> dict[str, Any]:
+    """Ask the Dynatrace documentation AI agent for troubleshooting guidance.
+
+    Queries the Dynatrace MCP ask-dynatrace-docs tool, which uses Davis AI to
+    answer questions about Dynatrace features, DQL syntax, and remediation
+    best practices.  Use this during forensic investigation to get AI-powered
+    recommendations specific to the violation category.
+
+    Args:
+        question: Natural language question about the violation or remediation.
+                  Example: "How do I detect Redis cache misses in Dynatrace spans?"
+        context: Optional context about the violation to narrow the answer.
+                 Example: "side_effect contract violation on svc-payments-v3"
+
+    Returns:
+        Dict with documentation answer and relevant references.
+    """
+    logger.info("mcp_ask_dynatrace_docs", question=question[:80])
+    query = f"{question}\n\nContext: {context}" if context else question
+    return _call_mcp_tool("ask-dynatrace-docs", {"question": query})
+
+
+def find_troubleshooting_guides_via_mcp(
+    topic: str,
+) -> dict[str, Any]:
+    """Find Dynatrace troubleshooting guides relevant to a violation type.
+
+    Searches the Dynatrace knowledge base for guides that match the violation topic.
+    Returns links and summaries of the most relevant guides for the forensic report.
+
+    Args:
+        topic: The problem topic to search for.
+               Example: "Redis connection pool exhaustion" or "HTTP 409 response changes"
+
+    Returns:
+        Dict with matching guide titles, summaries, and Dynatrace documentation links.
+    """
+    logger.info("mcp_find_troubleshooting_guides", topic=topic[:80])
+    return _call_mcp_tool("find-troubleshooting-guides", {"query": topic})
 
 
 def adaptive_anomaly_detection_via_mcp(

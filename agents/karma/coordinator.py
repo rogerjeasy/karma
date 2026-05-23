@@ -12,6 +12,7 @@ from google.adk.agents import Agent
 from karma.config import settings
 from karma.forensic import create_forensic_agent
 from karma.learner import create_learner_agent
+from karma.otel_callbacks import make_telemetry_callbacks
 from karma.watcher import create_watcher_agent
 
 _COORDINATOR_INSTRUCTION = """
@@ -66,4 +67,5 @@ def create_coordinator_agent() -> Agent:
         ),
         instruction=_COORDINATOR_INSTRUCTION,
         sub_agents=[learner, watcher, forensic],
+        **make_telemetry_callbacks("karma_coordinator", settings.model_pro),
     )

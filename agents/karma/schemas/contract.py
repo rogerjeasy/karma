@@ -139,7 +139,15 @@ class GhostReport(BaseModel):
     remediation_suggestions: list[str]
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     severity: Literal["low", "medium", "high", "critical"] = "medium"
+    # Bidirectional Dynatrace integration — set by push_ghost_report_to_dynatrace
     dynatrace_event_id: str | None = None
+    # Davis AI root-cause insights surfaced via MCP ask-dynatrace-docs tool
+    davis_ai_insights: str | None = None
+    # Operational cost of this forensic investigation (tokens × Vertex AI pricing)
+    cost_estimate_usd: float | None = None
+    # Input/output token counts for the full investigation session
+    investigation_input_tokens: int | None = None
+    investigation_output_tokens: int | None = None
 
     def to_firestore_dict(self) -> dict[str, object]:
         return self.model_dump(mode="json")
