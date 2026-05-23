@@ -26,14 +26,15 @@ from fastapi import APIRouter, Request
 from google.cloud import firestore as gcp_firestore
 from sse_starlette.sse import EventSourceResponse
 
+from app.auth import get_firebase_app
 from app.config import settings
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/stream", tags=["stream"])
 
-# Active SSE queues — one per connected client.
-# Each item is {"_event": str, "_data": dict} or None (sentinel to close).
-_queues: list[asyncio.Queue[dict[str, Any] | None]] = []
+# Per-user SSE queues: user_id → list of active queues for that user.
+# Each item in the inner list is {"_event": str, "_data": dict} or None (sentinel).
+_user_queues: dict[str, list[asyncio.Queue[dict[str, Any] | None]]] = {}
 
 # Event loop captured at startup — used for thread-safe dispatch from Firestore callbacks
 _loop: asyncio.AbstractEventLoop | None = None
@@ -41,10 +42,24 @@ _loop: asyncio.AbstractEventLoop | None = None
 
 @router.get("/ghosts")
 async def stream_ghosts(request: Request) -> EventSourceResponse:
-    """SSE endpoint — clients connect and receive ghost reports and service updates."""
+    """SSE endpoint — authenticated clients receive events scoped to their own data."""
+    # Resolve user_id from the Authorization header; fall back to empty string.
+    user_id = ""
+    try:
+        from firebase_admin import auth as firebase_auth
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            decoded = firebase_auth.verify_id_token(
+                token, app=get_firebase_app(), check_revoked=False
+            )
+            user_id = decoded.get("uid", "")
+    except Exception:
+        pass
+
     queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
-    _queues.append(queue)
-    logger.info("sse_client_connected", total_clients=len(_queues))
+    _user_queues.setdefault(user_id, []).append(queue)
+    logger.info("sse_client_connected", user_id=user_id, total_users=len(_user_queues))
 
     async def event_generator() -> AsyncGenerator[dict[str, Any], None]:
         # Immediate ping so the client knows the connection is live
@@ -69,38 +84,65 @@ async def stream_ghosts(request: Request) -> EventSourceResponse:
                     "data": json.dumps(message["_data"], default=str),
                 }
         finally:
-            if queue in _queues:
-                _queues.remove(queue)
-            logger.info("sse_client_disconnected", remaining=len(_queues))
+            user_qs = _user_queues.get(user_id, [])
+            if queue in user_qs:
+                user_qs.remove(queue)
+            if not user_qs:
+                _user_queues.pop(user_id, None)
+            logger.info(
+                "sse_client_disconnected",
+                user_id=user_id,
+                remaining_users=len(_user_queues),
+            )
 
     return EventSourceResponse(event_generator())
 
 
-async def _broadcast(event: str, data: dict[str, Any]) -> None:
-    """Push an event to every connected SSE client."""
+async def _broadcast_to_user(user_id: str, event: str, data: dict[str, Any]) -> None:
+    """Push an event only to queues belonging to the given user_id."""
     message: dict[str, Any] = {"_event": event, "_data": data}
+    user_qs = list(_user_queues.get(user_id, []))
     dead: list[asyncio.Queue[dict[str, Any] | None]] = []
-    for queue in list(_queues):
+    for queue in user_qs:
         try:
             queue.put_nowait(message)
         except asyncio.QueueFull:
             dead.append(queue)
 
+    active_qs = _user_queues.get(user_id, [])
     for queue in dead:
-        if queue in _queues:
-            _queues.remove(queue)
+        if queue in active_qs:
+            active_qs.remove(queue)
 
-    logger.info("sse_broadcasted", event=event, clients=len(_queues), dropped=len(dead))
+    if user_qs:
+        logger.info(
+            "sse_broadcasted",
+            event=event,
+            user_id=user_id,
+            clients=len(user_qs),
+            dropped=len(dead),
+        )
 
 
 async def broadcast_ghost_report(report: dict[str, Any]) -> None:
-    """Push a new ghost report to every connected SSE client."""
-    await _broadcast("ghost_report", report)
+    """Push a new ghost report only to the owning user's SSE clients."""
+    user_id = report.get("user_id", "")
+    if user_id:
+        await _broadcast_to_user(user_id, "ghost_report", report)
+    else:
+        # Fallback for legacy reports without user_id: broadcast to all.
+        for uid in list(_user_queues.keys()):
+            await _broadcast_to_user(uid, "ghost_report", report)
 
 
 async def broadcast_service_update(service: dict[str, Any]) -> None:
-    """Push a service document change to every connected SSE client."""
-    await _broadcast("service_update", service)
+    """Push a service document change only to the owning user's SSE clients."""
+    user_id = service.get("user_id", "")
+    if user_id:
+        await _broadcast_to_user(user_id, "service_update", service)
+    else:
+        for uid in list(_user_queues.keys()):
+            await _broadcast_to_user(uid, "service_update", service)
 
 
 def start_firestore_listener() -> None:
@@ -132,10 +174,36 @@ def start_firestore_listener() -> None:
         for change in changes:  # type: ignore[attr-defined]
             if change.type.name == "ADDED":
                 doc: dict[str, Any] | None = change.document.to_dict()
-                if doc is not None:
-                    asyncio.run_coroutine_threadsafe(
-                        broadcast_ghost_report(doc), captured_loop
-                    )
+                if doc is None:
+                    continue
+
+                # Inject user_id if the agent did not set it (no agent redeploy needed).
+                if not doc.get("user_id"):
+                    karma_service_id = doc.get("karma_service_id", "")
+                    if karma_service_id:
+                        try:
+                            svc_doc = (
+                                db_sync.collection("services")
+                                .document(karma_service_id)
+                                .get()
+                            )
+                            svc_exists: bool = svc_doc.exists  # type: ignore[union-attr]
+                            svc_data = (
+                                svc_doc.to_dict()  # type: ignore[union-attr]
+                                if svc_exists
+                                else None
+                            )
+                            user_id = (svc_data or {}).get("user_id", "")
+                            if user_id:
+                                doc = {**doc, "user_id": user_id}
+                                # Persist so future API queries can filter by user_id.
+                                change.document.reference.update({"user_id": user_id})
+                        except Exception:
+                            pass
+
+                asyncio.run_coroutine_threadsafe(
+                    broadcast_ghost_report(doc), captured_loop
+                )
 
     def on_service_snapshot(col_snapshot: object, changes: object, read_time: object) -> None:
         for change in changes:  # type: ignore[attr-defined]

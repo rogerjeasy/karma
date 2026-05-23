@@ -153,6 +153,13 @@ async def list_contracts_for_service(service_id: str) -> list[dict[str, Any]]:
 
 async def save_ghost_report(report_id: str, data: dict[str, Any]) -> None:
     db = get_db()
+    # Backfill user_id from the service doc if not already present.
+    if not data.get("user_id"):
+        karma_service_id = data.get("karma_service_id", "")
+        if karma_service_id:
+            svc = await get_service(karma_service_id)
+            if svc:
+                data = {**data, "user_id": svc.get("user_id", "")}
     await db.collection("ghost_reports").document(report_id).set(data)
     asyncio.create_task(webhooks.notify_ghost_report(data))
 
@@ -164,13 +171,14 @@ async def list_ghost_reports(
 ) -> list[dict[str, Any]]:
     """Return ghost reports visible to this user.
 
-    If service_id is given, verify it belongs to the user and filter to that
-    service only. Otherwise, fetch reports across all of the user's services.
+    If service_id is given, filter to that service (ownership already verified
+    by the route). Otherwise, query directly by user_id field (fast path) with
+    a fallback join on service_ids for older documents that predate user_id stamping.
     """
     db = get_db()
 
     if service_id:
-        # Single-service path — uses the existing karma_service_id + created_at index.
+        # Single-service path — uses the karma_service_id + created_at index.
         query = (
             db.collection("ghost_reports")
             .where(filter=FieldFilter("karma_service_id", "==", service_id))
@@ -179,27 +187,36 @@ async def list_ghost_reports(
         )
         return [d async for doc in query.stream() if (d := doc.to_dict()) is not None]
 
-    # Multi-service path — use an IN query on the user's service IDs.
-    # We sort in Python to avoid a composite index (IN + order_by requires one).
+    # Fast path — query directly by user_id field (set on all new ghost reports).
+    direct_query = (
+        db.collection("ghost_reports")
+        .where(filter=FieldFilter("user_id", "==", user_id))
+        .limit(limit * 2)
+    )
+    docs = [d async for doc in direct_query.stream() if (d := doc.to_dict()) is not None]
+
+    # Fallback: also pull reports that predate user_id stamping (via service_id join).
+    seen_ids = {d["report_id"] for d in docs if "report_id" in d}
     service_ids = await get_user_service_ids(user_id)
-    if not service_ids:
-        return []
+    legacy_chunk = [sid for sid in service_ids[:30] if sid]
+    if legacy_chunk:
+        if len(legacy_chunk) == 1:
+            legacy_q = (
+                db.collection("ghost_reports")
+                .where(filter=FieldFilter("karma_service_id", "==", legacy_chunk[0]))
+                .limit(limit)
+            )
+        else:
+            legacy_q = (
+                db.collection("ghost_reports")
+                .where(filter=FieldFilter("karma_service_id", "in", legacy_chunk))
+                .limit(limit * 2)
+            )
+        for doc in (await legacy_q.get()):
+            d = doc.to_dict()
+            if d and d.get("report_id") not in seen_ids:
+                docs.append(d)
 
-    chunk = service_ids[:30]  # Firestore IN limit
-    if len(chunk) == 1:
-        query = (
-            db.collection("ghost_reports")
-            .where(filter=FieldFilter("karma_service_id", "==", chunk[0]))
-            .limit(limit)
-        )
-    else:
-        query = (
-            db.collection("ghost_reports")
-            .where(filter=FieldFilter("karma_service_id", "in", chunk))
-            .limit(limit * 2)  # over-fetch so we have enough after Python sort
-        )
-
-    docs = [d async for doc in query.stream() if (d := doc.to_dict()) is not None]
     docs.sort(key=lambda d: str(d.get("created_at", "")), reverse=True)
     return docs[:limit]
 
@@ -208,6 +225,108 @@ async def get_ghost_report(report_id: str) -> dict[str, Any] | None:
     db = get_db()
     doc = await db.collection("ghost_reports").document(report_id).get()
     return doc.to_dict() if doc.exists else None
+
+
+async def compute_user_stats(user_id: str) -> dict[str, Any]:
+    """Aggregate stats scoped to a single user's services."""
+    db = get_db()
+
+    services = await list_services(user_id)
+    if not services:
+        return {
+            "total_services": 0,
+            "total_contracts": 0,
+            "total_ghost_reports": 0,
+            "avg_contracts_per_service": None,
+            "avg_minutes_to_first_alert": None,
+            "pct_services_with_violations": None,
+        }
+
+    service_ids = [s["service_id"] for s in services if "service_id" in s]
+
+    # Count contracts
+    contracts: list[dict[str, Any]] = []
+    for sid in service_ids:
+        chunk = await list_contracts_for_service(sid)
+        contracts.extend(chunk)
+
+    contracts_by_service: dict[str, int] = {}
+    for c in contracts:
+        sid = c.get("karma_service_id", "")
+        if sid:
+            contracts_by_service[sid] = contracts_by_service.get(sid, 0) + 1
+
+    services_with_contracts = len(contracts_by_service)
+    avg_contracts: float | None = (
+        round(len(contracts) / services_with_contracts, 1)
+        if services_with_contracts > 0
+        else None
+    )
+
+    # Ghost reports and violation timing
+    haunted = [s for s in services if s.get("phase") in ("haunting", "completed")]
+    services_with_violations: set[str] = set()
+    alert_times_minutes: list[float] = []
+    total_ghost_reports = 0
+
+    for svc in haunted[:50]:
+        sid = svc.get("service_id", "")
+        cutover_raw = svc.get("cutover_time")
+        if not sid:
+            continue
+
+        query = (
+            db.collection("ghost_reports")
+            .where(filter=FieldFilter("karma_service_id", "==", sid))
+            .order_by("created_at")
+            .limit(10)
+        )
+        first_docs = [d async for doc in query.stream() if (d := doc.to_dict()) is not None]
+        total_ghost_reports += len(first_docs)
+
+        if not first_docs:
+            continue
+
+        services_with_violations.add(sid)
+        if cutover_raw:
+            try:
+                cutover_dt = (
+                    cutover_raw
+                    if isinstance(cutover_raw, datetime)
+                    else datetime.fromisoformat(str(cutover_raw))
+                )
+                cr_raw = first_docs[0].get("created_at") or first_docs[0].get("saved_at")
+                if cr_raw:
+                    cr_dt = (
+                        cr_raw
+                        if isinstance(cr_raw, datetime)
+                        else datetime.fromisoformat(str(cr_raw))
+                    )
+                    delta = (cr_dt - cutover_dt).total_seconds() / 60
+                    if 0 < delta < 60 * 24:
+                        alert_times_minutes.append(delta)
+            except Exception:
+                pass
+
+    pct_violations: float | None = (
+        round(len(services_with_violations) / len(haunted) * 100, 1)
+        if haunted
+        else None
+    )
+    avg_alert_minutes: float | None = (
+        round(sum(alert_times_minutes) / len(alert_times_minutes), 1)
+        if alert_times_minutes
+        else None
+    )
+
+    return {
+        "total_services": len(services),
+        "total_contracts": len(contracts),
+        "total_ghost_reports": total_ghost_reports,
+        "avg_contracts_per_service": avg_contracts,
+        "avg_minutes_to_first_alert": avg_alert_minutes,
+        "pct_services_with_violations": pct_violations,
+    }
 
 
 async def compute_platform_stats() -> dict[str, Any]:

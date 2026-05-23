@@ -24,7 +24,7 @@ logger = structlog.get_logger(__name__)
 _firebase_app: firebase_admin.App | None = None
 
 
-def _get_firebase_app() -> firebase_admin.App:
+def get_firebase_app() -> firebase_admin.App:
     global _firebase_app
     if _firebase_app is None:
         _firebase_app = firebase_admin.initialize_app(
@@ -32,6 +32,9 @@ def _get_firebase_app() -> firebase_admin.App:
         )
     return _firebase_app
 
+
+# Keep the private alias for backwards compatibility within this module.
+_get_firebase_app = get_firebase_app
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -53,7 +56,7 @@ async def get_current_user(
     try:
         decoded: dict[str, Any] = firebase_auth.verify_id_token(
             credentials.credentials,
-            app=_get_firebase_app(),
+            app=get_firebase_app(),
             check_revoked=False,
         )
         return decoded

@@ -43,12 +43,23 @@ def save_ghost_report_to_firestore(
         project=settings.gcp_project_id,
         database=settings.firestore_database,
     )
+
+    # Resolve user_id from the service document so ghost reports are user-scoped.
+    user_id = ""
+    try:
+        svc_doc = db.collection("services").document(karma_service_id).get()
+        if svc_doc.exists:  # type: ignore[union-attr]
+            user_id = (svc_doc.to_dict() or {}).get("user_id", "")  # type: ignore[union-attr]
+    except Exception:
+        pass
+
     report_id = report.get("report_id") or str(uuid.uuid4())
     now_iso = datetime.now(UTC).isoformat()
     doc: dict[str, Any] = {
         **report,
         "report_id": report_id,
         "karma_service_id": karma_service_id,
+        "user_id": user_id,
         "saved_at": now_iso,
         "created_at": now_iso,
     }
@@ -90,6 +101,16 @@ def save_contracts_to_firestore(
         project=settings.gcp_project_id,
         database=settings.firestore_database,
     )
+
+    # Resolve user_id from the service document so contracts are user-scoped.
+    user_id = ""
+    try:
+        svc_doc = db.collection("services").document(karma_service_id).get()
+        if svc_doc.exists:  # type: ignore[union-attr]
+            user_id = (svc_doc.to_dict() or {}).get("user_id", "")  # type: ignore[union-attr]
+    except Exception:
+        pass
+
     collection = db.collection("contracts")
     now = datetime.now(UTC).isoformat()
 
@@ -105,6 +126,7 @@ def save_contracts_to_firestore(
                 # karma_service_id lets the dashboard query by UUID while
                 # service_id preserves the Dynatrace entity ID in the schema.
                 "karma_service_id": karma_service_id,
+                "user_id": user_id,
                 "saved_at": now,
                 "validated": raw.get("validated", True),
             }

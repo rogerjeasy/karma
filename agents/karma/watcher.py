@@ -69,9 +69,25 @@ For each contract:
    The stored DQL was learned from the old service — you must adapt both the entity
    ID and the time window before evaluating it against the replacement service.
 2. Call `execute_dql` with the rewritten DQL.
-3. Evaluate the result against `contract.violation_predicate.threshold`:
-   - Threshold MET → contract is honoured; continue to next.
-   - Threshold NOT MET → record a violation candidate.
+3. **Evaluate the result — this is the critical step:**
+
+   The `test_dql` is designed to FIND the expected behavior in the replacement service.
+   Interpret the result as follows:
+
+   | DQL result | What it means | Action |
+   |---|---|---|
+   | `result.result.records` is **non-empty** | Behavior IS present in v2-replacement → check threshold | If threshold met → honoured; else → violation |
+   | `result.result.records` is **empty (zero rows)** | Behavior is **ABSENT** in the replacement | **This IS a violation.** Empty ≠ "nothing wrong." Empty means the expected behavior disappeared. |
+   | `result` contains an `"error"` key | DQL failed to execute | Log as violation with `needs_forensic: false` |
+
+   **Do NOT treat zero records as inconclusive or clean.** For behavioral presence
+   contracts (Redis writes, 409 responses, throughput), zero records means the
+   replacement service is NOT exhibiting that behavior — that is exactly what a
+   violation looks like.
+
+   Threshold MET (non-empty records satisfy the threshold) → contract is honoured; continue.
+   Threshold NOT MET (zero records, OR records present but threshold not satisfied) → violation candidate.
+
 4. For each violation candidate, call `query_problems_via_mcp`:
    ```python
    query_problems_via_mcp(service_id=new_service_id, window_minutes=check_window_minutes)

@@ -76,6 +76,8 @@ async def watcher_tick(request: Request) -> Response:
 
 
 async def _run_watcher_for_services(services: list[dict[str, Any]]) -> None:
+    import time as _time
+
     from app.config import settings
 
     for svc in services:
@@ -85,21 +87,52 @@ async def _run_watcher_for_services(services: list[dict[str, Any]]) -> None:
         contracts = await firestore_client.list_contracts_for_service(karma_service_id)
         if not contracts:
             log.info("watcher_skipped_no_contracts")
+            await firestore_client.save_watcher_run(
+                str(uuid.uuid4()),
+                {
+                    "run_id": str(uuid.uuid4()),
+                    "service_id": karma_service_id,
+                    "service_name": svc.get("service_name"),
+                    "run_at": datetime.now(UTC).isoformat(),
+                    "contracts_checked": 0,
+                    "violations_found": 0,
+                    "duration_seconds": 0.0,
+                    "skipped": True,
+                    "skip_reason": "no_contracts",
+                },
+            )
             continue
 
         log.info("watcher_scheduled_run", contract_count=len(contracts))
+        t0 = _time.monotonic()
         watcher_result = await agent_client.trigger_watcher(
             old_service_id=svc["dynatrace_entity_id"],
             new_service_id=svc.get("replacement_service_id", ""),
             contracts=contracts,
             karma_service_id=karma_service_id,
         )
+        elapsed = round(_time.monotonic() - t0, 2)
 
         # Violations published to Pub/Sub by the agent's publish_violation_to_pubsub
         # tool will arrive at /internal/violation-received, which resets the counter.
         # As a fallback, also process any violations returned in the agent's JSON output
         # (handles cases where Pub/Sub publish failed inside the agent).
         violations = _extract_violations(watcher_result)
+
+        run_id = str(uuid.uuid4())
+        await firestore_client.save_watcher_run(
+            run_id,
+            {
+                "run_id": run_id,
+                "service_id": karma_service_id,
+                "service_name": svc.get("service_name"),
+                "run_at": datetime.now(UTC).isoformat(),
+                "contracts_checked": len(contracts),
+                "violations_found": len(violations),
+                "duration_seconds": elapsed,
+                "skipped": False,
+            },
+        )
 
         if violations:
             await firestore_client.reset_clean_watcher_runs(karma_service_id)
