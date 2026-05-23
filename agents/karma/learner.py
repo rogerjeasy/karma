@@ -20,6 +20,7 @@ from karma.otel_callbacks import make_telemetry_callbacks
 from karma.tools.contract_validator_tool import validate_contract_predicate
 from karma.tools.dynatrace_api_tools import execute_dql
 from karma.tools.dynatrace_events import emit_karma_event
+from karma.tools.dynatrace_slo import create_slo_from_contract
 from karma.tools.firestore_tools import save_contracts_to_firestore
 from karma.tools.mcp_gateway_tools import (
     adaptive_anomaly_detection_via_mcp,
@@ -54,6 +55,8 @@ def create_learner_agent() -> Agent:
             adaptive_anomaly_detection_via_mcp,
             # Contract quality gate — runs predicate against historical data
             validate_contract_predicate,
+            # Dynatrace SLO registration — create official SLOs from contracts
+            create_slo_from_contract,
             # Persistence — Firestore (dashboard) + Memory Bank (cross-session)
             emit_karma_event,
             save_contracts_to_firestore,

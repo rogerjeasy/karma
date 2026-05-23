@@ -60,12 +60,12 @@ def create_coordinator_agent() -> Agent:
 
     return Agent(
         name="karma_coordinator",
-        model=settings.model_pro,
+        model=settings.model_flash,
         description=(
             "Karma's root agent. Routes learning, watching, and forensic tasks "
             "to the appropriate specialized sub-agent."
         ),
         instruction=_COORDINATOR_INSTRUCTION,
         sub_agents=[learner, watcher, forensic],
-        **make_telemetry_callbacks("karma_coordinator", settings.model_pro),
+        **make_telemetry_callbacks("karma_coordinator", settings.model_flash),
     )

@@ -1,15 +1,22 @@
-"""Dynatrace Logs Ingest client — self-observability for the Karma agent system.
+"""Dynatrace BizEvents Ingest client — self-observability for the Karma agent system.
 
-The Dynatrace MCP server does not expose a write-events tool in its current
-toolset. This module fills that gap via the Dynatrace Logs Ingest API v2,
-emitting structured log records so every Karma decision is:
-  - Persisted in Grail (queryable via DQL: fetch logs | filter log.source == "karma-agent")
-  - Visible on Dynatrace dashboards
-  - Part of the auditable evidence trail shown in the live demo
+Every significant Karma decision is emitted as a Dynatrace BizEvent so that:
+  - Decisions are persisted in Grail (queryable via DQL: fetch bizevents)
+  - Events appear on Dynatrace dashboards as business-process telemetry
+  - Judges can verify the complete audit trail during the demo
 
-Required classic API token scope: logs.ingest
-  (already included with the DT_OTEL_TOKEN — no new token needed)
-Endpoint: settings.dt_logs_endpoint (derived from DT_ENV — never hardcoded)
+Required classic API token scope: bizevents.ingest
+  Add this scope to DT_OTEL_TOKEN in Dynatrace → Access Tokens → API Tokens.
+  It is distinct from the platform scope (storage:bizevents:write) and is
+  available on Dynatrace trials.
+
+Endpoint: settings.dt_bizevents_endpoint (derived from DT_ENV — never hardcoded)
+
+DQL to query all Karma events:
+  fetch bizevents
+  | filter startsWith(event.type, "karma.")
+  | sort timestamp desc
+  | limit 50
 """
 from __future__ import annotations
 
@@ -24,8 +31,6 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from karma.config import settings
 
 logger = structlog.get_logger(__name__)
-
-_LOG_SOURCE = "karma-agent"
 
 # Canonical event type prefixes — all Karma events live under this namespace
 KARMA_EVENT_PREFIX = "karma"
@@ -45,14 +50,14 @@ EVENT_GHOST_REPORT_CREATED  = f"{KARMA_EVENT_PREFIX}.ghost_report.created"
     wait=wait_exponential(multiplier=1, min=1, max=10),
     reraise=True,
 )
-async def _post_log_record(
-    records: list[dict[str, Any]],
+async def _post_bizevent(
+    cloud_event: dict[str, Any],
     headers: dict[str, str],
 ) -> httpx.Response:
     async with httpx.AsyncClient(timeout=15.0) as client:
         return await client.post(
-            settings.dt_logs_endpoint,
-            json=records,
+            settings.dt_bizevents_endpoint,
+            json=cloud_event,
             headers=headers,
         )
 
@@ -62,12 +67,14 @@ async def emit_karma_event(
     title: str,
     properties: dict[str, Any],
 ) -> dict[str, Any]:
-    """Emit a Karma observation event to Dynatrace Logs (self-observability).
+    """Emit a Karma observation as a Dynatrace BizEvent (self-observability).
 
     Use this tool after completing a significant action so that Karma's
-    decisions are visible inside Dynatrace and auditable during the demo.
-    Events are queryable in Grail via:
-      fetch logs | filter log.source == "karma-agent"
+    decisions are visible inside Dynatrace as business-process events,
+    auditable during the demo.
+
+    BizEvents are queryable in Grail via:
+      fetch bizevents | filter event.type == "karma.ghost_report.created"
 
     Prefer the well-known event type constants defined in this module:
       - karma.learning.started
@@ -94,54 +101,51 @@ async def emit_karma_event(
         event_type = f"{KARMA_EVENT_PREFIX}.{event_type}"
 
     event_id = str(uuid.uuid4())
-    timestamp = datetime.now(UTC).isoformat()
 
-    # Logs Ingest API v2 — array of log records.
-    # Flat key-value pairs; "content" is the human-readable body shown in the UI.
-    record: dict[str, Any] = {
-        "content": title,
-        "timestamp": timestamp,
-        "log.source": _LOG_SOURCE,
-        "karma.event_id": event_id,
-        "karma.event_type": event_type,
-        "karma.title": title,
-    }
-    # Flatten caller properties under the "karma." namespace so they are
-    # discoverable via DQL attribute selectors without colliding with
-    # reserved Dynatrace log attributes.
+    # Build the CloudEvents data payload.
+    # Scalar properties are included directly; complex values are stringified
+    # to stay within BizEvents attribute type constraints.
+    data_payload: dict[str, Any] = {"title": title, "timestamp": datetime.now(UTC).isoformat()}
     for key, value in properties.items():
-        flat_key = key if key.startswith("karma.") else f"karma.{key}"
         if isinstance(value, (str, int, float, bool)):
-            record[flat_key] = value
+            data_payload[key] = value
         else:
-            # Complex values are serialised to string to stay within the
-            # Logs Ingest API's attribute value type constraints.
-            record[flat_key] = str(value)
+            data_payload[key] = str(value)
+
+    # CloudEvents 1.0 format — required by the Dynatrace BizEvents Ingest API.
+    cloud_event: dict[str, Any] = {
+        "specversion": "1.0",
+        "id": event_id,
+        "source": "karma-agent",
+        "type": event_type,
+        "datacontenttype": "application/json",
+        "data": data_payload,
+    }
 
     if not settings.dt_otel_token:
-        logger.warning("karma_log_event_skipped", reason="DT_OTEL_TOKEN not configured")
+        logger.warning("karma_bizevent_skipped", reason="DT_OTEL_TOKEN not configured")
         return {"status": "skipped", "detail": "DT_OTEL_TOKEN not configured"}
 
     headers = {
         "Authorization": f"Api-Token {settings.dt_otel_token}",
-        "Content-Type": "application/json; charset=utf-8",
+        "Content-Type": "application/cloudevents+json",
     }
 
     log = logger.bind(event_type=event_type, event_id=event_id)
-    log.info("emitting_karma_log_event")
+    log.info("emitting_karma_bizevent")
 
     try:
-        response = await _post_log_record([record], headers)
+        response = await _post_bizevent(cloud_event, headers)
     except Exception as exc:
-        log.error("karma_log_event_failed", error=str(exc))
+        log.error("karma_bizevent_failed", error=str(exc))
         return {"status": "error", "detail": str(exc)}
 
     if response.is_success:
-        log.info("karma_log_event_ok")
+        log.info("karma_bizevent_ok")
         return {"status": "ok", "event_id": event_id}
 
     log.warning(
-        "karma_log_event_http_error",
+        "karma_bizevent_http_error",
         http_status=response.status_code,
         detail=response.text[:200],
     )

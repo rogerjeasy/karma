@@ -133,7 +133,7 @@ Return a JSON object:
 def create_watcher_agent() -> Agent:
     return Agent(
         name="karma_watcher",
-        model=settings.model_pro,
+        model=settings.model_flash,
         description=(
             "High-frequency contract checker. Runs every 10 min, evaluates "
             "violation predicates, loads contracts from Memory Bank when needed, "
@@ -147,5 +147,5 @@ def create_watcher_agent() -> Agent:
             get_entity_name_via_mcp,
             publish_violation_to_pubsub,
         ],
-        **make_telemetry_callbacks("karma_watcher", settings.model_pro),
+        **make_telemetry_callbacks("karma_watcher", settings.model_flash),
     )

@@ -133,6 +133,7 @@ result = validate_contract_predicate(
 | Tool name | What it does |
 |---|---|
 | `emit_karma_event` | Emits a BizEvent to Dynatrace marking a Karma decision (self-observability). Call this after completing learning and after each contract is validated. |
+| `create_slo_from_contract` | Registers a discovered contract as a Dynatrace SLO. Call this in Step 6c for every **latency**, **throughput**, or **error_semantics** contract that passes validation. The SLO becomes visible in the Dynatrace SLO dashboard and can fire burn-rate alerts — this is the Karma ↔ Dynatrace bidirectional integration. |
 | `save_contracts_to_firestore` | Persists all validated contracts to Firestore. **Must be called in Step 6a** with all accepted contracts. Without this call, the dashboard will not display any contracts. |
 | `save_contracts_to_memory_bank` | Persists all validated contracts to Vertex AI Memory Bank. **Must be called in Step 6b** immediately after save_contracts_to_firestore. This proves contracts survive agent restarts — the visible proof Memory Bank is doing real work. |
 
@@ -280,6 +281,27 @@ save_contracts_to_memory_bank(
 Both calls use the same `karma_service_id` and the same contracts list.
 `save_contracts_to_memory_bank` is a no-op if `MEMORY_BANK_ID` is not configured —
 it will return `{"source": "not_configured"}` which is fine; continue regardless.
+
+**6c. Create Dynatrace SLOs** (bidirectional integration — for latency, throughput, and error_semantics contracts only):
+
+For each validated contract where `category` is `"latency"`, `"throughput"`, or `"error_semantics"`:
+```
+create_slo_from_contract(
+    contract_id=<contract["contract_id"]>,
+    service_entity_id=<dynatrace_entity_id from the task payload>,
+    service_name=<service_name from the task payload>,
+    contract_category=<contract["category"]>,
+    subcategory=<contract["subcategory"]>,
+    description=<contract["description"]>,
+    threshold_value=<numeric threshold extracted from the contract's violation_predicate>,
+    threshold_unit=<"ms" for latency | "rps" for throughput | "pct" for error rate>,
+    target_percentage=95.0,
+)
+```
+
+If the result is `{"created": True, ...}`, log `slo_id` and `dt_url` for traceability.
+If the result is `{"created": False, "reason": "HTTP 403: ..."}`, the token lacks `slo.write` scope — log and continue without failing.
+Do NOT call `create_slo_from_contract` for `side_effect`, `timing`, `dependency`, `resource`, or `sequencing` categories.
 
 After saving, call `emit_karma_event` one final time:
 ```json

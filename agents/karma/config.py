@@ -66,6 +66,7 @@ class Settings(BaseSettings):
 
     # ── Watcher schedule ──────────────────────────────────────────────────────
     watcher_interval_seconds: int = 600  # 10 minutes
+    watcher_clean_runs_to_complete: int = 3  # consecutive clean runs before auto-complete
 
     # ── Contract validation ───────────────────────────────────────────────────
     max_false_positives_allowed: int = 0
@@ -119,13 +120,23 @@ class Settings(BaseSettings):
     def dt_logs_endpoint(self) -> str:
         """Logs Ingest API v2 URL (classic API, Api-Token auth).
 
-        Karma uses this to write self-observability records queryable via:
-          fetch logs | filter log.source == "karma-agent"
-
         Required classic token scope: logs.ingest
         This scope is included with the OTel token (DT_OTEL_TOKEN).
         """
         return f"{self.dt_classic_base_url}{_LOGS_INGEST_PATH}"
+
+    @property
+    def dt_bizevents_endpoint(self) -> str:
+        """BizEvents Ingest API v2 URL (classic API, Api-Token auth).
+
+        Karma uses this to write self-observability BizEvents queryable via:
+          fetch bizevents | filter event.type == "karma.ghost_report.created"
+
+        Required classic token scope: bizevents.ingest
+        Add this scope to DT_OTEL_TOKEN — it is separate from the platform
+        storage:bizevents:write scope and is available on Dynatrace trials.
+        """
+        return f"{self.dt_classic_base_url}/api/v2/bizevents/ingest"
 
     @property
     def dt_otel_endpoint(self) -> str:
@@ -141,6 +152,16 @@ class Settings(BaseSettings):
         Required classic token scope: events.ingest
         """
         return f"{self.dt_classic_base_url}/api/v2/events/ingest"
+
+    @property
+    def dt_slo_endpoint(self) -> str:
+        """Dynatrace SLO API v2 endpoint (classic API, Api-Token auth).
+
+        Used by create_slo_from_contract to register discovered contracts as
+        official Dynatrace SLOs, monitored in the Dynatrace SLO dashboard.
+        Required classic token scope: slo.write
+        """
+        return f"{self.dt_classic_base_url}/api/v2/slo"
 
     def _assert_dt_env(self) -> None:
         if not self.dt_env:
