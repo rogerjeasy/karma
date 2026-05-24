@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -27,6 +27,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useUserProfile } from "@/lib/user-profile-context";
+import { useAdminData, type ServiceDetail } from "@/lib/admin-context";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -81,93 +82,27 @@ const CATEGORY_COLORS: Partial<Record<ContractCategory, string>> = {
   resource:        "text-pink-400",
 };
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-
-type ServiceDetail = {
-  contracts: ContractResponse[];
-  ghosts: GhostReport[];
-  watcherRuns: WatcherRun[];
-  loading: boolean;
-};
-
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
   const { isAdmin, loading: profileLoading } = useUserProfile();
   const router = useRouter();
 
-  const [tab, setTab] = useState<"infrastructure" | "observability">("infrastructure");
-  const [services, setServices]         = useState<SystemService[]>([]);
-  const [stats, setStats]               = useState<AdminStats | null>(null);
-  const [loadingData, setLoadingData]   = useState(true);
+  const {
+    services, stats, observability,
+    serviceDetails, loading: loadingData, loadingObs,
+    refresh, addService,
+  } = useAdminData();
+
+  const [tab, setTab]                   = useState<"infrastructure" | "observability">("infrastructure");
   const [addOpen, setAddOpen]           = useState(false);
-  const [serviceDetails, setServiceDetails] = useState<Record<string, ServiceDetail>>({});
   const [expandedServices, setExpandedServices] = useState<Set<string>>(new Set());
-  const [observability, setObservability]   = useState<PlatformObservability | null>(null);
-  const [loadingObs, setLoadingObs]         = useState(false);
 
   useEffect(() => {
     if (!profileLoading && !isAdmin) {
       router.replace("/dashboard");
     }
   }, [isAdmin, profileLoading, router]);
-
-  const loadServiceDetails = useCallback(async (svcList: SystemService[]) => {
-    const init: Record<string, ServiceDetail> = {};
-    for (const svc of svcList) {
-      init[svc.service_id] = { contracts: [], ghosts: [], watcherRuns: [], loading: true };
-    }
-    setServiceDetails(init);
-
-    await Promise.all(
-      svcList.map(async (svc) => {
-        const id   = svc.service_id;
-        const base = `/admin/system-services/${id}`;
-        const [contracts, ghosts, watcherRuns] = await Promise.all([
-          apiFetch<ContractResponse[]>(`${base}/contracts`).catch(() => [] as ContractResponse[]),
-          apiFetch<GhostReport[]>(`${base}/ghosts`).catch(() => [] as GhostReport[]),
-          apiFetch<WatcherRun[]>(`${base}/watcher-runs`).catch(() => [] as WatcherRun[]),
-        ]);
-        setServiceDetails((prev) => ({
-          ...prev,
-          [id]: {
-            contracts:   Array.isArray(contracts)   ? contracts   : [],
-            ghosts:      Array.isArray(ghosts)      ? ghosts      : [],
-            watcherRuns: Array.isArray(watcherRuns) ? watcherRuns : [],
-            loading: false,
-          },
-        }));
-      }),
-    );
-  }, []);
-
-  async function fetchData() {
-    setLoadingData(true);
-    const [svcs, st] = await Promise.all([
-      apiFetch<SystemService[]>("/admin/system-services").catch(() => []),
-      apiFetch<AdminStats>("/admin/stats").catch(() => null),
-    ]);
-    const svcList = Array.isArray(svcs) ? svcs : [];
-    setServices(svcList);
-    setStats(st);
-    setLoadingData(false);
-    if (svcList.length > 0) loadServiceDetails(svcList);
-  }
-
-  async function fetchObservability() {
-    setLoadingObs(true);
-    const data = await apiFetch<PlatformObservability>("/admin/observability").catch(() => null);
-    setObservability(data);
-    setLoadingObs(false);
-  }
-
-  useEffect(() => {
-    if (isAdmin) {
-      fetchData();
-      fetchObservability();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin]);
 
   function toggleExpanded(serviceId: string) {
     setExpandedServices((prev) => {
@@ -207,7 +142,7 @@ export default function AdminPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => { fetchData(); fetchObservability(); }}
+            onClick={refresh}
             disabled={loadingData || loadingObs}
             className="gap-2"
           >
@@ -325,9 +260,8 @@ export default function AdminPage() {
         open={addOpen}
         onOpenChange={setAddOpen}
         onCreated={(svc) => {
-          setServices((prev) => [svc, ...prev]);
+          addService(svc);
           setAddOpen(false);
-          loadServiceDetails([svc]);
         }}
       />
     </div>
