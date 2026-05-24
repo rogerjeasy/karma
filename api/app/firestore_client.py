@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 import structlog
@@ -535,4 +535,73 @@ async def delete_service_cascade(service_id: str) -> dict[str, Any]:
         "deleted": True,
         "contracts_deleted": contracts_deleted,
         "ghost_reports_deleted": ghost_reports_deleted,
+    }
+
+
+# ── Deployment metrics ────────────────────────────────────────────────────────
+
+async def save_deployment_metrics(deployment_id: str, data: dict[str, Any]) -> None:
+    db = get_db()
+    await db.collection("deployment_metrics").document(deployment_id).set(data)
+
+
+async def get_platform_observability(dt_configured: bool, dt_env: str) -> dict[str, Any]:
+    """Aggregate platform observability data for the admin dashboard."""
+    db = get_db()
+    now = datetime.now(dt.UTC)
+    cutoff_24h = (now - timedelta(hours=24)).isoformat()
+    cutoff_7d = (now - timedelta(days=7)).isoformat()
+
+    all_runs = [
+        d async for doc in db.collection("watcher_runs").stream()
+        if (d := doc.to_dict()) is not None
+    ]
+    runs_24h = [r for r in all_runs if str(r.get("run_at", "")) >= cutoff_24h]
+    runs_7d = [r for r in all_runs if str(r.get("run_at", "")) >= cutoff_7d]
+    durations = [r["duration_seconds"] for r in all_runs if r.get("duration_seconds") is not None]
+    avg_duration = round(sum(durations) / len(durations), 2) if durations else None
+    total_violations = sum(r.get("violations_found", 0) for r in all_runs)
+
+    services = [
+        d async for doc in db.collection("services").stream()
+        if (d := doc.to_dict()) is not None
+    ]
+    phases: dict[str, int] = {}
+    for s in services:
+        p = s.get("phase", "registered")
+        phases[p] = phases.get(p, 0) + 1
+
+    user_count = len([d async for d in db.collection("users").stream()])
+
+    deploys = [
+        d async for doc in db.collection("deployment_metrics").stream()
+        if (d := doc.to_dict()) is not None
+    ]
+    deploys.sort(key=lambda d: str(d.get("deployed_at", "")), reverse=True)
+
+    return {
+        "session_activity": {
+            "total_watcher_runs": len(all_runs),
+            "runs_last_24h": len(runs_24h),
+            "runs_last_7d": len(runs_7d),
+            "avg_duration_seconds": avg_duration,
+            "total_violations_found": total_violations,
+            "services_by_phase": phases,
+            "total_users": user_count,
+        },
+        "engineering_metrics": {
+            "total_deployments": len(deploys),
+            "total_commits": sum(d.get("commits", 0) for d in deploys),
+            "total_prs": sum(d.get("pull_requests", 0) for d in deploys),
+            "total_lines_added": sum(d.get("lines_added", 0) for d in deploys),
+            "total_lines_removed": sum(d.get("lines_removed", 0) for d in deploys),
+            "recent_deployments": deploys[:10],
+        },
+        "otel_pipeline": {
+            "configured": dt_configured,
+            "dt_env": dt_env or None,
+            "traces": dt_configured,
+            "metrics": dt_configured,
+            "logs": dt_configured,
+        },
     }

@@ -14,6 +14,7 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 
 from app import firestore_client
 from app.auth import require_admin
+from app.config import settings
 from app.models import (
     ContractResponse,
     GhostReportResponse,
@@ -23,6 +24,17 @@ from app.models import (
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+@router.get("/observability")
+async def get_observability(
+    _: dict[str, Any] = Depends(require_admin),
+) -> dict[str, Any]:
+    """Platform observability summary: session activity, engineering metrics, OTel status."""
+    return await firestore_client.get_platform_observability(
+        dt_configured=bool(settings.dt_otel_token),
+        dt_env=settings.dt_env,
+    )
 
 
 @router.get("/system-services", response_model=list[SystemServiceResponse])

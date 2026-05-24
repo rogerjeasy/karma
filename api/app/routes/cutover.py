@@ -45,6 +45,7 @@ async def mark_cutover(
     # Emits a deployment event visible in Dynatrace Distributed Tracing.
     # Covers the hackathon's "engineering metrics" signal category by recording
     # the service cutover as a blue/green deployment with real GitHub metrics.
+    _deployment_record: dict[str, Any] | None = None
     try:
         from opentelemetry import trace as _trace
         from opentelemetry.trace import Status, StatusCode
@@ -83,6 +84,16 @@ async def mark_cutover(
                     since=_since,
                     token=_gh_token,
                 )
+                _deployment_record = {
+                    "service_id": service_id,
+                    "service_name": doc.get("service_name", service_id),
+                    "deployed_at": cutover_time.isoformat(),
+                    "commits": _metrics["commits"],
+                    "pull_requests": _metrics["pull_requests"],
+                    "lines_added": _metrics["lines_added"],
+                    "lines_removed": _metrics["lines_removed"],
+                    "github_repo": _gh_repo,
+                }
                 _span.set_attribute("git.commits", _metrics["commits"])
                 _span.set_attribute("git.pull_requests", _metrics["pull_requests"])
                 _span.set_attribute("git.lines_added", _metrics["lines_added"])
@@ -96,6 +107,13 @@ async def mark_cutover(
             _span.set_status(Status(StatusCode.OK))
     except Exception:
         pass  # telemetry must never break the cutover
+
+    if _deployment_record is not None:
+        import contextlib
+        with contextlib.suppress(Exception):
+            await firestore_client.save_deployment_metrics(
+                str(uuid.uuid4()), _deployment_record
+            )
 
     # Record cutover time so the next cutover can measure activity from this point.
     await firestore_client.update_service_phase(
