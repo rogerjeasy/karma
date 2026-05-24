@@ -245,6 +245,7 @@ export default function AdminPage() {
                   detail={serviceDetails[svc.service_id]}
                   expanded={expandedServices.has(svc.service_id)}
                   onToggle={() => toggleExpanded(svc.service_id)}
+                  onRefresh={refresh}
                 />
               ))
             )}
@@ -544,14 +545,52 @@ function ServiceCard({
   detail,
   expanded,
   onToggle,
+  onRefresh,
 }: {
   service: SystemService;
   detail: ServiceDetail | undefined;
   expanded: boolean;
   onToggle: () => void;
+  onRefresh?: () => void;
 }) {
   const phaseClass = PHASE_COLORS[service.phase] ?? PHASE_COLORS.registered;
   const isLoading  = detail?.loading ?? true;
+
+  const [actionBusy, setActionBusy]     = useState(false);
+  const [actionMsg,  setActionMsg]      = useState<{text: string; ok: boolean} | null>(null);
+  const [replId,     setReplId]         = useState(service.dynatrace_entity_id);
+
+  async function triggerLearn() {
+    setActionBusy(true);
+    setActionMsg(null);
+    try {
+      await apiFetch(`/admin/system-services/${service.service_id}/learn`, { method: "POST" });
+      setActionMsg({ text: "Learning started — phase will update shortly.", ok: true });
+      onRefresh?.();
+    } catch (e: unknown) {
+      setActionMsg({ text: (e as Error).message ?? "Failed to start learning", ok: false });
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function triggerCutover() {
+    if (!replId.trim()) return;
+    setActionBusy(true);
+    setActionMsg(null);
+    try {
+      await apiFetch(`/admin/system-services/${service.service_id}/cutover`, {
+        method: "POST",
+        body: JSON.stringify({ replacement_service_id: replId.trim() }),
+      });
+      setActionMsg({ text: "Haunting activated — watcher will run on next cycle.", ok: true });
+      onRefresh?.();
+    } catch (e: unknown) {
+      setActionMsg({ text: (e as Error).message ?? "Failed to activate haunting", ok: false });
+    } finally {
+      setActionBusy(false);
+    }
+  }
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -656,6 +695,39 @@ function ServiceCard({
             </div>
           ) : (
             <div className="divide-y divide-border/40">
+              {/* Actions panel */}
+              {(service.phase === "registered" || service.phase === "error" || service.phase === "ready") && (
+                <div className="px-5 py-3 bg-muted/10 flex flex-col gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Actions</p>
+                  <div className="flex flex-wrap items-start gap-3">
+                    {(service.phase === "registered" || service.phase === "error") && (
+                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={triggerLearn} disabled={actionBusy}>
+                        {actionBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                        Start Learning
+                      </Button>
+                    )}
+                    {service.phase === "ready" && (
+                      <div className="flex items-center gap-2">
+                        <input
+                          className="h-7 rounded border border-border bg-background px-2 text-xs font-mono text-foreground w-56"
+                          placeholder="Replacement entity ID (SERVICE-…)"
+                          value={replId}
+                          onChange={(e) => setReplId(e.target.value)}
+                        />
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={triggerCutover} disabled={actionBusy || !replId.trim()}>
+                          {actionBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Activity className="h-3 w-3" />}
+                          Activate Haunting
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  {actionMsg && (
+                    <p className={`text-xs ${actionMsg.ok ? "text-emerald-400" : "text-red-400"}`}>
+                      {actionMsg.text}
+                    </p>
+                  )}
+                </div>
+              )}
               {/* Ghost Reports */}
               <DetailSection
                 icon={<Ghost className="h-3.5 w-3.5 text-red-400" />}

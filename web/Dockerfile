@@ -39,6 +39,8 @@ RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# instrumentation.ts must be in the standalone root for Next.js to load it
+COPY --from=builder --chown=nextjs:nodejs /app/instrumentation.ts ./instrumentation.ts
 
 USER nextjs
 EXPOSE 3000

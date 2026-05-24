@@ -4,6 +4,7 @@ All endpoints return 403 for authenticated non-admin users.
 """
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import uuid
 from datetime import datetime
@@ -12,11 +13,13 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from google.cloud.firestore_v1.base_query import FieldFilter
 
-from app import firestore_client
+from app import agent_client, firestore_client
 from app.auth import require_admin
 from app.config import settings
 from app.models import (
     ContractResponse,
+    CutoverRequest,
+    CutoverResponse,
     GhostReportResponse,
     SystemServiceCreate,
     SystemServiceResponse,
@@ -170,6 +173,88 @@ async def get_system_service_watcher_runs(
         raise HTTPException(status_code=404, detail="System service not found")
     docs = await firestore_client.list_watcher_runs(service_id, limit)
     return [_to_watcher_run_response(d) for d in docs]
+
+
+@router.post(
+    "/system-services/{service_id}/learn",
+    status_code=202,
+)
+async def trigger_system_service_learning(
+    service_id: str,
+    _: dict[str, Any] = Depends(require_admin),
+) -> dict[str, Any]:
+    """Kick off the Learner agent for a system service."""
+    svc = await firestore_client.get_service(service_id)
+    if svc is None or not svc.get("is_system"):
+        raise HTTPException(status_code=404, detail="System service not found")
+
+    await firestore_client.update_service_phase(
+        service_id, "learning", extra={"error_message": None}
+    )
+    asyncio.create_task(
+        _run_system_learning(
+            service_id=service_id,
+            service_name=svc["service_name"],
+            dynatrace_entity_id=svc["dynatrace_entity_id"],
+        )
+    )
+    return {"status": "accepted", "service_id": service_id}
+
+
+@router.post(
+    "/system-services/{service_id}/cutover",
+    response_model=CutoverResponse,
+)
+async def cutover_system_service(
+    service_id: str,
+    payload: CutoverRequest,
+    _: dict[str, Any] = Depends(require_admin),
+) -> CutoverResponse:
+    """Transition a system service to haunting phase and activate the Watcher."""
+    svc = await firestore_client.get_service(service_id)
+    if svc is None or not svc.get("is_system"):
+        raise HTTPException(status_code=404, detail="System service not found")
+
+    cutover_time = payload.cutover_time or datetime.now(dt.UTC)
+    await firestore_client.update_service_phase(
+        service_id,
+        phase="haunting",
+        extra={
+            "replacement_service_id": payload.replacement_service_id,
+            "cutover_time": cutover_time.isoformat(),
+        },
+    )
+    return CutoverResponse(
+        service_id=service_id,
+        replacement_service_id=payload.replacement_service_id,
+        cutover_time=cutover_time,
+        watcher_activated=True,
+    )
+
+
+async def _run_system_learning(
+    service_id: str,
+    service_name: str,
+    dynatrace_entity_id: str,
+) -> None:
+    try:
+        result = await agent_client.trigger_learning(
+            service_id=service_id,
+            service_name=service_name,
+            dynatrace_entity_id=dynatrace_entity_id,
+            learning_window_days=14,
+        )
+        if result.get("status") == "error":
+            msg = result.get("message", "Agent invocation failed")
+            await firestore_client.update_service_phase(
+                service_id, "error", extra={"error_message": msg}
+            )
+        else:
+            await firestore_client.update_service_phase(service_id, "ready")
+    except Exception as exc:
+        await firestore_client.update_service_phase(
+            service_id, "error", extra={"error_message": str(exc)}
+        )
 
 
 def _to_system_response(data: dict[str, Any]) -> SystemServiceResponse:
