@@ -72,6 +72,12 @@ class _SpanState:
     total_output_tokens: int = 0
     total_cost_usd: float = 0.0
 
+    # User / session context — set in before_agent, propagated to all child spans
+    session_id: str = ""
+    user_id: str = ""
+    user_email: str = ""
+    organization_id: str = ""
+
 
 # Global span-state registry — keyed by ADK invocation_id
 _span_states: dict[str, _SpanState] = {}
@@ -173,6 +179,43 @@ def make_telemetry_callbacks(
         inv_id = _invocation_id_from(callback_context)
         agent = getattr(callback_context, "agent_name", agent_name)
 
+        # ── Extract session / user context from ADK callback context ─────────
+        _session_id = inv_id
+        _user_id = "anonymous"
+        _user_email = "unknown"
+        _organization_id = "karma"
+
+        try:
+            import json as _json
+
+            session_obj = getattr(callback_context, "session", None)
+            if session_obj is not None:
+                _session_id = getattr(session_obj, "id", None) or inv_id
+                _user_id = getattr(session_obj, "user_id", None) or _user_id
+            else:
+                _user_id = getattr(callback_context, "user_id", None) or _user_id
+
+            # Parse _karma_user_ctx embedded in the initial user message
+            inv_ctx = getattr(callback_context, "_invocation_context", None) or callback_context
+            user_content = getattr(inv_ctx, "user_content", None)
+            if user_content is not None:
+                parts = getattr(user_content, "parts", None) or []
+                for part in parts:
+                    text = getattr(part, "text", None)
+                    if text:
+                        try:
+                            msg = _json.loads(text)
+                            uctx = msg.get("_karma_user_ctx", {})
+                            _user_email = uctx.get("user_email", _user_email)
+                            _organization_id = uctx.get("organization_id", _organization_id)
+                            if uctx.get("user_id") and _user_id == "anonymous":
+                                _user_id = uctx["user_id"]
+                        except Exception:
+                            pass
+                        break
+        except Exception:
+            pass
+
         try:
             from opentelemetry import context as otel_ctx
             from opentelemetry.trace import set_span_in_context
@@ -186,6 +229,10 @@ def make_telemetry_callbacks(
                     "karma.agent": agent,
                     "karma.invocation_id": inv_id,
                     "karma.model": model_name,
+                    "session.id": _session_id,
+                    "user.id": _user_id,
+                    "user.email": _user_email,
+                    "organization.id": _organization_id,
                 },
             )
             # Attach so all nested spans (model, tool, DQL, MCP) are children
@@ -196,8 +243,12 @@ def make_telemetry_callbacks(
             state.agent_span = span
             state.agent_ctx_token = token
             state.model_name = model_name
+            state.session_id = _session_id
+            state.user_id = _user_id
+            state.user_email = _user_email
+            state.organization_id = _organization_id
 
-            logger.debug("karma_otel before_agent agent=%s inv=%s", agent, inv_id)
+            logger.debug("karma_otel before_agent agent=%s inv=%s user=%s", agent, inv_id, _user_id)
         except Exception as exc:  # noqa: BLE001
             logger.debug("karma_otel before_agent error: %s", exc)
 
@@ -258,6 +309,8 @@ def make_telemetry_callbacks(
                     "karma.agent": agent_name,
                     "karma.model_turn": state.model_turn,
                     "karma.invocation_id": inv_id,
+                    "session.id": state.session_id,
+                    "user.id": state.user_id,
                 },
             )
             state.model_span = span
@@ -368,6 +421,8 @@ def make_telemetry_callbacks(
                     "karma.model_turn": state.model_turn,
                     "karma.invocation_id": inv_id,
                     "karma.tool.args_preview": str(arg_preview)[:500],
+                    "session.id": state.session_id,
+                    "user.id": state.user_id,
                 },
             )
 
