@@ -136,7 +136,7 @@ jobs:
           # no AdkApp-level wiring needed.
           karma_app = AdkApp(
               agent=coordinator_agent,
-              enable_tracing=True,
+              enable_tracing=False,
               app_name="karma-agent",
           )
 
@@ -179,6 +179,10 @@ jobs:
               "GCP_LOCATION":                    os.environ.get("GCP_LOCATION", "us-central1"),
               "MEMORY_BANK_ID":                  os.environ.get("MEMORY_BANK_ID", ""),
               "FIRESTORE_DATABASE":               os.environ.get("FIRESTORE_DATABASE", "(default)"),
+              # Disable ADK's built-in Cloud Trace telemetry — we use our own Dynatrace OTel setup.
+              # ADK's enable_tracing=True calls _override_active_span_processor() which kills
+              # our Dynatrace BatchSpanProcessor. Disabling it here prevents that interference.
+              "GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY": "false",
           }
 
           # Fail fast — these must be present or agents cannot call Dynatrace.

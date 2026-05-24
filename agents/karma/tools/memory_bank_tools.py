@@ -71,7 +71,7 @@ async def save_contracts_to_memory_bank(
     if ms is None:
         return {"saved": 0, "skipped": len(contracts), "source": "not_configured"}
 
-    from google.adk.memory import MemoryEntry
+    from google.adk.memory.memory_entry import MemoryEntry
     from google.genai import types as genai_types
 
     saved = 0

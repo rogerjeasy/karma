@@ -122,11 +122,26 @@ def _ensure_otel_configured() -> None:
     Calling this at the start of every before_agent callback ensures
     the TracerProvider and MeterProvider are configured before the
     first span is started.
+
+    Also detects if the global TracerProvider was replaced by ADK's built-in
+    telemetry setup (enable_tracing=True calls _override_active_span_processor
+    which kills our Dynatrace BatchSpanProcessor). When that happens, _configured
+    is reset so setup_otel() re-establishes our Dynatrace provider as global.
     """
     try:
         import os
 
+        from opentelemetry import trace as _trace
+
         from karma import otel as _otel_mod
+
+        if _otel_mod._configured:
+            # Re-initialise if ADK replaced our global provider with its own
+            # (e.g. via _override_active_span_processor in set_up()).
+            current = _trace.get_tracer_provider()
+            if current is not _otel_mod._tracer_provider:
+                _otel_mod._configured = False
+
         if not _otel_mod._configured:
             endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
             token = os.getenv("DT_OTEL_TOKEN", "") or os.getenv("DT_API_TOKEN", "")
