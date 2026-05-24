@@ -14,6 +14,8 @@ import {
   Eye,
   FileCode2,
   Ghost,
+  GitCommit,
+  GitPullRequest,
   Loader2,
   Plus,
   RefreshCw,
@@ -22,6 +24,7 @@ import {
   Timer,
   Users,
   XCircle,
+  Zap,
 } from "lucide-react";
 import { useUserProfile } from "@/lib/user-profile-context";
 import { apiFetch } from "@/lib/api";
@@ -43,6 +46,7 @@ import type {
   ContractCategory,
   ContractResponse,
   GhostReport,
+  PlatformObservability,
   SystemService,
   ViolationSeverity,
   WatcherRun,
@@ -92,12 +96,15 @@ export default function AdminPage() {
   const { isAdmin, loading: profileLoading } = useUserProfile();
   const router = useRouter();
 
+  const [tab, setTab] = useState<"infrastructure" | "observability">("infrastructure");
   const [services, setServices]         = useState<SystemService[]>([]);
   const [stats, setStats]               = useState<AdminStats | null>(null);
   const [loadingData, setLoadingData]   = useState(true);
   const [addOpen, setAddOpen]           = useState(false);
   const [serviceDetails, setServiceDetails] = useState<Record<string, ServiceDetail>>({});
   const [expandedServices, setExpandedServices] = useState<Set<string>>(new Set());
+  const [observability, setObservability]   = useState<PlatformObservability | null>(null);
+  const [loadingObs, setLoadingObs]         = useState(false);
 
   useEffect(() => {
     if (!profileLoading && !isAdmin) {
@@ -147,8 +154,18 @@ export default function AdminPage() {
     if (svcList.length > 0) loadServiceDetails(svcList);
   }
 
+  async function fetchObservability() {
+    setLoadingObs(true);
+    const data = await apiFetch<PlatformObservability>("/admin/observability").catch(() => null);
+    setObservability(data);
+    setLoadingObs(false);
+  }
+
   useEffect(() => {
-    if (isAdmin) fetchData();
+    if (isAdmin) {
+      fetchData();
+      fetchObservability();
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
@@ -190,91 +207,119 @@ export default function AdminPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={fetchData}
-            disabled={loadingData}
+            onClick={() => { fetchData(); fetchObservability(); }}
+            disabled={loadingData || loadingObs}
             className="gap-2"
           >
-            <RefreshCw className={cn("h-3.5 w-3.5", loadingData && "animate-spin")} />
+            <RefreshCw className={cn("h-3.5 w-3.5", (loadingData || loadingObs) && "animate-spin")} />
             Refresh
           </Button>
-          <Button size="sm" onClick={() => setAddOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Register Service
-          </Button>
+          {tab === "infrastructure" && (
+            <Button size="sm" onClick={() => setAddOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Register Service
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Stats cards */}
-      {stats && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatCard
-            icon={<Users className="h-4 w-4 text-blue-400" />}
-            label="Total Users"
-            value={stats.total_users}
-            color="blue"
-          />
-          <StatCard
-            icon={<Server className="h-4 w-4 text-violet-400" />}
-            label="System Services"
-            value={stats.total_system_services}
-            color="violet"
-          />
-          <StatCard
-            icon={<Activity className="h-4 w-4 text-primary" />}
-            label="Haunting"
-            value={stats.system_services_haunting}
-            color="primary"
-          />
-          <StatCard
-            icon={<Ghost className="h-4 w-4 text-red-400" />}
-            label="Ghost Reports"
-            value={stats.system_ghost_reports}
-            color="red"
-          />
-        </div>
+      {/* Tabs */}
+      <div className="flex gap-1 rounded-lg border border-border bg-muted/30 p-1 w-fit">
+        {(["infrastructure", "observability"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={cn(
+              "px-4 py-1.5 rounded-md text-sm font-medium transition-colors capitalize",
+              tab === t
+                ? "bg-background text-foreground shadow-sm border border-border"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t === "infrastructure" ? "Infrastructure" : "Platform Observability"}
+          </button>
+        ))}
+      </div>
+
+      {tab === "infrastructure" && (
+        <>
+          {/* Stats cards */}
+          {stats && (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <StatCard
+                icon={<Users className="h-4 w-4 text-blue-400" />}
+                label="Total Users"
+                value={stats.total_users}
+                color="blue"
+              />
+              <StatCard
+                icon={<Server className="h-4 w-4 text-violet-400" />}
+                label="System Services"
+                value={stats.total_system_services}
+                color="violet"
+              />
+              <StatCard
+                icon={<Activity className="h-4 w-4 text-primary" />}
+                label="Haunting"
+                value={stats.system_services_haunting}
+                color="primary"
+              />
+              <StatCard
+                icon={<Ghost className="h-4 w-4 text-red-400" />}
+                label="Ghost Reports"
+                value={stats.system_ghost_reports}
+                color="red"
+              />
+            </div>
+          )}
+
+          {/* Service detail cards */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-foreground">
+                Karma Infrastructure Services
+              </h2>
+              <span className="text-xs text-muted-foreground">
+                {services.length} service{services.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+
+            {loadingData ? (
+              <div className="flex h-32 items-center justify-center rounded-xl border border-border bg-card">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : services.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-48 gap-3 text-muted-foreground rounded-xl border border-border bg-card">
+                <Server className="h-8 w-8 opacity-30" />
+                <p className="text-sm">No system services registered yet.</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAddOpen(true)}
+                  className="gap-2"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Register first service
+                </Button>
+              </div>
+            ) : (
+              services.map((svc) => (
+                <ServiceCard
+                  key={svc.service_id}
+                  service={svc}
+                  detail={serviceDetails[svc.service_id]}
+                  expanded={expandedServices.has(svc.service_id)}
+                  onToggle={() => toggleExpanded(svc.service_id)}
+                />
+              ))
+            )}
+          </div>
+        </>
       )}
 
-      {/* Service detail cards */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground">
-            Karma Infrastructure Services
-          </h2>
-          <span className="text-xs text-muted-foreground">
-            {services.length} service{services.length !== 1 ? "s" : ""}
-          </span>
-        </div>
-
-        {loadingData ? (
-          <div className="flex h-32 items-center justify-center rounded-xl border border-border bg-card">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : services.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 gap-3 text-muted-foreground rounded-xl border border-border bg-card">
-            <Server className="h-8 w-8 opacity-30" />
-            <p className="text-sm">No system services registered yet.</p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAddOpen(true)}
-              className="gap-2"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Register first service
-            </Button>
-          </div>
-        ) : (
-          services.map((svc) => (
-            <ServiceCard
-              key={svc.service_id}
-              service={svc}
-              detail={serviceDetails[svc.service_id]}
-              expanded={expandedServices.has(svc.service_id)}
-              onToggle={() => toggleExpanded(svc.service_id)}
-            />
-          ))
-        )}
-      </div>
+      {tab === "observability" && (
+        <ObservabilityPanel data={observability} loading={loadingObs} />
+      )}
 
       <AddServiceDialog
         open={addOpen}
@@ -290,6 +335,247 @@ export default function AdminPage() {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+// ── Platform Observability Panel ──────────────────────────────────────────────
+
+const PHASE_SIGNAL_COLORS: Record<string, string> = {
+  registered: "bg-slate-500/20 text-slate-300 border-slate-500/30",
+  learning:   "bg-blue-500/20  text-blue-300  border-blue-500/30",
+  ready:      "bg-violet-500/20 text-violet-300 border-violet-500/30",
+  haunting:   "bg-primary/20   text-primary   border-primary/30",
+  completed:  "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+  error:      "bg-red-500/20   text-red-300   border-red-500/30",
+};
+
+function ObservabilityPanel({
+  data,
+  loading,
+}: {
+  data: PlatformObservability | null;
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="flex h-48 items-center justify-center rounded-xl border border-border bg-card">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (!data) {
+    return (
+      <div className="flex h-48 items-center justify-center rounded-xl border border-border bg-card">
+        <p className="text-sm text-muted-foreground">Failed to load observability data.</p>
+      </div>
+    );
+  }
+
+  const { session_activity: sa, engineering_metrics: em, otel_pipeline: otel } = data;
+
+  return (
+    <div className="space-y-6">
+      {/* ── Session Activity ─────────────────────────────────────────── */}
+      <ObsSection
+        icon={<Activity className="h-4 w-4 text-primary" />}
+        title="Session Activity"
+        color="primary"
+      >
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <MiniStat label="Total Runs" value={sa.total_watcher_runs} />
+          <MiniStat label="Last 24 h" value={sa.runs_last_24h} />
+          <MiniStat label="Last 7 d" value={sa.runs_last_7d} />
+          <MiniStat label="Total Violations" value={sa.total_violations_found} accent="red" />
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Users className="h-3.5 w-3.5" />
+            <span className="font-semibold text-foreground">{sa.total_users}</span>
+            <span>registered users</span>
+          </div>
+          {sa.avg_duration_seconds != null && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Timer className="h-3.5 w-3.5" />
+              <span className="font-semibold text-foreground">
+                {sa.avg_duration_seconds.toFixed(1)}s
+              </span>
+              <span>avg watcher duration</span>
+            </div>
+          )}
+        </div>
+        {Object.keys(sa.services_by_phase).length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {Object.entries(sa.services_by_phase).map(([phase, count]) => (
+              <span
+                key={phase}
+                className={cn(
+                  "px-2.5 py-1 rounded-full text-xs font-medium border capitalize",
+                  PHASE_SIGNAL_COLORS[phase] ?? PHASE_SIGNAL_COLORS.registered,
+                )}
+              >
+                {phase} · {count}
+              </span>
+            ))}
+          </div>
+        )}
+      </ObsSection>
+
+      {/* ── Engineering Metrics ──────────────────────────────────────── */}
+      <ObsSection
+        icon={<GitCommit className="h-4 w-4 text-violet-400" />}
+        title="Engineering Metrics"
+        color="violet"
+      >
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <MiniStat label="Deployments" value={em.total_deployments} />
+          <MiniStat label="Commits" value={em.total_commits} />
+          <MiniStat label="PRs Merged" value={em.total_prs} />
+          <MiniStat label="Lines Added" value={em.total_lines_added} accent="emerald" />
+          <MiniStat label="Lines Removed" value={em.total_lines_removed} accent="red" />
+        </div>
+
+        {em.recent_deployments.length > 0 && (
+          <div className="mt-4 space-y-1">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+              Recent Deployments
+            </p>
+            <div className="rounded-lg border border-border overflow-hidden">
+              {em.recent_deployments.map((dep, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-4 px-4 py-3 text-xs hover:bg-muted/20 transition-colors border-b border-border/40 last:border-0"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-foreground truncate">{dep.service_name}</p>
+                    <p className="text-muted-foreground font-mono text-[10px] truncate">
+                      {dep.github_repo}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0 tabular-nums">
+                    <span className="flex items-center gap-1 text-slate-300">
+                      <GitCommit className="h-3 w-3" />
+                      {dep.commits}
+                    </span>
+                    <span className="flex items-center gap-1 text-slate-300">
+                      <GitPullRequest className="h-3 w-3" />
+                      {dep.pull_requests}
+                    </span>
+                    <span className="text-emerald-400">+{dep.lines_added}</span>
+                    <span className="text-red-400">-{dep.lines_removed}</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
+                    <Clock className="h-3 w-3" />
+                    {formatDistanceToNow(new Date(dep.deployed_at), { addSuffix: true })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {em.total_deployments === 0 && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Git metrics appear here after a service cutover with a GitHub token configured.
+          </p>
+        )}
+      </ObsSection>
+
+      {/* ── OTel Pipeline ───────────────────────────────────────────── */}
+      <ObsSection
+        icon={<Zap className="h-4 w-4 text-amber-400" />}
+        title="OTel Pipeline"
+        color="amber"
+      >
+        <div className="flex flex-wrap gap-3">
+          {(["traces", "metrics", "logs"] as const).map((signal) => (
+            <div
+              key={signal}
+              className={cn(
+                "flex items-center gap-2 rounded-lg border px-4 py-3",
+                otel[signal]
+                  ? "border-emerald-500/25 bg-emerald-500/8"
+                  : "border-red-500/25 bg-red-500/8",
+              )}
+            >
+              {otel[signal] ? (
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+              ) : (
+                <XCircle className="h-4 w-4 text-red-400" />
+              )}
+              <span className="text-sm font-medium capitalize text-foreground">{signal}</span>
+            </div>
+          ))}
+        </div>
+        {otel.dt_env && (
+          <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+            <span>Dynatrace environment:</span>
+            <span className="font-mono text-foreground bg-muted/40 px-2 py-0.5 rounded">
+              {otel.dt_env}
+            </span>
+          </div>
+        )}
+        {!otel.configured && (
+          <p className="mt-3 text-xs text-red-400">
+            DT_OTEL_TOKEN is not set — traces, metrics, and logs are not exported to Dynatrace.
+          </p>
+        )}
+      </ObsSection>
+    </div>
+  );
+}
+
+function ObsSection({
+  icon,
+  title,
+  color,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  color: string;
+  children: React.ReactNode;
+}) {
+  const border: Record<string, string> = {
+    primary: "border-primary/20",
+    violet:  "border-violet-500/20",
+    amber:   "border-amber-500/20",
+  };
+  return (
+    <div className={cn("rounded-xl border bg-card p-5 space-y-3", border[color])}>
+      <div className="flex items-center gap-2">
+        {icon}
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function MiniStat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent?: "red" | "emerald";
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/20 px-4 py-3">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          "text-xl font-bold tabular-nums mt-0.5",
+          accent === "red"
+            ? "text-red-400"
+            : accent === "emerald"
+              ? "text-emerald-400"
+              : "text-foreground",
+        )}
+      >
+        {value.toLocaleString()}
+      </p>
+    </div>
+  );
+}
 
 function StatCard({
   icon,

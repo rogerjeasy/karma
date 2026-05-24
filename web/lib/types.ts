@@ -119,6 +119,50 @@ export interface AdminStats {
   system_ghost_reports: number;
 }
 
+export interface DeploymentMetric {
+  service_id: string;
+  service_name: string;
+  deployed_at: string;
+  commits: number;
+  pull_requests: number;
+  lines_added: number;
+  lines_removed: number;
+  github_repo: string;
+}
+
+export interface SessionActivity {
+  total_watcher_runs: number;
+  runs_last_24h: number;
+  runs_last_7d: number;
+  avg_duration_seconds: number | null;
+  total_violations_found: number;
+  services_by_phase: Record<string, number>;
+  total_users: number;
+}
+
+export interface EngineeringMetrics {
+  total_deployments: number;
+  total_commits: number;
+  total_prs: number;
+  total_lines_added: number;
+  total_lines_removed: number;
+  recent_deployments: DeploymentMetric[];
+}
+
+export interface OtelPipeline {
+  configured: boolean;
+  dt_env: string | null;
+  traces: boolean;
+  metrics: boolean;
+  logs: boolean;
+}
+
+export interface PlatformObservability {
+  session_activity: SessionActivity;
+  engineering_metrics: EngineeringMetrics;
+  otel_pipeline: OtelPipeline;
+}
+
 export interface GhostReport {
   report_id: string;
   violation_id: string;
