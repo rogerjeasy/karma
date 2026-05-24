@@ -39,7 +39,7 @@ async def register_service(
     log = logger.bind(service_id=service_id, service_name=payload.service_name, uid=user["uid"])
     log.info("registering_service")
 
-    data = {
+    data: dict[str, Any] = {
         "service_id": service_id,
         "user_id": user["uid"],
         "service_name": payload.service_name,
@@ -48,6 +48,8 @@ async def register_service(
         "replacement_service_id": payload.replacement_service_id,
         "learning_window_days": payload.learning_window_days,
     }
+    if payload.github_repo:
+        data["github_repo"] = payload.github_repo
 
     await firestore_client.create_service(service_id, data)
     await firestore_client.update_service_phase(service_id, "learning")
@@ -69,6 +71,7 @@ async def register_service(
         dynatrace_entity_id=payload.dynatrace_entity_id,
         deprecation_date=payload.deprecation_date,
         replacement_service_id=payload.replacement_service_id,
+        github_repo=payload.github_repo,
         phase="learning",
         created_at=now,
         updated_at=now,
@@ -220,6 +223,7 @@ def _doc_to_response(doc: dict[str, Any]) -> ServiceResponse:
         replacement_service_id=doc.get("replacement_service_id"),
         phase=doc.get("phase", "registered"),
         error_message=doc.get("error_message"),
+        github_repo=doc.get("github_repo"),
         created_at=_parse_dt(doc.get("created_at", datetime.now(dt.UTC))),
         updated_at=_parse_dt(doc.get("updated_at", datetime.now(dt.UTC))),
     )

@@ -26,6 +26,7 @@ _configured = False
 _config_lock = threading.Lock()
 _tracer_provider: Any = None
 _meter_provider: Any = None
+_log_provider: Any = None
 
 
 def setup_otel(app: FastAPI | None = None, endpoint: str = "", token: str = "") -> bool:
@@ -131,6 +132,40 @@ def setup_otel(app: FastAPI | None = None, endpoint: str = "", token: str = "") 
             except ImportError:
                 logger.warning("karma_api_otel: HTTPXClientInstrumentor not installed")
 
+            # ── Logs ──────────────────────────────────────────────────────────
+            try:
+                import logging as _logging
+
+                from opentelemetry._logs import set_logger_provider
+                from opentelemetry.exporter.otlp.proto.http.log_exporter import (
+                    OTLPLogExporter,
+                )
+                from opentelemetry.sdk.logs import LoggerProvider, LoggingHandler
+                from opentelemetry.sdk.logs.export import BatchLogRecordProcessor
+
+                global _log_provider
+                lp = LoggerProvider(resource=resource)
+                lp.add_log_record_processor(
+                    BatchLogRecordProcessor(
+                        OTLPLogExporter(endpoint=f"{base}/v1/logs", headers=headers)
+                    )
+                )
+                set_logger_provider(lp)
+                _log_provider = lp
+
+                _handler = LoggingHandler(level=_logging.INFO, logger_provider=lp)
+                _root = _logging.getLogger()
+                if not any(isinstance(h, LoggingHandler) for h in _root.handlers):
+                    _root.addHandler(_handler)
+
+                import structlog as _structlog
+                _structlog.configure(
+                    logger_factory=_structlog.stdlib.LoggerFactory(),
+                    wrapper_class=_structlog.stdlib.BoundLogger,
+                )
+            except Exception as _log_exc:
+                logger.warning("karma_api_otel_logs_skip: %s", _log_exc)
+
             _configured = True
             logger.info("karma_api_otel_configured service=%s endpoint=%s", SERVICE_NAME, endpoint)
             return True
@@ -152,7 +187,7 @@ def _endpoint_from_env() -> str:
 
 
 def _shutdown_otel() -> None:
-    for provider in [_tracer_provider, _meter_provider]:
+    for provider in [_tracer_provider, _meter_provider, _log_provider]:
         if provider is None:
             continue
         try:

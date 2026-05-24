@@ -90,6 +90,7 @@ _configured = False
 _config_lock = threading.Lock()
 _tracer_provider: Any = None
 _meter_provider: Any = None
+_log_provider: Any = None
 
 # Lazy instrument cache — created once per metric name
 _instruments: dict[str, Any] = {}
@@ -192,6 +193,45 @@ def setup_otel(endpoint: str = "", token: str = "") -> bool:
             metrics.set_meter_provider(mp)
             _meter_provider = mp
 
+            # ── Logs ──────────────────────────────────────────────────────────
+            # Exports Python stdlib logging records to Dynatrace so the
+            # hackathon requirement of "traces, metrics, AND logs" is satisfied.
+            try:
+                import logging as _logging
+
+                from opentelemetry._logs import set_logger_provider
+                from opentelemetry.exporter.otlp.proto.http.log_exporter import (
+                    OTLPLogExporter,
+                )
+                from opentelemetry.sdk.logs import LoggerProvider, LoggingHandler
+                from opentelemetry.sdk.logs.export import BatchLogRecordProcessor
+
+                lp = LoggerProvider(resource=resource)
+                lp.add_log_record_processor(
+                    BatchLogRecordProcessor(
+                        OTLPLogExporter(endpoint=f"{base}/v1/logs", headers=headers)
+                    )
+                )
+                set_logger_provider(lp)
+                global _log_provider
+                _log_provider = lp
+
+                # Bridge stdlib logging → OTel so structlog (via stdlib) and any
+                # direct logging.getLogger() calls appear in Dynatrace Logs.
+                _handler = LoggingHandler(level=_logging.INFO, logger_provider=lp)
+                _root = _logging.getLogger()
+                if not any(isinstance(h, LoggingHandler) for h in _root.handlers):
+                    _root.addHandler(_handler)
+
+                # Route structlog through stdlib so its records reach OTel.
+                import structlog as _structlog
+                _structlog.configure(
+                    logger_factory=_structlog.stdlib.LoggerFactory(),
+                    wrapper_class=_structlog.stdlib.BoundLogger,
+                )
+            except Exception as _log_exc:
+                logger.warning("karma_otel_logs_skip: %s", _log_exc)
+
             atexit.register(_shutdown_otel)
 
             _configured = True
@@ -212,7 +252,7 @@ def setup_otel(endpoint: str = "", token: str = "") -> bool:
 
 def _shutdown_otel() -> None:
     """Flush and shut down providers on process exit."""
-    for provider in [_tracer_provider, _meter_provider]:
+    for provider in [_tracer_provider, _meter_provider, _log_provider]:
         if provider is None:
             continue
         try:

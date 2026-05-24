@@ -63,6 +63,15 @@ class Settings(BaseSettings):
     # DT API token with openTelemetryTrace.ingest + metrics.ingest scopes.
     dt_otel_token: str = ""
 
+    # ── GitHub ────────────────────────────────────────────────────────────────
+    # Fine-grained PAT with Contents:read + Pull requests:read on the repo(s).
+    # Used by the cutover endpoint to attach real engineering metrics to the
+    # karma.deployment OTel span (commits, PRs, lines added/removed).
+    github_token: str = ""
+    # Default "owner/repo" used when a service has no per-service github_repo.
+    # Example: "rogerjeasy/karma"
+    github_repo: str = ""
+
     @property
     def dt_otel_endpoint(self) -> str:
         if self.dt_env:

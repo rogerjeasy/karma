@@ -41,6 +41,69 @@ async def mark_cutover(
         },
     )
 
+    # ── Engineering-metrics span ──────────────────────────────────────────────
+    # Emits a deployment event visible in Dynatrace Distributed Tracing.
+    # Covers the hackathon's "engineering metrics" signal category by recording
+    # the service cutover as a blue/green deployment with real GitHub metrics.
+    try:
+        from opentelemetry import trace as _trace
+        from opentelemetry.trace import Status, StatusCode
+
+        from app.config import settings
+        from app.github_client import fetch_deployment_metrics
+
+        _tracer = _trace.get_tracer("karma.api")
+        with _tracer.start_as_current_span("karma.deployment") as _span:
+            _span.set_attribute("deployment.environment", "production")
+            _span.set_attribute("deployment.strategy", "blue_green")
+            _span.set_attribute("deployment.service.name", doc.get("service_name", service_id))
+            _span.set_attribute("deployment.service.id", service_id)
+            _old = doc.get("dynatrace_entity_id", service_id)
+            _span.set_attribute("deployment.old_version", _old)
+            _span.set_attribute("deployment.new_version", payload.replacement_service_id)
+            _span.set_attribute("deployment.timestamp", cutover_time.isoformat())
+            _span.set_attribute("user.id", user["uid"])
+            _span.set_attribute("user.email", user.get("email", ""))
+            _span.set_attribute("organization.id", "karma")
+            _span.set_attribute("session.id", service_id)
+
+            # Fetch real engineering metrics from GitHub if a token and repo are
+            # configured. The repo is taken from the service doc first, then
+            # falls back to the project-level GITHUB_REPO config setting.
+            _gh_token = settings.github_token
+            _gh_repo = doc.get("github_repo") or settings.github_repo
+            if _gh_token and _gh_repo:
+                # Measure activity since the service was registered (first cutover)
+                # or since the last recorded cutover time if available.
+                _since = _parse_dt(
+                    doc.get("last_cutover_time") or doc.get("created_at", cutover_time)
+                )
+                _metrics = await fetch_deployment_metrics(
+                    repo=_gh_repo,
+                    since=_since,
+                    token=_gh_token,
+                )
+                _span.set_attribute("git.commits", _metrics["commits"])
+                _span.set_attribute("git.pull_requests", _metrics["pull_requests"])
+                _span.set_attribute("git.lines_added", _metrics["lines_added"])
+                _span.set_attribute("git.lines_removed", _metrics["lines_removed"])
+                _span.set_attribute("git.repo", _gh_repo)
+
+            _span.add_event("deployment.cutover", {
+                "service.old": doc.get("dynatrace_entity_id", service_id),
+                "service.new": payload.replacement_service_id,
+            })
+            _span.set_status(Status(StatusCode.OK))
+    except Exception:
+        pass  # telemetry must never break the cutover
+
+    # Record cutover time so the next cutover can measure activity from this point.
+    await firestore_client.update_service_phase(
+        service_id,
+        phase="haunting",
+        extra={"last_cutover_time": cutover_time.isoformat()},
+    )
+
     log.info("watcher_activated")
     return CutoverResponse(
         service_id=service_id,
@@ -193,3 +256,9 @@ def _violation_window() -> dict[str, str]:
         "start": (now - timedelta(minutes=15)).isoformat(),
         "end": now.isoformat(),
     }
+
+
+def _parse_dt(value: str | datetime) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value))

@@ -17,6 +17,11 @@ class ServiceRegistration(BaseModel):
     deprecation_date: datetime
     replacement_service_id: str | None = None
     learning_window_days: int = Field(default=14, ge=1, le=30)
+    github_repo: str | None = Field(
+        default=None,
+        description="GitHub repo in 'owner/repo' format — used to attach real "
+                    "engineering metrics (commits, PRs, lines changed) to deployment spans",
+    )
 
 
 class ServiceResponse(BaseModel):
@@ -27,6 +32,7 @@ class ServiceResponse(BaseModel):
     replacement_service_id: str | None
     phase: Literal["registered", "learning", "ready", "haunting", "completed", "error"]
     error_message: str | None = None
+    github_repo: str | None = None
     created_at: datetime
     updated_at: datetime
 

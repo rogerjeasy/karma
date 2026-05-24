@@ -103,10 +103,17 @@ async def _invoke_agent(
             f"https://{settings.gcp_location}-aiplatform.googleapis.com"
             f"/v1beta1/{resource_name}:streamQuery"
         )
-        headers = {
+        headers: dict[str, str] = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         }
+        # Propagate the active OTel trace context so Dynatrace links the API span
+        # to the agent spans as one end-to-end distributed trace.
+        try:
+            from opentelemetry.propagate import inject as _inject
+            _inject(headers)
+        except Exception:
+            pass
         # stream_query signature: user_id, message [, session_id]
         # session_id is optional — ADK creates an ephemeral one automatically.
         # The coordinator LLM is instructed to inspect the "task" field.
