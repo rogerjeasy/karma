@@ -309,6 +309,24 @@ async def seed_demo(
     }
     await firestore_client.save_ghost_report(report_id, ghost_data)
 
+    # Seed a deployment metric record so the observability dashboard shows
+    # engineering metrics for the demo scenario (mirrors what the cutover endpoint
+    # would have written had the demo gone through the normal cutover flow).
+    deployment_id = str(uuid.uuid4())
+    await firestore_client.save_deployment_metrics(
+        deployment_id,
+        {
+            "service_id": service_id,
+            "service_name": f"svc-payments-v2 {_DEMO_MARKER}",
+            "deployed_at": now.isoformat(),
+            "commits": 47,
+            "pull_requests": 9,
+            "lines_added": 1823,
+            "lines_removed": 412,
+            "github_repo": "rogerjeasy/karma",
+        },
+    )
+
     logger.info("demo_seeded", uid=uid, service_id=service_id, contracts=len(contract_ids))
     return {
         "already_seeded": False,
