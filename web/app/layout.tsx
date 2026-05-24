@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { OtelProvider } from "@/components/OtelProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -20,7 +21,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
-      <body className="min-h-screen" suppressHydrationWarning>{children}</body>
+      <body className="min-h-screen" suppressHydrationWarning>
+        <OtelProvider />
+        {children}
+      </body>
     </html>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { getIdToken } from "./firebase";
+import { getTraceHeaders } from "./otel";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -11,6 +12,7 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
  *  - Prepends NEXT_PUBLIC_API_URL to the path
  *  - Attaches the Firebase ID token as Authorization: Bearer <token>
  *  - Sets Content-Type: application/json when a body is provided
+ *  - Injects W3C traceparent / tracestate headers for distributed tracing
  *  - Throws on non-2xx responses (message = response body text)
  */
 export async function apiFetch<T = unknown>(
@@ -20,6 +22,7 @@ export async function apiFetch<T = unknown>(
   const token = await getIdToken();
 
   const headers: Record<string, string> = {
+    ...getTraceHeaders(),
     ...(init?.headers as Record<string, string> | undefined),
   };
 
