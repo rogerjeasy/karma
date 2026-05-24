@@ -147,6 +147,11 @@ async def trigger_learning(
             service_name=doc["service_name"],
             dynatrace_entity_id=doc["dynatrace_entity_id"],
             learning_window_days=doc.get("learning_window_days", 14),
+            user_context={
+                "user_id": user["uid"],
+                "user_email": user.get("email", ""),
+                "organization_id": "karma",
+            },
         )
     )
     return {"status": "accepted", "service_id": service_id}
@@ -157,6 +162,7 @@ async def _run_learning_task(
     service_name: str,
     dynatrace_entity_id: str,
     learning_window_days: int,
+    user_context: dict[str, Any] | None = None,
 ) -> None:
     log = logger.bind(service_id=service_id)
     try:
@@ -165,6 +171,7 @@ async def _run_learning_task(
             service_name=service_name,
             dynatrace_entity_id=dynatrace_entity_id,
             learning_window_days=learning_window_days,
+            user_context=user_context,
         )
         if result.get("status") == "error":
             msg = result.get("message", "Agent invocation failed")

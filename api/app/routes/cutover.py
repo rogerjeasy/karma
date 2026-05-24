@@ -66,14 +66,24 @@ async def run_watcher_now(
     if not targets:
         return {"status": "no_active_watchers"}
 
-    asyncio.create_task(_execute_watcher_chain(targets))
+    asyncio.create_task(_execute_watcher_chain(
+        targets,
+        user_context={
+            "user_id": user["uid"],
+            "user_email": user.get("email", ""),
+            "organization_id": "karma",
+        },
+    ))
     return {
         "status": "accepted",
         "triggered": [{"service_id": s["service_id"]} for s in targets],
     }
 
 
-async def _execute_watcher_chain(targets: list[dict[str, Any]]) -> None:
+async def _execute_watcher_chain(
+    targets: list[dict[str, Any]],
+    user_context: dict[str, Any] | None = None,
+) -> None:
     import time
 
     from app import agent_client
@@ -109,6 +119,7 @@ async def _execute_watcher_chain(targets: list[dict[str, Any]]) -> None:
             new_service_id=svc.get("replacement_service_id", ""),
             contracts=contracts,
             karma_service_id=karma_service_id,
+            user_context=user_context,
         )
         elapsed = round(time.monotonic() - t0, 2)
 
@@ -160,6 +171,7 @@ async def _execute_watcher_chain(targets: list[dict[str, Any]]) -> None:
                 new_service_id=svc.get("replacement_service_id", ""),
                 violation_window=_violation_window(),
                 karma_service_id=karma_service_id,
+                user_context=user_context,
             )
 
 

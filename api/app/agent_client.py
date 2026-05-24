@@ -24,6 +24,7 @@ async def trigger_learning(
     service_name: str,
     dynatrace_entity_id: str,
     learning_window_days: int = 14,
+    user_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Dispatch a begin_learning task to the Coordinator agent."""
     return await _invoke_agent(
@@ -34,6 +35,7 @@ async def trigger_learning(
             "service_name": service_name,
             "learning_window_days": learning_window_days,
         },
+        user_context=user_context,
     )
 
 
@@ -42,6 +44,7 @@ async def trigger_watcher(
     new_service_id: str,
     contracts: list[dict[str, Any]],
     karma_service_id: str,
+    user_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Dispatch a check_contracts task to the Coordinator agent."""
     return await _invoke_agent(
@@ -53,6 +56,7 @@ async def trigger_watcher(
             "contracts": contracts,
             "check_window_minutes": 15,
         },
+        user_context=user_context,
     )
 
 
@@ -62,6 +66,7 @@ async def trigger_forensic(
     new_service_id: str,
     violation_window: dict[str, Any],
     karma_service_id: str,
+    user_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Dispatch a run_forensic task to the Coordinator agent."""
     return await _invoke_agent(
@@ -73,10 +78,15 @@ async def trigger_forensic(
             "violation_window": violation_window,
             "karma_service_id": karma_service_id,
         },
+        user_context=user_context,
     )
 
 
-async def _invoke_agent(task: str, payload: dict[str, Any]) -> dict[str, Any]:
+async def _invoke_agent(
+    task: str,
+    payload: dict[str, Any],
+    user_context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     resource_name = settings.agent_engine_resource_name
     if not resource_name:
         logger.warning("agent_engine_not_configured", task=task)
@@ -100,10 +110,23 @@ async def _invoke_agent(task: str, payload: dict[str, Any]) -> dict[str, Any]:
         # stream_query signature: user_id, message [, session_id]
         # session_id is optional — ADK creates an ephemeral one automatically.
         # The coordinator LLM is instructed to inspect the "task" field.
+        # _karma_user_ctx is read by otel_callbacks._before_agent to set
+        # session.id / user.id / user.email / organization.id on spans.
+        uctx = user_context or {}
+        adk_user_id = uctx.get("user_id") or "karma-api"
+        message_body = {
+            "task": task,
+            **payload,
+            "_karma_user_ctx": {
+                "user_id": uctx.get("user_id", ""),
+                "user_email": uctx.get("user_email", ""),
+                "organization_id": uctx.get("organization_id", "karma"),
+            },
+        }
         body: dict[str, Any] = {
             "input": {
-                "user_id": "karma-api",
-                "message": json.dumps({"task": task, **payload}),
+                "user_id": adk_user_id,
+                "message": json.dumps(message_body),
             }
         }
 
