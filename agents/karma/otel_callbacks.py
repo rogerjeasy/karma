@@ -114,6 +114,28 @@ def _tool_call_key(tool_ctx: Any, tool_name: str) -> str:
 # ── Callback factory ──────────────────────────────────────────────────────────
 
 
+def _ensure_otel_configured() -> None:
+    """Lazily initialise OTel providers if not yet configured.
+
+    Agent Engine restores agents from a pickle so the module-level
+    setup_otel() call in app.py does not run in the serving process.
+    Calling this at the start of every before_agent callback ensures
+    the TracerProvider and MeterProvider are configured before the
+    first span is started.
+    """
+    try:
+        import os
+
+        from karma import otel as _otel_mod
+        if not _otel_mod._configured:
+            endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+            token = os.getenv("DT_OTEL_TOKEN", "") or os.getenv("DT_API_TOKEN", "")
+            if endpoint or os.getenv("DT_ENV", ""):
+                _otel_mod.setup_otel(endpoint=endpoint, token=token)
+    except Exception:
+        pass  # telemetry must never break agent execution
+
+
 def make_telemetry_callbacks(
     agent_name: str,
     model_name: str,
@@ -132,6 +154,7 @@ def make_telemetry_callbacks(
 
     def _before_agent(callback_context: Any) -> Any:
         """Start a karma.agent_run root span and attach it to the OTel context."""
+        _ensure_otel_configured()
         inv_id = _invocation_id_from(callback_context)
         agent = getattr(callback_context, "agent_name", agent_name)
 
