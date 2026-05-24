@@ -43,14 +43,10 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import type {
-  AdminStats,
   ContractCategory,
-  ContractResponse,
-  GhostReport,
   PlatformObservability,
   SystemService,
   ViolationSeverity,
-  WatcherRun,
 } from "@/lib/types";
 
 // ── Display constants ──────────────────────────────────────────────────────────
