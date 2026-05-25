@@ -24,7 +24,7 @@ import { AddServiceDialog } from "./components/AddServiceDialog";
 import { ObservabilityPanel } from "./components/ObservabilityPanel";
 import { InvestigationEnginePanel } from "./components/InvestigationEnginePanel";
 import { AgentObservabilityPanel } from "./components/AgentObservabilityPanel";
-import { DemoRunPanel } from "./components/DemoRunPanel";
+import { DemoRunPanel } from "@/components/DemoRunPanel";
 
 type Tab = "infrastructure" | "observability" | "investigation" | "agents";
 

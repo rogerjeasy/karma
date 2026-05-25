@@ -9,7 +9,7 @@ import {
   ArrowRight, Plus, Zap, TrendingUp, Radio, Clock,
   Coins, Cpu, Brain, Eye, ShieldCheck, AlertTriangle,
   CheckCircle2, XCircle, Timer, BarChart3, FlaskConical, Loader2,
-  Layers, Skull,
+  Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,13 +18,7 @@ import { useDashboardData } from "@/lib/dashboard-context";
 import { apiFetch } from "@/lib/api";
 import type { ContractCategory, ContractResponse, GhostReport, PlatformStats, ViolationSeverity, WatcherRun, AiCostUpdateEvent } from "@/lib/types";
 import { WatcherLiveLog } from "@/components/WatcherLiveLog";
-
-interface SeedResult {
-  already_seeded: boolean;
-  service_id: string;
-  contracts: number;
-  ghost_reports?: number;
-}
+import { DemoRunPanel } from "@/components/DemoRunPanel";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -42,9 +36,7 @@ export default function DashboardPage() {
   const [lastCostUpdate, setLastCostUpdate]   = useState<AiCostUpdateEvent | null>(null);
   const [platformStats, setPlatformStats]     = useState<PlatformStats | null>(null);
   const [watcherRuns, setWatcherRuns]         = useState<WatcherRun[]>([]);
-  const [seeding, setSeeding]                 = useState(false);
-  const [seedMsg, setSeedMsg]                 = useState<string | null>(null);
-  const [runningFullDemo, setRunningFullDemo] = useState(false);
+  const [showDemoPanel, setShowDemoPanel] = useState(false);
 
   // ── Derive stats from shared context data ─────────────────────────────────
   const contractsLearned = Object.values(contracts).reduce((sum, c) => sum + c.length, 0);
@@ -89,44 +81,6 @@ export default function DashboardPage() {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [services.length]);
-
-  // ── Seed demo ─────────────────────────────────────────────────────────────
-  async function runSeedDemo() {
-    setSeeding(true);
-    setSeedMsg(null);
-    try {
-      const result = await apiFetch<SeedResult>("/demo/seed", { method: "POST" });
-      setSeedMsg(
-        result.already_seeded
-          ? "Demo data already seeded — refresh the page to see it."
-          : `Demo seeded: ${result.contracts} contracts + ${result.ghost_reports ?? 1} ghost report. Refresh to see the data.`
-      );
-    } catch (e) {
-      setSeedMsg(`Seed failed: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setSeeding(false);
-    }
-  }
-
-  // ── Full demo (seed + trigger watcher immediately) ─────────────────────────
-  async function runFullDemo() {
-    setRunningFullDemo(true);
-    setSeedMsg(null);
-    try {
-      const seed = await apiFetch<SeedResult>("/demo/seed", { method: "POST" });
-      setSeedMsg(
-        seed.already_seeded
-          ? "Demo already seeded — triggering watcher now…"
-          : `Seeded ${seed.contracts} contracts. Triggering watcher…`
-      );
-      await apiFetch("/cutover/watchers/run-now", { method: "POST" });
-      setSeedMsg("Full demo running — watch the ghost activity feed. Violations will appear within 30–60 seconds.");
-    } catch (e) {
-      setSeedMsg(`Full demo failed: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setRunningFullDemo(false);
-    }
-  }
 
   // ── Live ghost bump + AI cost flash ──────────────────────────────────────
   const { connectionState: sseState } = useSSEContext();
@@ -215,23 +169,11 @@ export default function DashboardPage() {
             size="sm"
             variant="outline"
             className="gap-2 shrink-0"
-            disabled={seeding || runningFullDemo}
-            onClick={runSeedDemo}
-            title="Pre-populate demo data (svc-payments scenario)"
+            onClick={() => setShowDemoPanel((v) => !v)}
+            title="Run the full demo scenario"
           >
-            {seeding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5" />}
-            Seed demo
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-2 shrink-0 border-red-500/40 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-            disabled={seeding || runningFullDemo}
-            onClick={runFullDemo}
-            title="Seed demo data then immediately trigger the watcher to detect violations"
-          >
-            {runningFullDemo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Skull className="h-3.5 w-3.5" />}
-            Full demo
+            <FlaskConical className="h-3.5 w-3.5" />
+            {showDemoPanel ? "Hide demo" : "Try demo"}
           </Button>
           <Link href="/dashboard/services">
             <Button size="sm" className="gap-2 shrink-0">
@@ -242,17 +184,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Seed demo feedback ── */}
-      {seedMsg && (
-        <div className={cn(
-          "rounded-lg border px-4 py-2.5 text-sm flex items-center gap-2",
-          seedMsg.startsWith("Seed failed")
-            ? "border-destructive/30 bg-destructive/8 text-destructive"
-            : "border-emerald-500/30 bg-emerald-500/8 text-emerald-400"
-        )}>
-          <FlaskConical className="h-4 w-4 shrink-0" />
-          {seedMsg}
-        </div>
+      {/* ── Demo panel (collapsible) ── */}
+      {showDemoPanel && (
+        <DemoRunPanel redirectAfterRun={null} />
       )}
 
       {/* ── Stats grid ── */}
@@ -343,27 +277,30 @@ export default function DashboardPage() {
         {/* Ghost activity feed */}
         <div className="lg:col-span-2 rounded-xl border border-border bg-card overflow-hidden min-h-[260px]">
           {ghosts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full p-10 text-center min-h-[260px]">
-              <div className="relative mb-5">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-card shadow-card">
-                  <Ghost className="h-7 w-7 text-slate-400" />
+            <div className="p-6 space-y-5 min-h-[260px]">
+              <div className="flex flex-col items-center text-center pt-4">
+                <div className="relative mb-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-card shadow-card">
+                    <Ghost className="h-6 w-6 text-slate-400" />
+                  </div>
+                  <div className="absolute -inset-1.5 rounded-2xl border border-primary/10 animate-pulse" />
                 </div>
-                <div className="absolute -inset-1.5 rounded-2xl border border-primary/10 animate-pulse" />
+                <h3 className="text-base font-semibold text-foreground">No ghosts yet</h3>
+                <p className="mt-1 text-sm text-slate-300 max-w-xs leading-relaxed">
+                  Run the demo below to see the full violation-detection flow in under 90 seconds.
+                </p>
               </div>
-              <h3 className="text-base font-semibold text-foreground">No ghosts yet</h3>
-              <p className="mt-2 text-sm text-slate-300 max-w-xs leading-relaxed">
-                Register a deprecated service to start the learning phase and automatically discover implicit contracts.
-              </p>
-              <div className="mt-6 flex flex-col sm:flex-row items-center gap-3">
+              <DemoRunPanel redirectAfterRun={null} />
+              <div className="flex items-center justify-center gap-4 pt-1">
                 <Link href="/dashboard/services">
-                  <Button className="gap-2">
-                    <Zap className="h-4 w-4" />
+                  <Button size="sm" variant="outline" className="gap-2">
+                    <Zap className="h-3.5 w-3.5" />
                     Register a service
                   </Button>
                 </Link>
                 <Link href="/dashboard/timeline">
-                  <Button variant="outline" className="gap-2">
-                    <TrendingUp className="h-4 w-4" />
+                  <Button size="sm" variant="outline" className="gap-2">
+                    <TrendingUp className="h-3.5 w-3.5" />
                     View contracts
                   </Button>
                 </Link>

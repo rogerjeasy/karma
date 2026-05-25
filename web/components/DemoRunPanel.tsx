@@ -22,12 +22,20 @@ type Step =
 const STEPS: Step[] = [
   { id: "seed",    label: "Seed demo contracts" },
   { id: "watcher", label: "Trigger Watcher run" },
-  { id: "done",    label: "Open ghost feed" },
+  { id: "done",    label: "Stream ghost events" },
 ];
 
 type RunState = "idle" | "running" | "done" | "error";
 
-export function DemoRunPanel() {
+/**
+ * @param redirectAfterRun - Route to push after successful run. Pass null to
+ *   stay on the current page (e.g. when already on /dashboard).
+ */
+export function DemoRunPanel({
+  redirectAfterRun = "/dashboard",
+}: {
+  redirectAfterRun?: string | null;
+}) {
   const router = useRouter();
 
   const [runState,     setRunState]     = useState<RunState>("idle");
@@ -65,8 +73,11 @@ export function DemoRunPanel() {
 
       setRunState("done");
 
-      // Step 3 — navigate to dashboard where WatcherLiveLog will auto-appear
-      router.push("/dashboard");
+      // Step 3 — navigate if a redirect target was specified
+      if (redirectAfterRun) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        router.push(redirectAfterRun as any);
+      }
 
     } catch (e: unknown) {
       setErrorMsg((e as Error).message ?? "Demo run failed");
@@ -175,7 +186,7 @@ export function DemoRunPanel() {
           ) : runState === "done" ? (
             <>
               <CheckCircle2 className="h-4 w-4" />
-              Demo complete — redirecting to ghost feed
+              {redirectAfterRun ? "Demo complete — redirecting…" : "Watcher running — watch the feed below"}
             </>
           ) : runState === "error" ? (
             <>
