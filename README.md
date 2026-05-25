@@ -26,8 +26,8 @@ Karma catches it.
 | Service | URL |
 |---------|-----|
 | **Web dashboard** | https://karma-web-ucvx5uwt5q-uc.a.run.app |
-| **API (REST)** | https://karma-api-957527396263.us-central1.run.app |
-| **API docs (Swagger)** | https://karma-api-957527396263.us-central1.run.app/docs |
+| **API (REST)** | https://karma-api-ucvx5uwt5q-uc.a.run.app |
+| **API docs (Swagger)** | https://karma-api-ucvx5uwt5q-uc.a.run.app/docs |
 | **Dynatrace tenant** | https://slm61962.apps.dynatrace.com |
 | **Demo: svc-payments-v2** | https://karma-svc-payments-v2-957527396263.us-central1.run.app |
 | **Demo: svc-payments-v3** | https://karma-svc-payments-v3-957527396263.us-central1.run.app |
