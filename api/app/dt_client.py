@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import asyncio
+import datetime as _dt
+from datetime import datetime, timedelta
 from typing import Any
 
 import httpx
@@ -17,8 +19,7 @@ _MAX_POLLS = 12
 
 async def query_grail(
     dql: str,
-    time_from: str = "now()-24h",
-    time_to: str = "now()",
+    days_back: int = 30,
 ) -> list[dict[str, Any]]:
     """Execute a DQL query against Dynatrace Grail and return the record rows.
 
@@ -29,6 +30,10 @@ async def query_grail(
     if not settings.dt_env or not settings.dt_query_token:
         return []
 
+    now = datetime.now(_dt.UTC)
+    start = now - timedelta(days=days_back)
+    iso_fmt = "%Y-%m-%dT%H:%M:%SZ"
+
     base = f"https://{settings.dt_env}.apps.dynatrace.com/platform/storage/query/v1"
     headers = {
         "Authorization": f"Api-Token {settings.dt_query_token}",
@@ -36,8 +41,8 @@ async def query_grail(
     }
     body: dict[str, Any] = {
         "query": dql,
-        "defaultTimeframeStart": time_from,
-        "defaultTimeframeEnd": time_to,
+        "defaultTimeframeStart": start.strftime(iso_fmt),
+        "defaultTimeframeEnd": now.strftime(iso_fmt),
         "requestTimeoutMilliseconds": 20_000,
     }
 

@@ -431,7 +431,7 @@ async def get_agent_observability(
             "    output_tokens = sum(toLong(gen_ai.usage.output_tokens)),\n"
             "    span_count    = count()"
         )
-        rows = await query_grail(dql_karma, time_from="now()-30d")
+        rows = await query_grail(dql_karma)
         if rows:
             r = rows[0]
             karma_input   = int(r.get("input_tokens")  or 0)
@@ -461,7 +461,7 @@ async def get_agent_observability(
             "    output_tokens = sum(toLong(gen_ai.usage.output_tokens)),\n"
             "    span_count    = count()"
         )
-        cc_rows = await query_grail(dql_cc, time_from="now()-30d")
+        cc_rows = await query_grail(dql_cc)
         if cc_rows:
             cr = cc_rows[0]
             cc_input    = int(cr.get("input_tokens")  or 0)
