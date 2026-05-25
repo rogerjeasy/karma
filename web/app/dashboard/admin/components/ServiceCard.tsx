@@ -82,6 +82,20 @@ export function ServiceCard({
     }
   }
 
+  async function resumeHaunting() {
+    setActionBusy(true);
+    setActionMsg(null);
+    try {
+      await apiFetch(`/admin/system-services/${service.service_id}/haunt`, { method: "POST" });
+      setActionMsg({ text: "Haunting resumed — watcher will run on next cycle.", ok: true });
+      onRefresh?.();
+    } catch (e: unknown) {
+      setActionMsg({ text: (e as Error).message ?? "Failed to resume haunting", ok: false });
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       {/* Card header */}
@@ -184,7 +198,8 @@ export function ServiceCard({
               {/* Actions */}
               {(service.phase === "registered" ||
                 service.phase === "error" ||
-                service.phase === "ready") && (
+                service.phase === "ready" ||
+                service.phase === "completed") && (
                 <div className="px-5 py-3 bg-muted/10 flex flex-col gap-2">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                     Actions
@@ -229,6 +244,22 @@ export function ServiceCard({
                           Activate Haunting
                         </Button>
                       </div>
+                    )}
+                    {service.phase === "completed" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1.5 border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
+                        onClick={resumeHaunting}
+                        disabled={actionBusy}
+                      >
+                        {actionBusy ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Ghost className="h-3 w-3" />
+                        )}
+                        Resume Haunting
+                      </Button>
                     )}
                   </div>
                   {actionMsg && (

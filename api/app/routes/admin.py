@@ -91,7 +91,9 @@ async def get_admin_stats(
     user_count = len([d async for d in db.collection("users").stream()])
 
     system_svcs = await firestore_client.list_system_services()
-    haunting = [s for s in system_svcs if s.get("phase") == "haunting"]
+    # Completed system services are still watched continuously (our watcher tick
+    # picks them up), so count them alongside explicitly-haunting ones.
+    haunting = [s for s in system_svcs if s.get("phase") in ("haunting", "completed")]
 
     ghost_count = 0
     for svc in system_svcs:
@@ -175,6 +177,33 @@ async def get_system_service_watcher_runs(
         raise HTTPException(status_code=404, detail="System service not found")
     docs = await firestore_client.list_watcher_runs(service_id, limit)
     return [_to_watcher_run_response(d) for d in docs]
+
+
+@router.post(
+    "/system-services/{service_id}/haunt",
+    status_code=200,
+)
+async def resume_haunting(
+    service_id: str,
+    _: dict[str, Any] = Depends(require_admin),
+) -> dict[str, Any]:
+    """Reset a completed system service back to haunting phase.
+
+    Clears the clean-run counter so the watcher picks it up on the next
+    scheduler tick and runs indefinitely (no auto-completion for system services).
+    """
+    svc = await firestore_client.get_service(service_id)
+    if svc is None or not svc.get("is_system"):
+        raise HTTPException(status_code=404, detail="System service not found")
+    if svc.get("phase") not in ("completed", "ready", "error"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Service is in phase '{svc.get('phase')}', nothing to resume.",
+        )
+    await firestore_client.update_service_phase(
+        service_id, "haunting", extra={"clean_watcher_runs": 0}
+    )
+    return {"service_id": service_id, "phase": "haunting"}
 
 
 @router.post(
