@@ -79,4 +79,5 @@ def _doc_to_detail_response(doc: dict[str, Any]) -> ContractDetailResponse:
         predicate_tolerance_seconds=pred.get("tolerance_window_seconds"),
         evidence=doc.get("evidence"),
         downstream_dependents=doc.get("downstream_dependents"),
+        slo_id=doc.get("slo_id"),
     )

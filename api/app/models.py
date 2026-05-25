@@ -67,6 +67,7 @@ class GhostReportResponse(BaseModel):
     report_id: str
     violation_id: str
     contract_id: str
+    karma_service_id: str | None = None
     category: str
     summary: str
     root_cause: str
@@ -79,6 +80,9 @@ class GhostReportResponse(BaseModel):
     investigation_input_tokens: int | None = None
     investigation_output_tokens: int | None = None
     dynatrace_event_id: str | None = None
+    # Deep-link fields for direct Dynatrace navigation
+    davis_problem_id: str | None = None        # from dynatrace_evidence.related_davis_problem_id
+    new_service_entity_id: str | None = None   # Dynatrace entity ID of replacement service
     created_at: datetime
 
 
@@ -98,6 +102,7 @@ class ContractDetailResponse(BaseModel):
     predicate_tolerance_seconds: int | None = None
     evidence: list[dict[str, Any]] | None = None
     downstream_dependents: list[str] | None = None
+    slo_id: str | None = None  # Dynatrace SLO ID created by Learner for this contract
 
 
 class WatcherRunRequest(BaseModel):

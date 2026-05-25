@@ -169,9 +169,13 @@ async def _execute_watcher_chain(
 
     from app import agent_client
     from app.config import settings
+    from app.routes.stream import broadcast_watcher_log
+
+    user_id: str = (user_context or {}).get("user_id", "")
 
     for svc in targets:
         karma_service_id = svc["service_id"]
+        service_name = svc.get("service_name", karma_service_id)
         log = logger.bind(karma_service_id=karma_service_id)
 
         contracts = await firestore_client.list_contracts_for_service(karma_service_id)
@@ -182,7 +186,7 @@ async def _execute_watcher_chain(
                 {
                     "run_id": str(uuid.uuid4()),
                     "service_id": karma_service_id,
-                    "service_name": svc.get("service_name"),
+                    "service_name": service_name,
                     "run_at": datetime.now(dt.UTC).isoformat(),
                     "contracts_checked": 0,
                     "violations_found": 0,
@@ -191,9 +195,37 @@ async def _execute_watcher_chain(
                     "skip_reason": "no_contracts",
                 },
             )
+            if user_id:
+                await broadcast_watcher_log(user_id, {
+                    "type": "skipped",
+                    "service_id": karma_service_id,
+                    "service_name": service_name,
+                    "reason": "no_contracts",
+                })
             continue
 
         log.info("watcher_running", contract_count=len(contracts))
+
+        # ── Broadcast: watcher started ──────────────────────────────────────
+        if user_id:
+            await broadcast_watcher_log(user_id, {
+                "type": "started",
+                "service_id": karma_service_id,
+                "service_name": service_name,
+                "contract_count": len(contracts),
+                "contracts": [
+                    {
+                        "contract_id": c.get("contract_id", ""),
+                        "category": c.get("category", ""),
+                        "subcategory": c.get("subcategory", ""),
+                        "description": c.get("description", ""),
+                        "predicate_dql": (c.get("violation_predicate") or {}).get("test_dql", ""),
+                        "threshold": (c.get("violation_predicate") or {}).get("threshold", ""),
+                    }
+                    for c in contracts
+                ],
+            })
+
         t0 = time.monotonic()
         watcher_result = await agent_client.trigger_watcher(
             old_service_id=svc["dynatrace_entity_id"],
@@ -207,13 +239,45 @@ async def _execute_watcher_chain(
         violations = _extract_violations(watcher_result)
         log.info("watcher_complete", violations_found=len(violations))
 
+        # ── Broadcast: individual contract check results (streamed, 80 ms apart) ─
+        if user_id:
+            violated_ids = {v.get("contract_id") for v in violations}
+            for contract in contracts:
+                cid = contract.get("contract_id", "")
+                violated = cid in violated_ids
+                viol_detail = next(
+                    (v for v in violations if v.get("contract_id") == cid), {}
+                )
+                pred = contract.get("violation_predicate") or {}
+                await broadcast_watcher_log(user_id, {
+                    "type": "contract_check",
+                    "contract_id": cid,
+                    "category": contract.get("category", ""),
+                    "subcategory": contract.get("subcategory", ""),
+                    "description": contract.get("description", ""),
+                    "passed": not violated,
+                    "threshold": pred.get("threshold", ""),
+                    "predicate_dql": pred.get("test_dql", ""),
+                    "davis_problem_id": viol_detail.get("davis_problem_id"),
+                })
+                await asyncio.sleep(0.08)
+
+            await broadcast_watcher_log(user_id, {
+                "type": "complete",
+                "service_id": karma_service_id,
+                "service_name": service_name,
+                "contracts_checked": len(contracts),
+                "violations_found": len(violations),
+                "duration_seconds": elapsed,
+            })
+
         run_id = str(uuid.uuid4())
         await firestore_client.save_watcher_run(
             run_id,
             {
                 "run_id": run_id,
                 "service_id": karma_service_id,
-                "service_name": svc.get("service_name"),
+                "service_name": service_name,
                 "run_at": datetime.now(dt.UTC).isoformat(),
                 "contracts_checked": len(contracts),
                 "violations_found": len(violations),
@@ -241,8 +305,8 @@ async def _execute_watcher_chain(
         for v in violations:
             if not v.get("needs_forensic"):
                 continue
-            contract = _find_contract(contracts, v.get("contract_id", ""))
-            if contract is None:
+            found_contract = _find_contract(contracts, v.get("contract_id", ""))
+            if found_contract is None:
                 log.warning("violation_contract_not_found", contract_id=v.get("contract_id"))
                 continue
 
@@ -250,7 +314,7 @@ async def _execute_watcher_chain(
             log.info("triggering_forensic", violation_id=violation_id)
             await agent_client.trigger_forensic(
                 violation_id=violation_id,
-                contract=contract,
+                contract=found_contract,
                 new_service_id=svc.get("replacement_service_id", ""),
                 violation_window=_violation_window(),
                 karma_service_id=karma_service_id,

@@ -51,10 +51,12 @@ async def get_ghost_report(
 
 def _doc_to_response(doc: dict[str, Any]) -> GhostReportResponse:
     from datetime import datetime
+    dt_evidence: dict[str, Any] = doc.get("dynatrace_evidence") or {}
     return GhostReportResponse(
         report_id=doc["report_id"],
         violation_id=doc["violation_id"],
         contract_id=doc.get("contract", {}).get("contract_id", ""),
+        karma_service_id=doc.get("karma_service_id"),
         category=doc.get("contract", {}).get("category", ""),
         summary=doc["summary"],
         root_cause=doc["root_cause"],
@@ -67,5 +69,7 @@ def _doc_to_response(doc: dict[str, Any]) -> GhostReportResponse:
         investigation_input_tokens=doc.get("investigation_input_tokens"),
         investigation_output_tokens=doc.get("investigation_output_tokens"),
         dynatrace_event_id=doc.get("dynatrace_event_id"),
+        davis_problem_id=dt_evidence.get("related_davis_problem_id"),
+        new_service_entity_id=doc.get("new_service_id"),
         created_at=datetime.fromisoformat(str(doc.get("created_at") or doc["saved_at"])),
     )

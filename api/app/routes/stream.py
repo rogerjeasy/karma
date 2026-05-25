@@ -129,10 +129,36 @@ async def broadcast_ghost_report(report: dict[str, Any]) -> None:
     user_id = report.get("user_id", "")
     if user_id:
         await _broadcast_to_user(user_id, "ghost_report", report)
+        # Also push an ai_cost_update so the Investigation Engine panel refreshes live.
+        cost_usd = report.get("cost_estimate_usd")
+        input_tok = report.get("investigation_input_tokens")
+        output_tok = report.get("investigation_output_tokens")
+        if cost_usd is not None or input_tok is not None:
+            await _broadcast_to_user(user_id, "ai_cost_update", {
+                "report_id": report.get("report_id"),
+                "cost_estimate_usd": cost_usd,
+                "investigation_input_tokens": input_tok,
+                "investigation_output_tokens": output_tok,
+                "severity": report.get("severity"),
+                "davis_enriched": bool(
+                    report.get("davis_ai_insights")
+                    and report.get("davis_ai_insights") != "not available"
+                ),
+                "created_at": str(report.get("created_at") or report.get("saved_at", "")),
+            })
     else:
         # Fallback for legacy reports without user_id: broadcast to all.
         for uid in list(_user_queues.keys()):
             await _broadcast_to_user(uid, "ghost_report", report)
+
+
+async def broadcast_watcher_log(user_id: str, data: dict[str, Any]) -> None:
+    """Push a watcher_log event to the given user's SSE clients.
+
+    Called from cutover._execute_watcher_chain to stream contract-check progress.
+    """
+    if user_id:
+        await _broadcast_to_user(user_id, "watcher_log", data)
 
 
 async def broadcast_service_update(service: dict[str, Any]) -> None:
