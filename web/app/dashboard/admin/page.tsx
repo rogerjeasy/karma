@@ -38,7 +38,7 @@ export default function AdminPage() {
   const {
     services, stats, observability,
     serviceDetails, loading: loadingData, loadingObs,
-    refresh, addService,
+    refresh, addService, removeService,
   } = useAdminData();
 
   const [tab, setTab]     = useState<Tab>("infrastructure");
@@ -193,6 +193,7 @@ export default function AdminPage() {
                   expanded={expandedServices.has(svc.service_id)}
                   onToggle={() => toggleExpanded(svc.service_id)}
                   onRefresh={refresh}
+                  onDelete={(id) => { removeService(id); refresh(); }}
                 />
               ))
             )}

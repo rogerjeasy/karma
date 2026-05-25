@@ -4,6 +4,7 @@ import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
   Activity,
+  AlertTriangle,
   ArrowRight,
   CheckCircle2,
   ChevronDown,
@@ -17,12 +18,21 @@ import {
   Server,
   ShieldCheck,
   Timer,
+  Trash2,
   XCircle,
   Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { PHASE_COLORS, SEVERITY_CFG, CATEGORY_COLORS } from "./constants";
 import { CountBadge } from "./CountBadge";
@@ -36,19 +46,24 @@ export function ServiceCard({
   expanded,
   onToggle,
   onRefresh,
+  onDelete,
 }: {
   service: SystemService;
   detail: ServiceDetail | undefined;
   expanded: boolean;
   onToggle: () => void;
   onRefresh?: () => void;
+  onDelete?: (serviceId: string) => void;
 }) {
   const phaseClass = PHASE_COLORS[service.phase] ?? PHASE_COLORS.registered;
   const isLoading  = detail?.loading ?? true;
 
-  const [actionBusy, setActionBusy] = useState(false);
-  const [actionMsg,  setActionMsg]  = useState<{ text: string; ok: boolean } | null>(null);
-  const [replId,     setReplId]     = useState(service.dynatrace_entity_id);
+  const [actionBusy,  setActionBusy]  = useState(false);
+  const [actionMsg,   setActionMsg]   = useState<{ text: string; ok: boolean } | null>(null);
+  const [replId,      setReplId]      = useState(service.dynatrace_entity_id);
+  const [deleteOpen,  setDeleteOpen]  = useState(false);
+  const [deleteBusy,  setDeleteBusy]  = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function triggerLearn() {
     setActionBusy(true);
@@ -93,6 +108,20 @@ export function ServiceCard({
       setActionMsg({ text: (e as Error).message ?? "Failed to resume haunting", ok: false });
     } finally {
       setActionBusy(false);
+    }
+  }
+
+  async function handleDelete() {
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await apiFetch(`/admin/system-services/${service.service_id}`, { method: "DELETE" });
+      setDeleteOpen(false);
+      onDelete?.(service.service_id);
+    } catch (e: unknown) {
+      setDeleteError((e as Error).message ?? "Failed to delete service");
+    } finally {
+      setDeleteBusy(false);
     }
   }
 
@@ -177,6 +206,16 @@ export function ServiceCard({
           <Button
             variant="ghost"
             size="sm"
+            onClick={() => { setDeleteOpen(true); setDeleteError(null); }}
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-red-400 transition-colors"
+            title="Delete service and all associated data"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onToggle}
             className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
             title={expanded ? "Collapse" : "Expand observability detail"}
@@ -185,6 +224,62 @@ export function ServiceCard({
           </Button>
         </div>
       </div>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-400 shrink-0" />
+              Delete System Service
+            </DialogTitle>
+            <DialogDescription>
+              This will permanently delete{" "}
+              <span className="font-semibold text-foreground">{service.service_name}</span> and all
+              associated data — contracts, ghost reports, and watcher runs. This action cannot be
+              undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-3 text-xs text-red-300 space-y-1">
+            <p className="font-mono text-slate-400">{service.dynatrace_entity_id}</p>
+            {detail && !detail.loading && (
+              <p>
+                {detail.contracts.length} contract{detail.contracts.length !== 1 ? "s" : ""},{" "}
+                {detail.ghosts.length} ghost report{detail.ghosts.length !== 1 ? "s" : ""},{" "}
+                {detail.watcherRuns.length} watcher run{detail.watcherRuns.length !== 1 ? "s" : ""}{" "}
+                will be deleted.
+              </p>
+            )}
+          </div>
+          {deleteError && (
+            <p className="text-xs text-red-400">{deleteError}</p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleteBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-red-500/40 text-red-400 hover:bg-red-500/10 hover:border-red-500/60"
+              onClick={handleDelete}
+              disabled={deleteBusy}
+            >
+              {deleteBusy ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              {deleteBusy ? "Deleting…" : "Delete Service"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Expanded detail */}
       {expanded && (

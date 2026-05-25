@@ -387,6 +387,22 @@ async def record_system_service_deployment(
     )
 
 
+@router.delete(
+    "/system-services/{service_id}",
+    status_code=200,
+)
+async def delete_system_service(
+    service_id: str,
+    _: dict[str, Any] = Depends(require_admin),
+) -> dict[str, Any]:
+    """Delete a system service and all associated data (contracts, ghost reports, watcher runs)."""
+    svc = await firestore_client.get_service(service_id)
+    if svc is None or not svc.get("is_system"):
+        raise HTTPException(status_code=404, detail="System service not found")
+    result = await firestore_client.delete_service_cascade(service_id)
+    return {"service_id": service_id, **result}
+
+
 @router.get("/investigation-engine")
 async def get_investigation_engine(
     user_id: str | None = Query(default=None, description="Filter by a specific Firebase UID"),

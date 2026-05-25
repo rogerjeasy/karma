@@ -29,6 +29,7 @@ interface AdminContextValue {
   refresh: () => void;
   loadServiceDetails: (svcs: SystemService[]) => Promise<void>;
   addService: (svc: SystemService) => void;
+  removeService: (serviceId: string) => void;
 }
 
 const AdminContext = createContext<AdminContextValue | null>(null);
@@ -110,11 +111,20 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
     loadServiceDetails([svc]);
   }, [loadServiceDetails]);
 
+  const removeService = useCallback((serviceId: string) => {
+    setServices((prev) => prev.filter((s) => s.service_id !== serviceId));
+    setServiceDetails((prev) => {
+      const next = { ...prev };
+      delete next[serviceId];
+      return next;
+    });
+  }, []);
+
   return (
     <AdminContext.Provider value={{
       services, stats, observability, serviceDetails,
       loading, loadingObs,
-      refresh, loadServiceDetails, addService,
+      refresh, loadServiceDetails, addService, removeService,
     }}>
       {children}
     </AdminContext.Provider>

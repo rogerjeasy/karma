@@ -218,6 +218,13 @@ Do not propose contracts with confidence < 0.75.
 - For `side_effect` and `timing` contracts, `tolerance_window_seconds` must be ≥ 300.
 - The predicate must be testable against the NEW service's telemetry without modification.
 - Write the predicate to **PASS** when the behavior IS present, **FAIL** when it is ABSENT.
+- **ALWAYS use `toLong()` when comparing a `percentile()` or `avg()` result against a number threshold.**
+  `percentile(duration, 95)` returns a `duration` type; comparing it directly with `>` or `<` silently
+  returns zero rows. Cast first: `| filter toLong(p95_latency) > 100000000`.
+- **Never use `{{service_id}}` as a placeholder.** Substitute the actual Dynatrace entity ID
+  (e.g. `"SERVICE-XXXXXXXXXXXXXXXX"`) directly into the DQL string.
+- Every `test_dql` **must** include a `from:now()-Xm` clause (e.g. `from:now()-15m`) so the
+  watcher can override it with the current check window. Omitting `from:` causes a full-history scan.
 
 **After drafting each contract, call `validate_contract_predicate`:**
 
