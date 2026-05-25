@@ -79,6 +79,31 @@ async def get_current_user(
         ) from exc
 
 
+async def get_optional_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> dict[str, Any] | None:
+    """Like get_current_user but returns None instead of 401 when no token is present.
+
+    Use for endpoints that are public but can return richer data when authenticated.
+    """
+    if credentials is None:
+        return None
+    try:
+        decoded: dict[str, Any] = firebase_auth.verify_id_token(
+            credentials.credentials,
+            app=get_firebase_app(),
+            check_revoked=False,
+        )
+        return decoded
+    except (
+        firebase_auth.ExpiredIdTokenError,
+        firebase_auth.InvalidIdTokenError,
+        firebase_auth.CertificateFetchError,
+        ValueError,
+    ):
+        return None
+
+
 async def require_admin(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
