@@ -116,15 +116,38 @@ async def get_user_service_ids(user_id: str) -> list[str]:
 
 
 async def list_all_haunting_services() -> list[dict[str, Any]]:
-    """Return all services in haunting phase across all users.
+    """Return all services that need watcher runs across all users.
+
+    Includes:
+    - Services in 'haunting' phase (migration monitoring or standalone)
+    - System services in 'completed' phase — these never auto-complete and must
+      be watched continuously even after the phase was set.
 
     Called by the Cloud Scheduler Pub/Sub tick — no user filter.
     """
     db = get_db()
-    query = db.collection("services").where(
+    haunting_query = db.collection("services").where(
         filter=FieldFilter("phase", "==", "haunting")
     )
-    return [d async for doc in query.stream() if (d := doc.to_dict()) is not None]
+    haunting = [d async for doc in haunting_query.stream() if (d := doc.to_dict()) is not None]
+
+    completed_system_query = (
+        db.collection("services")
+        .where(filter=FieldFilter("phase", "==", "completed"))
+        .where(filter=FieldFilter("is_system", "==", True))
+    )
+    completed_system = [
+        d async for doc in completed_system_query.stream() if (d := doc.to_dict()) is not None
+    ]
+
+    seen: set[str] = set()
+    result: list[dict[str, Any]] = []
+    for svc in haunting + completed_system:
+        sid = svc.get("service_id", "")
+        if sid and sid not in seen:
+            seen.add(sid)
+            result.append(svc)
+    return result
 
 
 async def update_service_phase(

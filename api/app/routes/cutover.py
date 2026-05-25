@@ -225,16 +225,18 @@ async def _execute_watcher_chain(
         if violations:
             await firestore_client.reset_clean_watcher_runs(karma_service_id)
         else:
-            threshold = settings.watcher_clean_runs_to_complete
-            should_complete = await firestore_client.record_clean_watcher_run(
-                karma_service_id, threshold
-            )
-            if should_complete:
-                await firestore_client.update_service_phase(
-                    karma_service_id, "completed", extra={"clean_watcher_runs": 0}
+            is_continuous = svc.get("is_system") or not svc.get("replacement_service_id")
+            if not is_continuous:
+                threshold = settings.watcher_clean_runs_to_complete
+                should_complete = await firestore_client.record_clean_watcher_run(
+                    karma_service_id, threshold
                 )
-                log.info("auto_completed_clean_runs", threshold=threshold)
-                continue
+                if should_complete:
+                    await firestore_client.update_service_phase(
+                        karma_service_id, "completed", extra={"clean_watcher_runs": 0}
+                    )
+                    log.info("auto_completed_clean_runs", threshold=threshold)
+                    continue
 
         for v in violations:
             if not v.get("needs_forensic"):
