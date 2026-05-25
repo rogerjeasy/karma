@@ -70,6 +70,19 @@ def create_app() -> FastAPI:
                     )
                 },
             )
+        except Exception as exc:
+            # Catch all unhandled exceptions here (inside CORSMiddleware) so that
+            # the 500 response is sent through CORSMiddleware's wrapped send(),
+            # which adds Access-Control-Allow-Origin. Without this, exceptions
+            # escape CORSMiddleware and are caught by ServerErrorMiddleware which
+            # sends the response without CORS headers, blocking browsers.
+            logger.error(
+                "unhandled_exception", path=str(request.url.path), error=str(exc), exc_info=True
+            )
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Internal server error"},
+            )
 
     application.add_middleware(
         CORSMiddleware,
