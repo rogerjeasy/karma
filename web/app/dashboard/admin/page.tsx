@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import {
   Activity,
   ArrowRight,
+  Bot,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   Clock,
+  DollarSign,
   ExternalLink,
   Eye,
   FileCode2,
@@ -19,8 +21,10 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Search,
   Server,
   ShieldCheck,
+  Sparkles,
   Timer,
   Users,
   XCircle,
@@ -44,8 +48,10 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import type {
   ContractCategory,
+  InvestigationEngineData,
   PlatformObservability,
   SystemService,
+  UserInvestigationStats,
   ViolationSeverity,
 } from "@/lib/types";
 
@@ -90,7 +96,7 @@ export default function AdminPage() {
     refresh, addService,
   } = useAdminData();
 
-  const [tab, setTab]                   = useState<"infrastructure" | "observability">("infrastructure");
+  const [tab, setTab]                   = useState<"infrastructure" | "observability" | "investigation">("infrastructure");
   const [addOpen, setAddOpen]           = useState(false);
   const [expandedServices, setExpandedServices] = useState<Set<string>>(new Set());
 
@@ -156,18 +162,19 @@ export default function AdminPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-lg border border-border bg-muted/30 p-1 w-fit">
-        {(["infrastructure", "observability"] as const).map((t) => (
+        {(["infrastructure", "observability", "investigation"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={cn(
-              "px-4 py-1.5 rounded-md text-sm font-medium transition-colors capitalize",
+              "flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-colors",
               tab === t
                 ? "bg-background text-foreground shadow-sm border border-border"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {t === "infrastructure" ? "Infrastructure" : "Platform Observability"}
+            {t === "investigation" && <Bot className="h-3.5 w-3.5 text-cyan-400" />}
+            {t === "infrastructure" ? "Infrastructure" : t === "observability" ? "Platform Observability" : "AI Investigation"}
           </button>
         ))}
       </div>
@@ -253,6 +260,10 @@ export default function AdminPage() {
         <ObservabilityPanel data={observability} loading={loadingObs} />
       )}
 
+      {tab === "investigation" && (
+        <InvestigationEnginePanel />
+      )}
+
       <AddServiceDialog
         open={addOpen}
         onOpenChange={setAddOpen}
@@ -266,6 +277,485 @@ export default function AdminPage() {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+// ── AI Investigation Engine Panel ─────────────────────────────────────────────
+
+const SEV_BAR_COLORS: Record<ViolationSeverity, string> = {
+  critical: "bg-red-500",
+  high:     "bg-orange-500",
+  medium:   "bg-amber-500",
+  low:      "bg-zinc-500",
+};
+
+const SEV_TEXT_COLORS: Record<ViolationSeverity, string> = {
+  critical: "text-red-400",
+  high:     "text-orange-400",
+  medium:   "text-amber-400",
+  low:      "text-zinc-400",
+};
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
+function formatCost(n: number): string {
+  if (n === 0) return "$0.00";
+  if (n < 0.0001) return `$${n.toFixed(6)}`;
+  if (n < 0.01) return `$${n.toFixed(4)}`;
+  return `$${n.toFixed(4)}`;
+}
+
+function userInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+function SeverityBar({
+  breakdown,
+  total,
+  compact = false,
+}: {
+  breakdown: Record<ViolationSeverity, number>;
+  total: number;
+  compact?: boolean;
+}) {
+  if (total === 0) return <span className="text-xs text-muted-foreground">—</span>;
+  const sevs: ViolationSeverity[] = ["critical", "high", "medium", "low"];
+  return (
+    <div className={cn("flex flex-col gap-1", compact ? "w-28" : "w-full")}>
+      <div className="flex h-1.5 rounded-full overflow-hidden gap-px">
+        {sevs.map((s) => {
+          const pct = (breakdown[s] / total) * 100;
+          return pct > 0 ? (
+            <div
+              key={s}
+              className={cn("rounded-full", SEV_BAR_COLORS[s])}
+              style={{ width: `${pct}%` }}
+              title={`${s}: ${breakdown[s]}`}
+            />
+          ) : null;
+        })}
+      </div>
+      {!compact && (
+        <div className="flex gap-2 flex-wrap">
+          {sevs.map((s) =>
+            breakdown[s] > 0 ? (
+              <span key={s} className={cn("text-[10px] font-medium", SEV_TEXT_COLORS[s])}>
+                {s[0].toUpperCase()}: {breakdown[s]}
+              </span>
+            ) : null,
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UserRow({
+  user,
+  expanded,
+  onToggle,
+}: {
+  user: UserInvestigationStats;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const total = user.total_reports;
+  const enrichPct = total > 0 ? Math.round((user.davis_enriched_count / total) * 100) : 0;
+  const initials = userInitials(user.display_name || user.email || user.user_id);
+  const totalTokens = user.total_input_tokens + user.total_output_tokens;
+
+  return (
+    <div className="border-b border-border/40 last:border-0">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-muted/20 transition-colors text-left"
+      >
+        {/* Avatar */}
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500/20 to-violet-500/20 border border-cyan-500/20 text-[11px] font-bold text-cyan-300">
+          {initials}
+        </div>
+
+        {/* Name / email */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">{user.display_name}</p>
+          <p className="text-[11px] text-muted-foreground truncate">{user.email || user.user_id}</p>
+        </div>
+
+        {/* Reports badge */}
+        <div className="hidden sm:flex shrink-0 items-center gap-1.5 min-w-[60px] justify-end">
+          <Ghost className="h-3 w-3 text-muted-foreground" />
+          <span className="text-sm font-semibold tabular-nums text-foreground">{total}</span>
+        </div>
+
+        {/* Cost */}
+        <div className="hidden md:block shrink-0 min-w-[80px] text-right">
+          <p className="text-xs text-muted-foreground">Cost</p>
+          <p className="text-sm font-semibold tabular-nums text-emerald-400">
+            {formatCost(user.total_cost_usd)}
+          </p>
+        </div>
+
+        {/* Tokens */}
+        <div className="hidden lg:block shrink-0 min-w-[70px] text-right">
+          <p className="text-xs text-muted-foreground">Tokens</p>
+          <p className="text-sm font-semibold tabular-nums text-foreground">
+            {formatTokens(totalTokens)}
+          </p>
+        </div>
+
+        {/* Davis AI */}
+        <div className="hidden lg:flex shrink-0 flex-col items-end min-w-[60px] gap-0.5">
+          <p className="text-xs text-muted-foreground">Davis AI</p>
+          <div className="flex items-center gap-1">
+            {enrichPct === 100 ? (
+              <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+            ) : enrichPct === 0 ? (
+              <XCircle className="h-3 w-3 text-muted-foreground" />
+            ) : (
+              <div className="h-3 w-3 rounded-full border-2 border-amber-400" />
+            )}
+            <span className={cn(
+              "text-xs font-semibold tabular-nums",
+              enrichPct === 100 ? "text-emerald-400" : enrichPct > 0 ? "text-amber-400" : "text-muted-foreground",
+            )}>
+              {enrichPct}%
+            </span>
+          </div>
+        </div>
+
+        {/* Severity bar */}
+        <div className="hidden xl:block shrink-0 w-28">
+          <SeverityBar breakdown={user.severity_breakdown} total={total} compact />
+        </div>
+
+        {/* Last report */}
+        <div className="hidden sm:flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground min-w-[80px] justify-end">
+          <Clock className="h-3 w-3 shrink-0" />
+          <span className="truncate">
+            {user.last_report_at
+              ? formatDistanceToNow(new Date(user.last_report_at), { addSuffix: true })
+              : "—"}
+          </span>
+        </div>
+
+        {/* Expand icon */}
+        <div className="shrink-0 text-muted-foreground ml-1">
+          {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </div>
+      </button>
+
+      {/* Expanded detail */}
+      {expanded && (
+        <div className="px-5 pb-4 bg-muted/10 border-t border-border/30">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 pt-4">
+            <div className="space-y-0.5">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Ghost Reports</p>
+              <p className="text-lg font-bold text-foreground">{total}</p>
+            </div>
+            <div className="space-y-0.5">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Total Spend</p>
+              <p className="text-lg font-bold text-emerald-400">{formatCost(user.total_cost_usd)}</p>
+            </div>
+            <div className="space-y-0.5">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Input Tokens</p>
+              <p className="text-lg font-bold text-foreground">{formatTokens(user.total_input_tokens)}</p>
+            </div>
+            <div className="space-y-0.5">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Output Tokens</p>
+              <p className="text-lg font-bold text-foreground">{formatTokens(user.total_output_tokens)}</p>
+            </div>
+          </div>
+
+          {total > 0 && (
+            <div className="mt-4 space-y-2">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Severity Distribution</p>
+              <SeverityBar breakdown={user.severity_breakdown} total={total} />
+            </div>
+          )}
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/8 px-3 py-2">
+              <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+              <div>
+                <p className="text-[10px] text-muted-foreground">Davis AI Enriched</p>
+                <p className="text-sm font-semibold text-emerald-400">
+                  {user.davis_enriched_count} / {total}
+                  {total > 0 && <span className="ml-1 text-xs opacity-70">({enrichPct}%)</span>}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 rounded-lg border border-cyan-500/20 bg-cyan-500/8 px-3 py-2">
+              <Bot className="h-3.5 w-3.5 text-cyan-400" />
+              <div>
+                <p className="text-[10px] text-muted-foreground">Model</p>
+                <p className="text-sm font-semibold text-cyan-400">Gemini 2.5 Pro</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InvestigationEnginePanel() {
+  const [data, setData]       = useState<InvestigationEngineData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+  const [search, setSearch]   = useState("");
+  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await apiFetch<InvestigationEngineData>("/admin/investigation-engine");
+        if (!cancelled) setData(result);
+      } catch (e: unknown) {
+        if (!cancelled) setError((e as Error).message ?? "Failed to load investigation data");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const filteredUsers = useMemo(() => {
+    if (!data) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return data.users;
+    return data.users.filter(
+      (u) =>
+        u.display_name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        u.user_id.toLowerCase().includes(q),
+    );
+  }, [data, search]);
+
+  function toggleUser(uid: string) {
+    setExpandedUsers((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
+      return next;
+    });
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center rounded-xl border border-border bg-card">
+        <div className="flex flex-col items-center gap-3">
+          <div className="relative">
+            <Loader2 className="h-7 w-7 animate-spin text-cyan-400" />
+            <Bot className="absolute inset-0 m-auto h-3.5 w-3.5 text-cyan-300" />
+          </div>
+          <p className="text-sm text-muted-foreground">Loading investigation data…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-48 items-center justify-center rounded-xl border border-red-500/20 bg-card">
+        <p className="text-sm text-red-400">{error}</p>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const { aggregate: agg } = data;
+  const enrichPct = agg.total_reports > 0
+    ? Math.round((agg.davis_enriched_count / agg.total_reports) * 100)
+    : 0;
+  const totalTokens = agg.total_input_tokens + agg.total_output_tokens;
+
+  return (
+    <div className="space-y-6">
+      {/* ── Header card ─────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-xl border border-cyan-500/20 bg-gradient-to-br from-cyan-950/40 via-card to-violet-950/30 p-5">
+        {/* Decorative glow */}
+        <div className="pointer-events-none absolute -top-10 -right-10 h-40 w-40 rounded-full bg-cyan-500/5 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-violet-500/5 blur-3xl" />
+
+        <div className="relative flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/15 border border-cyan-500/25">
+              <Bot className="h-5 w-5 text-cyan-400" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-foreground">AI Investigation Engine</h2>
+              <p className="text-xs text-muted-foreground">
+                Autonomous forensic analysis · Vertex AI · Gemini 2.5 Pro
+              </p>
+            </div>
+          </div>
+          <div className="shrink-0 flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1">
+            <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[11px] font-medium text-emerald-400">Active</span>
+          </div>
+        </div>
+
+        {/* KPI cards */}
+        <div className="relative mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-lg border border-border/60 bg-background/40 backdrop-blur-sm px-4 py-3">
+            <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
+              <Ghost className="h-3.5 w-3.5" />
+              <span className="text-[11px]">Ghost Reports</span>
+            </div>
+            <p className="text-2xl font-bold text-foreground tabular-nums">{agg.total_reports}</p>
+          </div>
+
+          <div className="rounded-lg border border-emerald-500/25 bg-emerald-950/20 backdrop-blur-sm px-4 py-3">
+            <div className="flex items-center gap-1.5 text-emerald-400/70 mb-1">
+              <DollarSign className="h-3.5 w-3.5" />
+              <span className="text-[11px]">Total Spend</span>
+            </div>
+            <p className="text-2xl font-bold text-emerald-400 tabular-nums">{formatCost(agg.total_cost_usd)}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Gemini 2.5 Pro</p>
+          </div>
+
+          <div className="rounded-lg border border-cyan-500/25 bg-cyan-950/20 backdrop-blur-sm px-4 py-3">
+            <div className="flex items-center gap-1.5 text-cyan-400/70 mb-1">
+              <Zap className="h-3.5 w-3.5" />
+              <span className="text-[11px]">Tokens Consumed</span>
+            </div>
+            <p className="text-2xl font-bold text-cyan-400 tabular-nums">{formatTokens(totalTokens)}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              ↑ {formatTokens(agg.total_input_tokens)} · ↓ {formatTokens(agg.total_output_tokens)}
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-violet-500/25 bg-violet-950/20 backdrop-blur-sm px-4 py-3">
+            <div className="flex items-center gap-1.5 text-violet-400/70 mb-1">
+              <Sparkles className="h-3.5 w-3.5" />
+              <span className="text-[11px]">Davis AI Enriched</span>
+            </div>
+            <p className="text-2xl font-bold text-violet-400 tabular-nums">{enrichPct}%</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              {agg.davis_enriched_count} / {agg.total_reports} reports
+            </p>
+          </div>
+        </div>
+
+        {/* Aggregate severity bar */}
+        {agg.total_reports > 0 && (
+          <div className="relative mt-4 space-y-2">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Platform Severity Distribution
+            </p>
+            <div className="flex h-2 overflow-hidden rounded-full gap-px bg-muted/20">
+              {(["critical", "high", "medium", "low"] as ViolationSeverity[]).map((s) => {
+                const pct = (agg.severity_breakdown[s] / agg.total_reports) * 100;
+                return pct > 0 ? (
+                  <div
+                    key={s}
+                    className={cn("transition-all", SEV_BAR_COLORS[s])}
+                    style={{ width: `${pct}%` }}
+                    title={`${s}: ${agg.severity_breakdown[s]}`}
+                  />
+                ) : null;
+              })}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {(["critical", "high", "medium", "low"] as ViolationSeverity[]).map((s) =>
+                agg.severity_breakdown[s] > 0 ? (
+                  <div key={s} className="flex items-center gap-1">
+                    <div className={cn("h-2 w-2 rounded-full", SEV_BAR_COLORS[s])} />
+                    <span className={cn("text-[11px] font-medium capitalize", SEV_TEXT_COLORS[s])}>
+                      {s}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {agg.severity_breakdown[s]}
+                    </span>
+                  </div>
+                ) : null,
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Per-user breakdown ─────────────────────────────────────── */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        {/* Toolbar */}
+        <div className="flex items-center gap-3 px-5 py-3.5 border-b border-border bg-muted/10">
+          <div className="flex items-center gap-2 flex-1">
+            <Users className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-sm font-semibold text-foreground">
+              Per-User Forensics
+            </span>
+            <span className="rounded-full bg-muted/50 px-2 py-0.5 text-[11px] text-muted-foreground">
+              {filteredUsers.length} user{filteredUsers.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search users…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-8 w-52 rounded-md border border-border bg-background pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-cyan-500/40"
+            />
+          </div>
+        </div>
+
+        {/* Column headers */}
+        {filteredUsers.length > 0 && (
+          <div className="flex items-center gap-3 px-5 py-2 bg-muted/5 border-b border-border/40 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="w-8 shrink-0" />
+            <div className="flex-1">User</div>
+            <div className="hidden sm:block shrink-0 min-w-[60px] text-right">Reports</div>
+            <div className="hidden md:block shrink-0 min-w-[80px] text-right">Cost</div>
+            <div className="hidden lg:block shrink-0 min-w-[70px] text-right">Tokens</div>
+            <div className="hidden lg:block shrink-0 min-w-[60px] text-right">Davis AI</div>
+            <div className="hidden xl:block shrink-0 w-28">Severity</div>
+            <div className="hidden sm:block shrink-0 min-w-[80px] text-right">Last Report</div>
+            <div className="w-4 shrink-0" />
+          </div>
+        )}
+
+        {/* User rows */}
+        {filteredUsers.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground">
+            {search ? (
+              <>
+                <Search className="h-6 w-6 opacity-30" />
+                <p className="text-sm">No users match &ldquo;{search}&rdquo;</p>
+              </>
+            ) : (
+              <>
+                <Bot className="h-6 w-6 opacity-30" />
+                <p className="text-sm">No forensic investigations have run yet.</p>
+                <p className="text-xs">Ghost reports appear here after the Watcher detects violations.</p>
+              </>
+            )}
+          </div>
+        ) : (
+          <div>
+            {filteredUsers.map((user) => (
+              <UserRow
+                key={user.user_id}
+                user={user}
+                expanded={expandedUsers.has(user.user_id)}
+                onToggle={() => toggleUser(user.user_id)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ── Platform Observability Panel ──────────────────────────────────────────────
 

@@ -163,6 +163,35 @@ export interface PlatformObservability {
   otel_pipeline: OtelPipeline;
 }
 
+// ── AI Investigation Engine ───────────────────────────────────────────────────
+
+export interface UserInvestigationStats {
+  user_id: string;
+  email: string;
+  display_name: string;
+  total_reports: number;
+  total_cost_usd: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  davis_enriched_count: number;
+  severity_breakdown: Record<ViolationSeverity, number>;
+  last_report_at: string | null;
+}
+
+export interface InvestigationAggregate {
+  total_reports: number;
+  total_cost_usd: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  davis_enriched_count: number;
+  severity_breakdown: Record<ViolationSeverity, number>;
+}
+
+export interface InvestigationEngineData {
+  aggregate: InvestigationAggregate;
+  users: UserInvestigationStats[];
+}
+
 export interface GhostReport {
   report_id: string;
   violation_id: string;
