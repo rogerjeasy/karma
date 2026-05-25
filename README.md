@@ -25,7 +25,7 @@ Karma catches it.
 
 | Service | URL |
 |---------|-----|
-| **Web dashboard** | https://karma-web-957527396263.us-central1.run.app |
+| **Web dashboard** | https://karma-web-ucvx5uwt5q-uc.a.run.app |
 | **API (REST)** | https://karma-api-957527396263.us-central1.run.app |
 | **API docs (Swagger)** | https://karma-api-957527396263.us-central1.run.app/docs |
 | **Dynatrace tenant** | https://slm61962.apps.dynatrace.com |
@@ -37,7 +37,7 @@ Karma catches it.
 
 ## Demo
 
-[**Watch the 2:45 demo video**](#) · [**Try the live demo**](https://karma-web-957527396263.us-central1.run.app) · [**Devpost submission**](https://rapid-agent.devpost.com)
+[**Watch the 2:45 demo video**](#) · [**Try the live demo**](https://karma-web-ucvx5uwt5q-uc.a.run.app) · [**Devpost submission**](https://rapid-agent.devpost.com)
 
 ### The marquee finding
 
