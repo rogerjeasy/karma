@@ -403,6 +403,108 @@ async def delete_system_service(
     return {"service_id": service_id, **result}
 
 
+@router.get("/agent-observability")
+async def get_agent_observability(
+    _: dict[str, Any] = Depends(require_admin),
+) -> dict[str, Any]:
+    """Return token spend and cost data for both the karma ADK agents and Claude Code sessions.
+
+    Queries Dynatrace Grail for real OTel gen_ai span data when DT_QUERY_TOKEN is set.
+    Falls back to Firestore-aggregated investigation costs otherwise.
+    """
+    from app.config import settings as _settings
+    from app.dt_client import query_grail
+
+    grail_ok = bool(_settings.dt_env and _settings.dt_query_token)
+
+    # ── ADK agents (karma-agent-system) ──────────────────────────────────────
+    karma_input = karma_output = karma_spans = 0
+    karma_from_grail = False
+
+    if grail_ok:
+        dql_karma = (
+            "fetch spans, from:now()-30d\n"
+            '| filter service.name == "karma-agent-system"\n'
+            "| filter isNotNull(gen_ai.usage.input_tokens)\n"
+            "| summarize\n"
+            "    input_tokens  = sum(toLong(gen_ai.usage.input_tokens)),\n"
+            "    output_tokens = sum(toLong(gen_ai.usage.output_tokens)),\n"
+            "    span_count    = count()"
+        )
+        rows = await query_grail(dql_karma, time_from="now()-30d")
+        if rows:
+            r = rows[0]
+            karma_input   = int(r.get("input_tokens")  or 0)
+            karma_output  = int(r.get("output_tokens") or 0)
+            karma_spans   = int(r.get("span_count")    or 0)
+            karma_from_grail = True
+
+    # Fall back to Firestore investigation-engine totals when Grail is unavailable
+    if not karma_from_grail:
+        inv_stats = await firestore_client.get_investigation_engine_stats()
+        agg = inv_stats.get("aggregate", {})
+        karma_input  = agg.get("total_input_tokens", 0) or 0
+        karma_output = agg.get("total_output_tokens", 0) or 0
+        karma_spans  = agg.get("total_reports", 0) or 0
+
+    # ── Claude Code dev sessions (claude-code-dev) ───────────────────────────
+    cc_input = cc_output = cc_sessions = 0
+    cc_from_grail = False
+
+    if grail_ok:
+        dql_cc = (
+            "fetch spans, from:now()-30d\n"
+            '| filter service.name == "claude-code-dev"\n'
+            "| filter isNotNull(gen_ai.usage.input_tokens)\n"
+            "| summarize\n"
+            "    input_tokens  = sum(toLong(gen_ai.usage.input_tokens)),\n"
+            "    output_tokens = sum(toLong(gen_ai.usage.output_tokens)),\n"
+            "    span_count    = count()"
+        )
+        cc_rows = await query_grail(dql_cc, time_from="now()-30d")
+        if cc_rows:
+            cr = cc_rows[0]
+            cc_input    = int(cr.get("input_tokens")  or 0)
+            cc_output   = int(cr.get("output_tokens") or 0)
+            cc_sessions = int(cr.get("span_count")    or 0)
+            cc_from_grail = True
+
+    # Cost estimates (Gemini 2.5 Pro: ~$2.50/1M in, $10/1M out;
+    #                 Claude Sonnet 4.6: ~$3/1M in, $15/1M out)
+    karma_cost = (karma_input / 1_000_000 * 2.50) + (karma_output / 1_000_000 * 10.0)
+    cc_cost    = (cc_input    / 1_000_000 * 3.00) + (cc_output    / 1_000_000 * 15.0)
+
+    return {
+        "grail_configured": grail_ok,
+        "karma_agents": {
+            "service_name":   "karma-agent-system",
+            "description":    "ADK multi-agent system (Coordinator · Learner · Watcher · Forensic)",
+            "model":          "Gemini 2.5 Pro (Vertex AI)",
+            "span_count":     karma_spans,
+            "input_tokens":   karma_input,
+            "output_tokens":  karma_output,
+            "total_tokens":   karma_input + karma_output,
+            "cost_usd":       round(karma_cost, 4),
+            "from_grail":     karma_from_grail,
+        },
+        "claude_code": {
+            "service_name":   "claude-code-dev",
+            "description":    "Claude Code sessions that built this monitoring system",
+            "model":          "Claude Sonnet 4.6 (Anthropic)",
+            "span_count":     cc_sessions,
+            "input_tokens":   cc_input,
+            "output_tokens":  cc_output,
+            "total_tokens":   cc_input + cc_output,
+            "cost_usd":       round(cc_cost, 4),
+            "from_grail":     cc_from_grail,
+            "note":           (
+                None if cc_from_grail
+                else "Claude Code telemetry not yet emitting gen_ai spans to this DT environment"
+            ),
+        },
+    }
+
+
 @router.get("/investigation-engine")
 async def get_investigation_engine(
     user_id: str | None = Query(default=None, description="Filter by a specific Firebase UID"),

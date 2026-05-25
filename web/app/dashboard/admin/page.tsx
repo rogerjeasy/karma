@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Activity,
   Bot,
+  Code2,
   Ghost,
   Loader2,
   Plus,
@@ -22,13 +23,16 @@ import { ServiceCard } from "./components/ServiceCard";
 import { AddServiceDialog } from "./components/AddServiceDialog";
 import { ObservabilityPanel } from "./components/ObservabilityPanel";
 import { InvestigationEnginePanel } from "./components/InvestigationEnginePanel";
+import { AgentObservabilityPanel } from "./components/AgentObservabilityPanel";
+import { DemoRunPanel } from "./components/DemoRunPanel";
 
-type Tab = "infrastructure" | "observability" | "investigation";
+type Tab = "infrastructure" | "observability" | "investigation" | "agents";
 
-const TABS: { id: Tab; label: string }[] = [
+const TABS: { id: Tab; label: string; icon?: string }[] = [
   { id: "infrastructure",  label: "Infrastructure" },
   { id: "observability",   label: "Platform Observability" },
   { id: "investigation",   label: "AI Investigation" },
+  { id: "agents",          label: "Coding Agents" },
 ];
 
 export default function AdminPage() {
@@ -118,7 +122,8 @@ export default function AdminPage() {
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {t.id === "investigation" && <Bot className="h-3.5 w-3.5 text-cyan-400" />}
+            {t.id === "investigation" && <Bot   className="h-3.5 w-3.5 text-cyan-400" />}
+            {t.id === "agents"        && <Code2 className="h-3.5 w-3.5 text-violet-400" />}
             {t.label}
           </button>
         ))}
@@ -155,6 +160,9 @@ export default function AdminPage() {
               />
             </div>
           )}
+
+          {/* Demo quick-start */}
+          <DemoRunPanel />
 
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -208,6 +216,9 @@ export default function AdminPage() {
 
       {/* Investigation tab */}
       {tab === "investigation" && <InvestigationEnginePanel />}
+
+      {/* Coding Agents tab */}
+      {tab === "agents" && <AgentObservabilityPanel />}
 
       <AddServiceDialog
         open={addOpen}

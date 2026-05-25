@@ -62,6 +62,8 @@ class Settings(BaseSettings):
     dt_env: str = ""
     # DT API token with openTelemetryTrace.ingest + metrics.ingest scopes.
     dt_otel_token: str = ""
+    # DT API token with storage:logs:read + storage:events:read scopes (Grail DQL).
+    dt_query_token: str = ""
 
     # ── GitHub ────────────────────────────────────────────────────────────────
     # Fine-grained PAT with Contents:read + Pull requests:read on the repo(s).

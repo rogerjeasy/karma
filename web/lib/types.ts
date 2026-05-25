@@ -269,6 +269,27 @@ export type WatcherLogEvent =
   | WatcherLogComplete
   | WatcherLogSkipped;
 
+// ── Agent observability ───────────────────────────────────────────────────────
+
+export interface AgentSystemStats {
+  service_name: string;
+  description: string;
+  model: string;
+  span_count: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  cost_usd: number;
+  from_grail: boolean;
+  note?: string | null;
+}
+
+export interface AgentObservabilityData {
+  grail_configured: boolean;
+  karma_agents: AgentSystemStats;
+  claude_code: AgentSystemStats;
+}
+
 // ── AI cost SSE event ─────────────────────────────────────────────────────────
 
 export interface AiCostUpdateEvent {

@@ -334,3 +334,26 @@ async def seed_demo(
         "contracts": len(contract_ids),
         "ghost_reports": 1,
     }
+
+
+@router.delete("/reset", status_code=status.HTTP_200_OK)
+async def reset_demo(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Delete all demo data for the authenticated user.
+
+    Removes the demo service, all its contracts, ghost reports, and watcher runs.
+    Safe to call multiple times — returns 200 even when nothing was found.
+    """
+    uid = user["uid"]
+    existing = await firestore_client.list_services(uid)
+
+    deleted_services = 0
+    for svc in existing:
+        if _DEMO_MARKER not in svc.get("service_name", ""):
+            continue
+        await firestore_client.delete_service_cascade(svc["service_id"])
+        deleted_services += 1
+
+    logger.info("demo_reset", uid=uid, deleted_services=deleted_services)
+    return {"deleted_services": deleted_services}
