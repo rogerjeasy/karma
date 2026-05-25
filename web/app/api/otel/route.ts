@@ -42,9 +42,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       body,
     });
 
-    return new NextResponse(null, { status: resp.ok ? 200 : resp.status });
+    // Always return 200 — telemetry errors must never surface to the client.
+    return new NextResponse(null, { status: 200 });
   } catch {
-    // Don't surface Dynatrace connectivity errors to the client.
     return new NextResponse(null, { status: 200 });
   }
 }
