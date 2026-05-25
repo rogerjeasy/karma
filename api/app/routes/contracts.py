@@ -22,10 +22,11 @@ async def get_contract_detail(
     if doc is None:
         raise HTTPException(status_code=404, detail="Contract not found")
     karma_service_id = doc.get("karma_service_id", "")
-    if karma_service_id:
-        svc = await firestore_client.get_service(karma_service_id)
-        if svc is None or svc.get("user_id") != user["uid"]:
-            raise HTTPException(status_code=404, detail="Contract not found")
+    if not karma_service_id:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    svc = await firestore_client.get_service(karma_service_id)
+    if svc is None or svc.get("user_id") != user["uid"]:
+        raise HTTPException(status_code=404, detail="Contract not found")
     return _doc_to_detail_response(doc)
 
 

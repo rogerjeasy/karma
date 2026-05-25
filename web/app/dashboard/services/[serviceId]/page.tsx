@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -68,6 +68,8 @@ type AnyService = ServiceResponse | SystemService;
 
 export default function ServiceDetailPage() {
   const { serviceId } = useParams<{ serviceId: string }>();
+  const searchParams = useSearchParams();
+  const isSystemParam = searchParams.get("system") === "true";
   const { isAdmin, loading: profileLoading } = useUserProfile();
 
   const [service, setService]       = useState<AnyService | null>(null);
@@ -85,17 +87,24 @@ export default function ServiceDetailPage() {
       setLoading(true);
       setNotFound(false);
 
-      // Try user-owned service first; fall back to admin/system endpoint.
-      let svc: AnyService | null = await apiFetch<ServiceResponse>(
-        `/services/${serviceId}`
-      ).catch(() => null);
+      let svc: AnyService | null = null;
       let system = false;
 
-      if (!svc && isAdmin) {
+      if (isSystemParam && isAdmin) {
         svc = await apiFetch<SystemService>(
           `/admin/system-services/${serviceId}`
         ).catch(() => null);
         system = !!svc;
+      } else {
+        svc = await apiFetch<ServiceResponse>(
+          `/services/${serviceId}`
+        ).catch(() => null);
+        if (!svc && isAdmin) {
+          svc = await apiFetch<SystemService>(
+            `/admin/system-services/${serviceId}`
+          ).catch(() => null);
+          system = !!svc;
+        }
       }
 
       if (!svc) {
@@ -125,7 +134,7 @@ export default function ServiceDetailPage() {
     }
 
     load();
-  }, [serviceId, isAdmin, profileLoading]);
+  }, [serviceId, isAdmin, isSystemParam, profileLoading]);
 
   if (profileLoading || loading) {
     return (

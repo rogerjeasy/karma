@@ -1149,7 +1149,7 @@ function ServiceCard({
           )}
 
           <Link
-            href={`/dashboard/services/${service.service_id}`}
+            href={`/dashboard/services/${service.service_id}?system=true`}
             className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             View

@@ -477,11 +477,10 @@ async def list_watcher_runs(service_id: str, limit: int = 20) -> list[dict[str, 
     query = (
         db.collection("watcher_runs")
         .where(filter=FieldFilter("service_id", "==", service_id))
-        .limit(limit * 2)  # over-fetch; sorted in Python to avoid composite index
+        .order_by("run_at", direction=firestore.Query.DESCENDING)
+        .limit(limit)
     )
-    docs = [d async for doc in query.stream() if (d := doc.to_dict()) is not None]
-    docs.sort(key=lambda d: str(d.get("run_at", "")), reverse=True)
-    return docs[:limit]
+    return [d async for doc in query.stream() if (d := doc.to_dict()) is not None]
 
 
 async def list_recent_watcher_runs(limit: int = 30) -> list[dict[str, Any]]:
@@ -523,6 +522,14 @@ async def delete_service_cascade(service_id: str) -> dict[str, Any]:
         await doc.reference.delete()
         ghost_reports_deleted += 1
 
+    watcher_runs_deleted = 0
+    runs_q = db.collection("watcher_runs").where(
+        filter=FieldFilter("service_id", "==", service_id)
+    )
+    async for doc in runs_q.stream():
+        await doc.reference.delete()
+        watcher_runs_deleted += 1
+
     await db.collection("services").document(service_id).delete()
 
     logger.info(
@@ -530,11 +537,13 @@ async def delete_service_cascade(service_id: str) -> dict[str, Any]:
         service_id=service_id,
         contracts_deleted=contracts_deleted,
         ghost_reports_deleted=ghost_reports_deleted,
+        watcher_runs_deleted=watcher_runs_deleted,
     )
     return {
         "deleted": True,
         "contracts_deleted": contracts_deleted,
         "ghost_reports_deleted": ghost_reports_deleted,
+        "watcher_runs_deleted": watcher_runs_deleted,
     }
 
 
