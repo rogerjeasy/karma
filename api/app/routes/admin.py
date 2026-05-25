@@ -232,6 +232,15 @@ async def cutover_system_service(
     )
 
 
+@router.get("/investigation-engine")
+async def get_investigation_engine(
+    user_id: str | None = Query(default=None, description="Filter by a specific Firebase UID"),
+    _: dict[str, Any] = Depends(require_admin),
+) -> dict[str, Any]:
+    """AI Investigation Engine: per-user ghost report forensics and AI spend summary."""
+    return await firestore_client.get_investigation_engine_stats(user_id_filter=user_id)
+
+
 async def _run_system_learning(
     service_id: str,
     service_name: str,

@@ -605,3 +605,99 @@ async def get_platform_observability(dt_configured: bool, dt_env: str) -> dict[s
             "logs": dt_configured,
         },
     }
+
+
+# ── AI Investigation Engine ───────────────────────────────────────────────────
+
+async def get_investigation_engine_stats(
+    user_id_filter: str | None = None,
+) -> dict[str, Any]:
+    """Aggregate ghost report AI investigation stats across all users.
+
+    Performs two collection scans (ghost_reports + users) then groups in
+    Python — avoids composite indexes and is fast enough for the expected
+    cardinality (hundreds of reports, tens of users).
+    """
+    db = get_db()
+
+    # Single scan of all ghost reports.
+    all_reports: list[dict[str, Any]] = [
+        d async for doc in db.collection("ghost_reports").stream()
+        if (d := doc.to_dict()) is not None
+    ]
+
+    # Group reports by user_id.
+    reports_by_uid: dict[str, list[dict[str, Any]]] = {}
+    for report in all_reports:
+        uid = report.get("user_id") or "unknown"
+        reports_by_uid.setdefault(uid, []).append(report)
+
+    # Load user profiles (document ID = Firebase UID).
+    user_profiles: dict[str, dict[str, Any]] = {}
+    async for doc in db.collection("users").stream():
+        data = doc.to_dict()
+        if data:
+            user_profiles[doc.id] = data
+
+    # Determine which user IDs to include.
+    relevant_uids: set[str] = (
+        {user_id_filter} if user_id_filter else set(reports_by_uid.keys())
+    )
+
+    user_stats: list[dict[str, Any]] = []
+    for uid in relevant_uids:
+        reports = reports_by_uid.get(uid, [])
+        profile = user_profiles.get(uid, {})
+
+        total_cost = round(
+            sum((r.get("cost_estimate_usd") or 0.0) for r in reports), 6
+        )
+        total_input = sum((r.get("investigation_input_tokens") or 0) for r in reports)
+        total_output = sum((r.get("investigation_output_tokens") or 0) for r in reports)
+        davis_count = sum(1 for r in reports if r.get("davis_ai_insights"))
+
+        sev_breakdown: dict[str, int] = {
+            "critical": 0, "high": 0, "medium": 0, "low": 0
+        }
+        for r in reports:
+            sev = r.get("severity", "medium")
+            if sev in sev_breakdown:
+                sev_breakdown[sev] += 1
+
+        # Compute most-recent report timestamp.
+        last_at: str | None = None
+        raw_dates = [r.get("created_at") or r.get("saved_at") for r in reports]
+        valid_dates = [str(d) for d in raw_dates if d is not None]
+        if valid_dates:
+            last_at = max(valid_dates)
+
+        display = profile.get("display_name") or profile.get("email") or uid
+        user_stats.append({
+            "user_id": uid,
+            "email": profile.get("email", ""),
+            "display_name": display,
+            "total_reports": len(reports),
+            "total_cost_usd": total_cost,
+            "total_input_tokens": total_input,
+            "total_output_tokens": total_output,
+            "davis_enriched_count": davis_count,
+            "severity_breakdown": sev_breakdown,
+            "last_report_at": last_at,
+        })
+
+    # Sort: highest spend first; break ties by report count.
+    user_stats.sort(key=lambda u: (-u["total_cost_usd"], -u["total_reports"]))
+
+    aggregate = {
+        "total_reports": sum(u["total_reports"] for u in user_stats),
+        "total_cost_usd": round(sum(u["total_cost_usd"] for u in user_stats), 6),
+        "total_input_tokens": sum(u["total_input_tokens"] for u in user_stats),
+        "total_output_tokens": sum(u["total_output_tokens"] for u in user_stats),
+        "davis_enriched_count": sum(u["davis_enriched_count"] for u in user_stats),
+        "severity_breakdown": {
+            sev: sum(u["severity_breakdown"].get(sev, 0) for u in user_stats)
+            for sev in ("critical", "high", "medium", "low")
+        },
+    }
+
+    return {"aggregate": aggregate, "users": user_stats}
