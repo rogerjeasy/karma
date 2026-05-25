@@ -76,24 +76,22 @@ jobs:
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
 
       - name: Deploy to Cloud Run
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          service: ${{ env.SERVICE_NAME }}
-          region: ${{ env.GCP_LOCATION }}
-          image: ${{ env.IMAGE_TAG }}
-          flags: >
-            --allow-unauthenticated
-            --service-account=karma-runner@skillbridge-76a4c.iam.gserviceaccount.com
-            --min-instances=1
-            --max-instances=10
-            --memory=512Mi
-            --cpu=1
-            --set-secrets=DT_API_TOKEN=dt-api-token:latest,API_SECRET_KEY=api-secret-key:latest,DT_OTEL_TOKEN=dt-otel-token:latest,GITHUB_TOKEN=gh-token:latest
-          env_vars: >
-            GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }},
-            GCP_LOCATION=${{ env.GCP_LOCATION }},
-            AGENT_ENGINE_RESOURCE_NAME=${{ vars.AGENT_ENGINE_RESOURCE_NAME }},
-            ALLOWED_ORIGINS=${{ vars.ALLOWED_ORIGINS }},
-            FIRESTORE_DATABASE=(default),
-            DT_ENV=${{ vars.DT_ENV }},
-            GITHUB_REPO=${{ vars.GH_REPO }}
+        # Use gcloud directly so ALLOWED_ORIGINS (comma-separated URLs) is passed
+        # with the ^|^ custom delimiter — the deploy-cloudrun action splits env_vars
+        # on commas, which corrupts any value that itself contains a comma.
+        env:
+          ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
+          AGENT_ENGINE_RESOURCE_NAME: ${{ vars.AGENT_ENGINE_RESOURCE_NAME }}
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --project=${{ env.GCP_PROJECT_ID }} \
+            --region=${{ env.GCP_LOCATION }} \
+            --image="$IMAGE_TAG" \
+            --allow-unauthenticated \
+            --service-account=karma-runner@skillbridge-76a4c.iam.gserviceaccount.com \
+            --min-instances=1 \
+            --max-instances=10 \
+            --memory=512Mi \
+            --cpu=1 \
+            --set-secrets=DT_API_TOKEN=dt-api-token:latest,API_SECRET_KEY=api-secret-key:latest,DT_OTEL_TOKEN=dt-otel-token:latest,GITHUB_TOKEN=gh-token:latest \
+            "--set-env-vars=^|^GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}|GCP_LOCATION=${{ env.GCP_LOCATION }}|AGENT_ENGINE_RESOURCE_NAME=${AGENT_ENGINE_RESOURCE_NAME}|ALLOWED_ORIGINS=${ALLOWED_ORIGINS}|FIRESTORE_DATABASE=(default)|DT_ENV=${{ vars.DT_ENV }}|GITHUB_REPO=${{ vars.GH_REPO }}"
