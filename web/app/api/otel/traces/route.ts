@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 // Server-side OTLP proxy — keeps the Dynatrace token out of the browser bundle.
-// The browser SDK sends to /api/otel/traces; this route forwards to Dynatrace.
+// The browser SDK sends protobuf to /api/otel/traces; this route forwards to Dynatrace.
 // Mirrors the API's _endpoint_from_env() fallback: derive URL from DT_ENV when
 // OTEL_EXPORTER_OTLP_ENDPOINT is not set directly.
 
@@ -22,17 +22,17 @@ const DT_TOKEN =
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   // Silently accept and discard when Dynatrace isn't configured.
-  // This avoids breaking the frontend in environments without OTel.
   if (!DT_ENDPOINT || !DT_TOKEN) {
+    console.log("[otel-proxy] DT not configured — traces dropped");
     return NextResponse.json({ ok: true }, { status: 200 });
   }
 
   const body = await req.arrayBuffer();
   const contentType =
-    req.headers.get("content-type") ?? "application/json";
+    req.headers.get("content-type") ?? "application/x-protobuf";
+  const dtUrl = `${DT_ENDPOINT.replace(/\/$/, "")}/v1/traces`;
 
   try {
-    const dtUrl = `${DT_ENDPOINT.replace(/\/$/, "")}/v1/traces`;
     const resp = await fetch(dtUrl, {
       method: "POST",
       headers: {
@@ -42,9 +42,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       body,
     });
 
-    // Always return 200 — telemetry errors must never surface to the client.
-    return new NextResponse(null, { status: 200 });
-  } catch {
-    return new NextResponse(null, { status: 200 });
+    if (!resp.ok) {
+      // Log to Cloud Logging so problems are visible, but never surface to client.
+      console.error(
+        `[otel-proxy] Dynatrace rejected traces: HTTP ${resp.status} ` +
+        `content-type=${contentType} bytes=${body.byteLength}`
+      );
+    } else {
+      console.log(
+        `[otel-proxy] traces forwarded OK: bytes=${body.byteLength} content-type=${contentType}`
+      );
+    }
+  } catch (err) {
+    console.error(`[otel-proxy] fetch error: ${err}`);
   }
+
+  // Always return 200 — telemetry errors must never surface to the client.
+  return new NextResponse(null, { status: 200 });
 }

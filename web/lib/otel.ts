@@ -1,11 +1,14 @@
 import type { Context } from "@opentelemetry/api";
 import { context as otelContext, propagation } from "@opentelemetry/api";
 import { W3CTraceContextPropagator } from "@opentelemetry/core";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { OTLPExporterBase } from "@opentelemetry/otlp-exporter-base";
+import { createLegacyOtlpBrowserExportDelegate } from "@opentelemetry/otlp-exporter-base/browser-http";
+import { ProtobufTraceSerializer } from "@opentelemetry/otlp-transformer";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { DocumentLoadInstrumentation } from "@opentelemetry/instrumentation-document-load";
 import { FetchInstrumentation } from "@opentelemetry/instrumentation-fetch";
 import { resourceFromAttributes } from "@opentelemetry/resources";
+import type { SpanExporter } from "@opentelemetry/sdk-trace-base";
 import type { ReadableSpan, Span, SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { WebTracerProvider } from "@opentelemetry/sdk-trace-web";
@@ -28,7 +31,7 @@ let _userAttrs: Record<string, string> = {
 class UserContextProcessor implements SpanProcessor {
   private readonly _batch: BatchSpanProcessor;
 
-  constructor(exporter: OTLPTraceExporter) {
+  constructor(exporter: SpanExporter) {
     this._batch = new BatchSpanProcessor(exporter, {
       scheduledDelayMillis: 5_000,
       maxExportBatchSize: 64,
@@ -65,7 +68,15 @@ export function initOtel(): void {
   // The proxy route at /api/otel/traces adds the DT auth header server-side.
   const exportUrl = `${window.location.origin}/api/otel/traces`;
 
-  const exporter = new OTLPTraceExporter({ url: exportUrl });
+  // Send protobuf — Dynatrace OTLP endpoint requires application/x-protobuf (rejects JSON).
+  const exporter = new OTLPExporterBase(
+    createLegacyOtlpBrowserExportDelegate(
+      { url: exportUrl },
+      ProtobufTraceSerializer,
+      "v1/traces",
+      { "Content-Type": "application/x-protobuf" },
+    ),
+  );
 
   const resource = resourceFromAttributes({
     "service.name": "karma-web",
