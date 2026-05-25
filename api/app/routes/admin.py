@@ -21,6 +21,8 @@ from app.models import (
     CutoverRequest,
     CutoverResponse,
     GhostReportResponse,
+    RecordDeploymentRequest,
+    RecordDeploymentResponse,
     SystemServiceCreate,
     SystemServiceResponse,
     WatcherRunResponse,
@@ -232,6 +234,130 @@ async def cutover_system_service(
     )
 
 
+@router.post(
+    "/system-services/{service_id}/record-deployment",
+    response_model=RecordDeploymentResponse,
+    status_code=200,
+)
+async def record_system_service_deployment(
+    service_id: str,
+    payload: RecordDeploymentRequest,
+    _: dict[str, Any] = Depends(require_admin),
+) -> RecordDeploymentResponse:
+    """Record a deployment event for a system service.
+
+    Idempotent: if a record with the same commit SHA (or same calendar date when
+    no SHA is given) already exists, the existing record is returned unchanged.
+
+    If GITHUB_TOKEN and a repo are configured and no manual metric values are
+    provided, real commit/PR/line-change data is fetched from the GitHub API.
+    """
+    svc = await firestore_client.get_service(service_id)
+    if svc is None or not svc.get("is_system"):
+        raise HTTPException(status_code=404, detail="System service not found")
+
+    deployed_at = payload.deployed_at or datetime.now(dt.UTC)
+
+    # Deterministic document ID prevents duplicates on repeated calls.
+    if payload.commit_sha:
+        doc_id = f"deploy-{service_id[:8]}-{payload.commit_sha[:12]}"
+    else:
+        doc_id = f"deploy-{service_id[:8]}-{deployed_at.strftime('%Y%m%d')}"
+
+    db = firestore_client.get_db()
+
+    # Return early if the record already exists.
+    existing_snap = await db.collection("deployment_metrics").document(doc_id).get()
+    if existing_snap.exists:
+        d = existing_snap.to_dict() or {}
+        return RecordDeploymentResponse(
+            deployment_id=doc_id,
+            service_id=service_id,
+            service_name=d.get("service_name", svc.get("service_name", service_id)),
+            deployed_at=_parse_admin_dt(d.get("deployed_at", deployed_at.isoformat())),
+            commits=d.get("commits", 0),
+            pull_requests=d.get("pull_requests", 0),
+            lines_added=d.get("lines_added", 0),
+            lines_removed=d.get("lines_removed", 0),
+            github_repo=d.get("github_repo", ""),
+            already_existed=True,
+        )
+
+    # Resolve the GitHub repo to use.
+    from app.config import settings as _settings
+    repo = payload.github_repo or svc.get("github_repo") or _settings.github_repo
+
+    # Fetch live metrics from GitHub when token + repo are available and the
+    # caller hasn't supplied manual overrides.
+    commits = payload.commits
+    pull_requests = payload.pull_requests
+    lines_added = payload.lines_added
+    lines_removed = payload.lines_removed
+
+    if repo and _settings.github_token and any(
+        v is None for v in [commits, pull_requests, lines_added, lines_removed]
+    ):
+        from app.github_client import fetch_deployment_metrics as _fetch_gh
+        _since = _parse_admin_dt(
+            svc.get("last_deployment_at") or svc.get("created_at") or deployed_at.isoformat()
+        )
+        try:
+            _metrics = await _fetch_gh(
+                repo=repo, since=_since, token=_settings.github_token
+            )
+            commits       = commits       if commits       is not None else _metrics["commits"]
+            pull_requests = (
+                pull_requests if pull_requests is not None else _metrics["pull_requests"]
+            )
+            lines_added   = lines_added   if lines_added   is not None else _metrics["lines_added"]
+            lines_removed = (
+                lines_removed if lines_removed is not None else _metrics["lines_removed"]
+            )
+        except Exception:
+            commits       = commits       or 0
+            pull_requests = pull_requests or 0
+            lines_added   = lines_added   or 0
+            lines_removed = lines_removed or 0
+    else:
+        commits       = commits       or 0
+        pull_requests = pull_requests or 0
+        lines_added   = lines_added   or 0
+        lines_removed = lines_removed or 0
+
+    record: dict[str, Any] = {
+        "service_id":      service_id,
+        "service_name":    svc.get("service_name", service_id),
+        "deployed_at":     deployed_at.isoformat(),
+        "commits":         commits,
+        "pull_requests":   pull_requests,
+        "lines_added":     lines_added,
+        "lines_removed":   lines_removed,
+        "github_repo":     repo or "",
+        "commit_sha":      payload.commit_sha or "",
+    }
+    await firestore_client.save_deployment_metrics(doc_id, record)
+
+    # Stamp last_deployment_at so the next call measures the right window.
+    await firestore_client.update_service_phase(
+        service_id,
+        svc.get("phase", "haunting"),
+        extra={"last_deployment_at": deployed_at.isoformat()},
+    )
+
+    return RecordDeploymentResponse(
+        deployment_id=doc_id,
+        service_id=service_id,
+        service_name=record["service_name"],
+        deployed_at=deployed_at,
+        commits=commits,
+        pull_requests=pull_requests,
+        lines_added=lines_added,
+        lines_removed=lines_removed,
+        github_repo=repo or "",
+        already_existed=False,
+    )
+
+
 @router.get("/investigation-engine")
 async def get_investigation_engine(
     user_id: str | None = Query(default=None, description="Filter by a specific Firebase UID"),
@@ -264,6 +390,12 @@ async def _run_system_learning(
         await firestore_client.update_service_phase(
             service_id, "error", extra={"error_message": str(exc)}
         )
+
+
+def _parse_admin_dt(value: Any) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value))
 
 
 def _to_system_response(data: dict[str, Any]) -> SystemServiceResponse:

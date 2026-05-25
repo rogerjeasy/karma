@@ -167,3 +167,36 @@ class HealthResponse(BaseModel):
     version: str = "0.1.0"
     firestore: bool = False
     agent_engine: bool = False
+
+
+class RecordDeploymentRequest(BaseModel):
+    commit_sha: str | None = Field(
+        default=None,
+        description="Git commit SHA — used as the dedup key; omit for a date-keyed record",
+    )
+    deployed_at: datetime | None = Field(
+        default=None,
+        description="Deployment timestamp (UTC); defaults to now",
+    )
+    github_repo: str | None = Field(
+        default=None,
+        description="'owner/repo' override; falls back to project-level GITHUB_REPO config",
+    )
+    # Manual overrides — if supplied, the GitHub API is not called
+    commits: int | None = None
+    pull_requests: int | None = None
+    lines_added: int | None = None
+    lines_removed: int | None = None
+
+
+class RecordDeploymentResponse(BaseModel):
+    deployment_id: str
+    service_id: str
+    service_name: str
+    deployed_at: datetime
+    commits: int
+    pull_requests: int
+    lines_added: int
+    lines_removed: int
+    github_repo: str
+    already_existed: bool

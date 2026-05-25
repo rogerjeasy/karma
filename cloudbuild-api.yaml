@@ -1,0 +1,80 @@
+# Cloud Build pipeline — karma-api (FastAPI backend)
+#
+# Triggers: push to main branch (path filter: api/**)
+#
+# Required Cloud Build substitutions:
+#   _REGION           us-central1
+#   _REPO             us-central1-docker.pkg.dev/skillbridge-76a4c/karma-images
+#   _SERVICE          karma-api
+#   _GITHUB_TOKEN     GitHub fine-grained PAT (Contents:read + Pull requests:read)
+#
+# The SA running this build needs:
+#   roles/run.developer          — gcloud run deploy
+#   roles/datastore.user         — Firestore write in the record-deployment step
+#   roles/artifactregistry.writer — push to Artifact Registry
+
+substitutions:
+  _REGION:  us-central1
+  _REPO:    us-central1-docker.pkg.dev/skillbridge-76a4c/karma-images
+  _SERVICE: karma-api
+  _GITHUB_TOKEN: ""
+
+steps:
+  # ── 1. Build the container image ──────────────────────────────────────────
+  - name: gcr.io/cloud-builders/docker
+    id: build
+    args:
+      - build
+      - -t
+      - ${_REPO}/${_SERVICE}:${SHORT_SHA}
+      - -t
+      - ${_REPO}/${_SERVICE}:latest
+      - ./api
+
+  # ── 2. Push to Artifact Registry ──────────────────────────────────────────
+  - name: gcr.io/cloud-builders/docker
+    id: push
+    waitFor: [build]
+    args:
+      - push
+      - --all-tags
+      - ${_REPO}/${_SERVICE}
+
+  # ── 3. Deploy to Cloud Run ────────────────────────────────────────────────
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: deploy
+    waitFor: [push]
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_REPO}/${_SERVICE}:${SHORT_SHA}
+      - --region=${_REGION}
+      - --platform=managed
+      - --quiet
+
+  # ── 4. Record deployment in Karma Engineering Metrics ────────────────────
+  # Idempotent: the script skips the write if this commit SHA was already recorded.
+  # Uses the Cloud Build SA's ADC — no HTTP auth against the API required.
+  - name: python:3.12-slim
+    id: record-deployment
+    waitFor: [deploy]
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        pip install --quiet google-cloud-firestore httpx && \
+        python3 scripts/record_karma_deployment.py \
+          --service-name  "Karma API" \
+          --commit-sha    "${SHORT_SHA}" \
+          --github-repo   "rogerjeasy/karma" \
+          --github-token  "${_GITHUB_TOKEN}" \
+          --project       "${PROJECT_ID}"
+
+images:
+  - ${_REPO}/${_SERVICE}:${SHORT_SHA}
+  - ${_REPO}/${_SERVICE}:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
