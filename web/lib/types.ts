@@ -66,6 +66,7 @@ export interface ContractDetail extends ContractResponse {
   predicate_tolerance_seconds?: number | null;
   evidence?: ContractEvidence[] | null;
   downstream_dependents?: string[] | null;
+  slo_id?: string | null;
 }
 
 export interface PlatformStats {
@@ -196,7 +197,7 @@ export interface GhostReport {
   report_id: string;
   violation_id: string;
   contract_id: string;
-  karma_service_id?: string;
+  karma_service_id?: string | null;
   category: ContractCategory;
   summary: string;
   root_cause: string;
@@ -209,5 +210,73 @@ export interface GhostReport {
   investigation_input_tokens?: number | null;
   investigation_output_tokens?: number | null;
   dynatrace_event_id?: string | null;
+  // Deep-link fields for direct Dynatrace navigation
+  davis_problem_id?: string | null;
+  new_service_entity_id?: string | null;
+  created_at: string;
+}
+
+// ── Watcher live log SSE events ───────────────────────────────────────────────
+
+export interface WatcherLogContractSummary {
+  contract_id: string;
+  category: ContractCategory;
+  subcategory: string;
+  description: string;
+  predicate_dql: string;
+  threshold: string;
+}
+
+export interface WatcherLogStarted {
+  type: "started";
+  service_id: string;
+  service_name: string;
+  contract_count: number;
+  contracts: WatcherLogContractSummary[];
+}
+
+export interface WatcherLogContractCheck {
+  type: "contract_check";
+  contract_id: string;
+  category: ContractCategory;
+  subcategory: string;
+  description: string;
+  passed: boolean;
+  threshold: string;
+  predicate_dql: string;
+  davis_problem_id?: string | null;
+}
+
+export interface WatcherLogComplete {
+  type: "complete";
+  service_id: string;
+  service_name: string;
+  contracts_checked: number;
+  violations_found: number;
+  duration_seconds: number;
+}
+
+export interface WatcherLogSkipped {
+  type: "skipped";
+  service_id: string;
+  service_name: string;
+  reason: string;
+}
+
+export type WatcherLogEvent =
+  | WatcherLogStarted
+  | WatcherLogContractCheck
+  | WatcherLogComplete
+  | WatcherLogSkipped;
+
+// ── AI cost SSE event ─────────────────────────────────────────────────────────
+
+export interface AiCostUpdateEvent {
+  report_id: string;
+  cost_estimate_usd?: number | null;
+  investigation_input_tokens?: number | null;
+  investigation_output_tokens?: number | null;
+  severity?: ViolationSeverity;
+  davis_enriched: boolean;
   created_at: string;
 }

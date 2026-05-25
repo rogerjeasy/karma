@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Bot,
   CheckCircle2,
@@ -8,6 +8,8 @@ import {
   DollarSign,
   Ghost,
   Loader2,
+  Radio,
+  RefreshCw,
   Search,
   Sparkles,
   Users,
@@ -16,6 +18,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useSSEEvent } from "@/lib/sse-context";
 import { SEV_BAR_COLORS, SEV_TEXT_COLORS } from "./constants";
 import { formatTokens, formatCost } from "./utils";
 import { SeverityBar } from "./SeverityBar";
@@ -23,29 +26,39 @@ import { UserRow } from "./UserRow";
 import type { InvestigationEngineData, ViolationSeverity } from "@/lib/types";
 
 export function InvestigationEnginePanel() {
-  const [data, setData]       = useState<InvestigationEngineData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
-  const [search, setSearch]   = useState("");
+  const [data, setData]           = useState<InvestigationEngineData | null>(null);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+  const [search, setSearch]       = useState("");
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
+  const [flashActive, setFlash]   = useState(false);
+  const [lastUpdateAt, setLastAt] = useState<Date | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await apiFetch<InvestigationEngineData>("/admin/investigation-engine");
-        if (!cancelled) setData(result);
-      } catch (e: unknown) {
-        if (!cancelled) setError((e as Error).message ?? "Failed to load investigation data");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await apiFetch<InvestigationEngineData>("/admin/investigation-engine");
+      setData(result);
+    } catch (e: unknown) {
+      setError((e as Error).message ?? "Failed to load investigation data");
+    } finally {
+      setLoading(false);
     }
-    load();
-    return () => { cancelled = true; };
   }, []);
+
+  // Initial load
+  useEffect(() => { load(); }, [load]);
+
+  // Re-fetch whenever a new ghost report arrives (the ai_cost_update event fires
+  // at the same time, but re-fetching gives us the accurate per-user breakdown).
+  useSSEEvent("ai_cost_update", () => {
+    load().then(() => {
+      setLastAt(new Date());
+      setFlash(true);
+      setTimeout(() => setFlash(false), 2000);
+    });
+  });
 
   const filteredUsers = useMemo(() => {
     if (!data) return [];
@@ -102,7 +115,10 @@ export function InvestigationEnginePanel() {
   return (
     <div className="space-y-6">
       {/* Header card */}
-      <div className="relative overflow-hidden rounded-xl border border-cyan-500/20 bg-gradient-to-br from-cyan-950/40 via-card to-violet-950/30 p-5">
+      <div className={cn(
+        "relative overflow-hidden rounded-xl border bg-gradient-to-br from-cyan-950/40 via-card to-violet-950/30 p-5 transition-all duration-500",
+        flashActive ? "border-cyan-400/50 shadow-[0_0_24px_-6px_rgba(34,211,238,0.35)]" : "border-cyan-500/20"
+      )}>
         <div className="pointer-events-none absolute -top-10 -right-10 h-40 w-40 rounded-full bg-cyan-500/5 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-violet-500/5 blur-3xl" />
 
@@ -118,9 +134,31 @@ export function InvestigationEnginePanel() {
               </p>
             </div>
           </div>
-          <div className="shrink-0 flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1">
-            <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[11px] font-medium text-emerald-400">Active</span>
+          <div className="shrink-0 flex items-center gap-2 flex-wrap justify-end">
+            {/* Live update flash badge */}
+            {flashActive && (
+              <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1">
+                <Radio className="h-3 w-3 text-emerald-400 animate-pulse" />
+                <span className="text-[11px] font-semibold text-emerald-300 whitespace-nowrap">
+                  Live update
+                </span>
+              </div>
+            )}
+            {/* Manual refresh button */}
+            <button
+              onClick={() => load()}
+              disabled={loading}
+              className="flex items-center gap-1 rounded-full border border-border/60 bg-muted/20 px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+            >
+              <RefreshCw className={cn("h-3 w-3", loading && "animate-spin")} />
+              {lastUpdateAt
+                ? `Updated ${lastUpdateAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                : "Refresh"}
+            </button>
+            <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1">
+              <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[11px] font-medium text-emerald-400">Active</span>
+            </div>
           </div>
         </div>
 

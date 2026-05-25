@@ -16,7 +16,8 @@ import { Button } from "@/components/ui/button";
 import { useSSEContext, useSSEEvent } from "@/lib/sse-context";
 import { useDashboardData } from "@/lib/dashboard-context";
 import { apiFetch } from "@/lib/api";
-import type { ContractCategory, ContractResponse, GhostReport, PlatformStats, ViolationSeverity, WatcherRun } from "@/lib/types";
+import type { ContractCategory, ContractResponse, GhostReport, PlatformStats, ViolationSeverity, WatcherRun, AiCostUpdateEvent } from "@/lib/types";
+import { WatcherLiveLog } from "@/components/WatcherLiveLog";
 
 interface SeedResult {
   already_seeded: boolean;
@@ -36,11 +37,13 @@ interface Stats {
 
 export default function DashboardPage() {
   const { services, ghosts, contracts, loading } = useDashboardData();
-  const [liveGhostBump, setLiveGhostBump] = useState(false);
-  const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
-  const [watcherRuns, setWatcherRuns] = useState<WatcherRun[]>([]);
-  const [seeding, setSeeding] = useState(false);
-  const [seedMsg, setSeedMsg] = useState<string | null>(null);
+  const [liveGhostBump, setLiveGhostBump]     = useState(false);
+  const [aiCostFlash, setAiCostFlash]         = useState(false);
+  const [lastCostUpdate, setLastCostUpdate]   = useState<AiCostUpdateEvent | null>(null);
+  const [platformStats, setPlatformStats]     = useState<PlatformStats | null>(null);
+  const [watcherRuns, setWatcherRuns]         = useState<WatcherRun[]>([]);
+  const [seeding, setSeeding]                 = useState(false);
+  const [seedMsg, setSeedMsg]                 = useState<string | null>(null);
   const [runningFullDemo, setRunningFullDemo] = useState(false);
 
   // ── Derive stats from shared context data ─────────────────────────────────
@@ -125,11 +128,19 @@ export default function DashboardPage() {
     }
   }
 
-  // ── Live ghost bump animation ─────────────────────────────────────────────
+  // ── Live ghost bump + AI cost flash ──────────────────────────────────────
   const { connectionState: sseState } = useSSEContext();
   useSSEEvent("ghost_report", () => {
     setLiveGhostBump(true);
     setTimeout(() => setLiveGhostBump(false), 1200);
+  });
+  useSSEEvent("ai_cost_update", (raw) => {
+    try {
+      const update = JSON.parse(raw) as AiCostUpdateEvent;
+      setLastCostUpdate(update);
+      setAiCostFlash(true);
+      setTimeout(() => setAiCostFlash(false), 2000);
+    } catch { /* ignore */ }
   });
 
   const cards = [
@@ -322,6 +333,8 @@ export default function DashboardPage() {
           totalTokens={totalTokens}
           davisEnriched={davisEnriched}
           investigationCount={ghosts.length}
+          flashActive={aiCostFlash}
+          lastUpdate={lastCostUpdate}
         />
       )}
 
@@ -416,6 +429,9 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* ── Watcher live log (terminal-style streaming output) ── */}
+      <WatcherLiveLog />
     </div>
   );
 }
@@ -527,11 +543,15 @@ function AIInvestigationsPanel({
   totalTokens,
   davisEnriched,
   investigationCount,
+  flashActive = false,
+  lastUpdate = null,
 }: {
   totalCostUsd: number;
   totalTokens: number;
   davisEnriched: number;
   investigationCount: number;
+  flashActive?: boolean;
+  lastUpdate?: AiCostUpdateEvent | null;
 }) {
   const avgCost = investigationCount > 0 ? totalCostUsd / investigationCount : 0;
   const avgTokens = investigationCount > 0 ? Math.round(totalTokens / investigationCount) : 0;
@@ -539,7 +559,12 @@ function AIInvestigationsPanel({
   const costPerKToken = totalTokens > 0 ? (totalCostUsd / (totalTokens / 1000)) : 0;
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-violet-500/20 bg-card">
+    <div className={cn(
+      "relative overflow-hidden rounded-2xl border bg-card transition-all duration-500",
+      flashActive
+        ? "border-violet-400/50 shadow-[0_0_28px_-6px_rgba(167,139,250,0.4)]"
+        : "border-violet-500/20"
+    )}>
       {/* Ambient glow blobs */}
       <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-violet-500/[0.07] blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-indigo-500/[0.06] blur-3xl" />
@@ -558,13 +583,28 @@ function AIInvestigationsPanel({
             <p className="text-[11px] text-slate-400 mt-px truncate">Autonomous forensic analysis across every ghost report</p>
           </div>
         </div>
-        {/* Live pill */}
-        <div className="self-start sm:self-auto shrink-0 flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/[0.08] px-3 py-1.5">
-          <span className="relative flex h-2 w-2 shrink-0">
-            <span className="absolute inline-flex h-full w-full rounded-full bg-violet-400 animate-ping opacity-50" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-violet-400" />
-          </span>
-          <span className="text-[11px] font-semibold text-violet-300 tracking-wide whitespace-nowrap">Vertex AI · Gemini 2.5 Pro</span>
+        {/* Pills row */}
+        <div className="self-start sm:self-auto shrink-0 flex items-center gap-2 flex-wrap">
+          {/* "Just updated" flash badge */}
+          {flashActive && lastUpdate && (
+            <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 animate-fade-in-up">
+              <span className="relative flex h-1.5 w-1.5 shrink-0">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 animate-ping opacity-60" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              </span>
+              <span className="text-[11px] font-semibold text-emerald-300 whitespace-nowrap">
+                +${lastUpdate.cost_estimate_usd?.toFixed(4) ?? "—"}
+              </span>
+            </div>
+          )}
+          {/* Vertex AI pill */}
+          <div className="flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/[0.08] px-3 py-1.5">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-violet-400 animate-ping opacity-50" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-violet-400" />
+            </span>
+            <span className="text-[11px] font-semibold text-violet-300 tracking-wide whitespace-nowrap">Vertex AI · Gemini 2.5 Pro</span>
+          </div>
         </div>
       </div>
 

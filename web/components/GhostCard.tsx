@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, ArrowRight, Clock, Copy, Check, Brain, Coins, Cpu } from "lucide-react";
+import {
+  ExternalLink, ArrowRight, Clock, Copy, Check,
+  Brain, Coins, Cpu, AlertOctagon, ServerCrash,
+  BookOpen, Zap, FileSearch,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { GhostReport, ViolationSeverity } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
@@ -23,26 +27,91 @@ const SEVERITY_CONFIG: Record<
 
 const DT_ENV = process.env.NEXT_PUBLIC_DT_ENV ?? "";
 
+function buildDtBase(): string {
+  return DT_ENV ? `https://${DT_ENV}.apps.dynatrace.com` : "";
+}
+
 function extractDql(raw: string): string {
-  // Strip optional "DQL#N (label): " prefix written by the forensic agent.
   const withoutPrefix = raw.replace(/^DQL#?\d*\s*[^:]*:\s*/i, "");
-  // Strip trailing " -- RESULT: ..." annotation.
   return withoutPrefix.replace(/\s*--\s*RESULT:[\s\S]*$/i, "").trim();
 }
 
-function buildDtLink(dql: string): string | null {
-  if (!DT_ENV) return null;
+function buildNotebookUrl(dql: string): string | null {
+  const base = buildDtBase();
+  if (!base || !dql) return null;
+  return `${base}/ui/apps/dynatrace.notebooks/?query=${encodeURIComponent(dql)}`;
+}
+
+function buildProblemUrl(problemId: string): string | null {
+  const base = buildDtBase();
+  if (!base || !problemId) return null;
+  return `${base}/ui/problems/${encodeURIComponent(problemId)}`;
+}
+
+function buildEntityUrl(entityId: string): string | null {
+  const base = buildDtBase();
+  if (!base || !entityId) return null;
+  return `${base}/ui/apps/dynatrace.entity/${encodeURIComponent(entityId)}`;
+}
+
+function buildEventUrl(eventId: string): string | null {
+  const base = buildDtBase();
+  if (!base || !eventId) return null;
+  return `${base}/ui/apps/dynatrace.events/events?filter=${encodeURIComponent(eventId)}`;
+}
+
+function buildBizEventUrl(reportId: string): string | null {
+  const base = buildDtBase();
+  if (!base || !reportId) return null;
+  const dql = `fetch bizevents\n| filter event.type == "karma.ghost_report.created"\n| filter event.data.report_id == "${reportId}"`;
+  return `${base}/ui/apps/dynatrace.notebooks/?query=${encodeURIComponent(dql)}`;
+}
+
+// ── Shared DT link button ──────────────────────────────────────────────────────
+
+function DtLink({
+  href,
+  icon: Icon,
+  label,
+  color = "teal",
+}: {
+  href: string;
+  icon: React.ElementType;
+  label: string;
+  color?: "teal" | "violet" | "amber" | "blue" | "red";
+}) {
+  const colorMap = {
+    teal:   "text-teal-400 hover:text-teal-300 border-teal-500/25 hover:border-teal-400/40 hover:bg-teal-500/10",
+    violet: "text-violet-400 hover:text-violet-300 border-violet-500/25 hover:border-violet-400/40 hover:bg-violet-500/10",
+    amber:  "text-amber-400 hover:text-amber-300 border-amber-500/25 hover:border-amber-400/40 hover:bg-amber-500/10",
+    blue:   "text-blue-400 hover:text-blue-300 border-blue-500/25 hover:border-blue-400/40 hover:bg-blue-500/10",
+    red:    "text-red-400 hover:text-red-300 border-red-500/25 hover:border-red-400/40 hover:bg-red-500/10",
+  };
   return (
-    `https://${DT_ENV}.apps.dynatrace.com/ui/apps/dynatrace.notebooks/` +
-    `?query=${encodeURIComponent(dql)}`
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-md border px-2 py-1",
+        "text-[11px] font-medium font-mono transition-all duration-150",
+        colorMap[color],
+      )}
+    >
+      <Icon className="h-3 w-3 shrink-0" />
+      {label}
+      <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-60" />
+    </a>
   );
 }
+
+// ── Evidence DQL link/copy ────────────────────────────────────────────────────
 
 function EvidenceLink({ raw, index }: { raw: string; index: number }) {
   const [copied, setCopied] = useState(false);
   const isUrl = /^https?:\/\//i.test(raw);
   const dql = isUrl ? "" : extractDql(raw);
-  const href = isUrl ? raw : buildDtLink(dql);
+  const href = isUrl ? raw : buildNotebookUrl(dql);
 
   if (href) {
     return (
@@ -58,7 +127,6 @@ function EvidenceLink({ raw, index }: { raw: string; index: number }) {
     );
   }
 
-  // DT_ENV not configured — copy the DQL query to clipboard instead.
   function copyDql() {
     navigator.clipboard.writeText(dql || raw);
     setCopied(true);
@@ -77,8 +145,18 @@ function EvidenceLink({ raw, index }: { raw: string; index: number }) {
   );
 }
 
+// ── Main card ─────────────────────────────────────────────────────────────────
+
 export function GhostCard({ report }: GhostCardProps) {
   const cfg = SEVERITY_CONFIG[report.severity] ?? SEVERITY_CONFIG.medium;
+  const dtBase = buildDtBase();
+
+  // Build all DT deep links
+  const problemUrl       = report.davis_problem_id  ? buildProblemUrl(report.davis_problem_id) : null;
+  const entityUrl        = report.new_service_entity_id ? buildEntityUrl(report.new_service_entity_id) : null;
+  const eventUrl         = report.dynatrace_event_id ? buildEventUrl(report.dynatrace_event_id) : null;
+  const bizEventUrl      = buildBizEventUrl(report.report_id);
+  const hasDtLinks       = dtBase && (problemUrl || entityUrl || eventUrl || bizEventUrl);
 
   return (
     <article
@@ -148,41 +226,60 @@ export function GhostCard({ report }: GhostCardProps) {
           </div>
         )}
 
-        {/* ── Evidence links + Dynatrace event links ── */}
-        {(report.evidence_links.length > 0 || report.dynatrace_event_id || DT_ENV) && (
-          <div className="flex flex-wrap gap-2 pt-1">
+        {/* ── Evidence DQL links (raw query copies) ── */}
+        {report.evidence_links.length > 0 && (
+          <div className="flex flex-wrap gap-2 pt-0.5">
             {report.evidence_links.map((link, i) => (
               <EvidenceLink key={i} raw={link} index={i + 1} />
             ))}
-            {report.dynatrace_event_id && DT_ENV && (
-              <a
-                href={`https://${DT_ENV}.apps.dynatrace.com/ui/apps/dynatrace.events/events?filter=${encodeURIComponent(report.dynatrace_event_id)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 font-mono transition-colors"
-                title={`Dynatrace service annotation: ${report.dynatrace_event_id}`}
-              >
-                <ExternalLink className="h-3 w-3" />
-                dt event
-              </a>
-            )}
-            {DT_ENV && (
-              <a
-                href={
-                  `https://${DT_ENV}.apps.dynatrace.com/ui/apps/dynatrace.notebooks/` +
-                  `?query=${encodeURIComponent(
-                    `fetch bizevents\n| filter event.type == "karma.ghost_report.created"\n| filter event.data.report_id == "${report.report_id}"`
-                  )}`
-                }
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-teal-400 hover:text-teal-300 font-mono transition-colors"
-                title="Open BizEvent in Dynatrace Notebooks"
-              >
-                <ExternalLink className="h-3 w-3" />
-                bizevent
-              </a>
-            )}
+          </div>
+        )}
+
+        {/* ── Open in Dynatrace — deep link panel ── */}
+        {hasDtLinks && (
+          <div className="rounded-lg border border-teal-500/15 bg-teal-500/[0.04] p-3 space-y-2">
+            {/* DT brand header */}
+            <div className="flex items-center gap-1.5">
+              <Zap className="h-3 w-3 text-teal-400 shrink-0" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-teal-400/80">
+                Open in Dynatrace
+              </span>
+            </div>
+            {/* Link buttons */}
+            <div className="flex flex-wrap gap-1.5">
+              {problemUrl && (
+                <DtLink
+                  href={problemUrl}
+                  icon={AlertOctagon}
+                  label="Davis AI Problem"
+                  color="red"
+                />
+              )}
+              {entityUrl && (
+                <DtLink
+                  href={entityUrl}
+                  icon={ServerCrash}
+                  label="Service Entity"
+                  color="blue"
+                />
+              )}
+              {bizEventUrl && (
+                <DtLink
+                  href={bizEventUrl}
+                  icon={BookOpen}
+                  label="BizEvent"
+                  color="violet"
+                />
+              )}
+              {eventUrl && (
+                <DtLink
+                  href={eventUrl}
+                  icon={FileSearch}
+                  label="Timeline Annotation"
+                  color="teal"
+                />
+              )}
+            </div>
           </div>
         )}
 

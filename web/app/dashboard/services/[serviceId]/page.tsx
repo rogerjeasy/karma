@@ -23,13 +23,13 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useUserProfile } from "@/lib/user-profile-context";
 import { apiFetch } from "@/lib/api";
+import { ContractTimeline } from "@/components/ContractTimeline";
+import { GhostCard } from "@/components/GhostCard";
 import type {
-  ContractCategory,
   ContractResponse,
   GhostReport,
   ServiceResponse,
   SystemService,
-  ViolationSeverity,
   WatcherRun,
 } from "@/lib/types";
 
@@ -42,24 +42,6 @@ const PHASE_COLORS: Record<string, string> = {
   haunting:   "bg-primary/20   text-primary   border-primary/30",
   completed:  "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
   error:      "bg-red-500/20   text-red-300   border-red-500/30",
-};
-
-const SEVERITY_CFG: Record<ViolationSeverity, { label: string; cls: string }> = {
-  critical: { label: "Critical", cls: "bg-red-500/20 text-red-400 border-red-500/40" },
-  high:     { label: "High",     cls: "bg-orange-500/20 text-orange-400 border-orange-500/40" },
-  medium:   { label: "Medium",   cls: "bg-amber-500/20 text-amber-400 border-amber-500/40" },
-  low:      { label: "Low",      cls: "bg-zinc-500/20 text-zinc-400 border-zinc-500/30" },
-};
-
-const CATEGORY_COLORS: Partial<Record<ContractCategory, string>> = {
-  side_effect:     "text-red-400",
-  latency:         "text-blue-400",
-  error_semantics: "text-orange-400",
-  throughput:      "text-teal-400",
-  dependency:      "text-violet-400",
-  timing:          "text-amber-400",
-  sequencing:      "text-cyan-400",
-  resource:        "text-pink-400",
 };
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -250,88 +232,39 @@ export default function ServiceDetailPage() {
       </div>
 
       {/* Ghost reports */}
-      <Section
-        icon={<Ghost className="h-4 w-4 text-red-400" />}
-        title="Ghost Reports"
-        count={ghosts.length}
-        emptyIcon={<Ghost className="h-6 w-6 opacity-30" />}
-        emptyText={phase === "registered" || phase === "learning"
-          ? "No ghost reports yet — the watcher runs after cutover."
-          : "No ghost reports for this service."}
-      >
-        {ghosts.map((g) => {
-          const sev = SEVERITY_CFG[g.severity] ?? SEVERITY_CFG.medium;
-          return (
-            <div
-              key={g.report_id}
-              className="flex items-start gap-3 px-5 py-3.5 hover:bg-muted/30 transition-colors"
-            >
-              <span className={cn(
-                "mt-0.5 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                sev.cls,
-              )}>
-                {sev.label}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-slate-300 leading-snug">{g.summary}</p>
-                {g.root_cause && (
-                  <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-                    {g.root_cause}
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center gap-1 shrink-0 text-[10px] text-slate-400">
-                <Clock className="h-3 w-3" />
-                {formatDistanceToNow(new Date(g.created_at), { addSuffix: true })}
-              </div>
-            </div>
-          );
-        })}
-      </Section>
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 px-1">
+          <Ghost className="h-4 w-4 text-red-400" />
+          <h2 className="text-sm font-semibold text-foreground">Ghost Reports</h2>
+          <span className="ml-auto text-xs text-muted-foreground">{ghosts.length} total</span>
+        </div>
+        {ghosts.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border/70 bg-card flex flex-col items-center justify-center h-32 gap-2 text-muted-foreground">
+            <Ghost className="h-6 w-6 opacity-30" />
+            <p className="text-sm text-center px-8">
+              {phase === "registered" || phase === "learning"
+                ? "No ghost reports yet — the watcher runs after cutover."
+                : "No ghost reports for this service."}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {ghosts.map((g) => (
+              <GhostCard key={g.report_id} report={g} />
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Contracts */}
-      {contracts.length > 0 && (
-        <Section
-          icon={<FileCode2 className="h-4 w-4 text-teal-400" />}
-          title="Discovered Contracts"
-          count={contracts.length}
-        >
-          {contracts.map((c) => (
-            <div
-              key={c.contract_id}
-              className="flex items-start gap-3 px-5 py-3 hover:bg-muted/20 transition-colors"
-            >
-              <span className={cn(
-                "mt-px shrink-0 text-[10px] font-bold uppercase tracking-wide w-24 truncate",
-                CATEGORY_COLORS[c.category as ContractCategory] ?? "text-muted-foreground",
-              )}>
-                {c.category.replace(/_/g, " ")}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-slate-300 leading-snug">{c.description}</p>
-                {c.subcategory && (
-                  <p className="text-[11px] text-slate-500 mt-0.5">{c.subcategory}</p>
-                )}
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className={cn(
-                  "text-[11px] font-mono tabular-nums",
-                  c.confidence >= 0.9 ? "text-emerald-400"
-                  : c.confidence >= 0.7 ? "text-amber-400"
-                  : "text-muted-foreground",
-                )}>
-                  {(c.confidence * 100).toFixed(0)}%
-                </span>
-                {c.validated && (
-                  <span className="text-[10px] text-emerald-400 border border-emerald-500/30 rounded-full px-1.5 py-px">
-                    validated
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </Section>
-      )}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 px-1">
+          <FileCode2 className="h-4 w-4 text-teal-400" />
+          <h2 className="text-sm font-semibold text-foreground">Discovered Contracts</h2>
+          <span className="ml-auto text-xs text-muted-foreground">{contracts.length} total</span>
+        </div>
+        <ContractTimeline contracts={contracts} ghosts={ghosts} />
+      </div>
 
       {/* Watcher runs */}
       {watcherRuns.length > 0 && (
