@@ -80,10 +80,40 @@ class GhostReportResponse(BaseModel):
     investigation_input_tokens: int | None = None
     investigation_output_tokens: int | None = None
     dynatrace_event_id: str | None = None
+    # Avoided-incident cost estimated by the Forensic agent
+    avoided_incident_cost_usd: float | None = None
+    # Dynatrace Notebook created for HIGH/CRITICAL reports
+    dynatrace_notebook_url: str | None = None
+    # Dynatrace Workflow created for CRITICAL reports
+    dynatrace_workflow_id: str | None = None
+    # Whether a Slack notification was sent
+    slack_notification_sent: bool = False
     # Deep-link fields for direct Dynatrace navigation
     davis_problem_id: str | None = None        # from dynatrace_evidence.related_davis_problem_id
     new_service_entity_id: str | None = None   # Dynatrace entity ID of replacement service
     created_at: datetime
+
+
+class CategoryCompliance(BaseModel):
+    category: str
+    total_contracts: int
+    compliant: int
+    violated: int
+    score: float | None = None    # 0–100, None if no contracts in this category
+    weight: float                  # relative weight used in overall score
+
+
+class MigrationReadinessResponse(BaseModel):
+    service_id: str
+    service_name: str
+    phase: str
+    overall_score: float | None = None   # 0–100 weighted compliance score; None if no contracts
+    category_breakdown: list[CategoryCompliance]
+    total_contracts: int
+    total_violations_active: int
+    avoided_incident_cost_total_usd: float   # sum from all ghost reports for this service
+    recommendation: str
+    computed_at: datetime
 
 
 class ContractDetailResponse(BaseModel):

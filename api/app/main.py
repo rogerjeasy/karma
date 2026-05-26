@@ -24,6 +24,7 @@ from app.routes import (
     demo,
     ghosts,
     pubsub,
+    readiness,
     services,
     stats,
     stream,
@@ -96,6 +97,7 @@ def create_app() -> FastAPI:
     application.include_router(stats.router)
     application.include_router(users.router)
     application.include_router(services.router)
+    application.include_router(readiness.router)
     application.include_router(contracts.router)
     application.include_router(ghosts.router)
     application.include_router(cutover.router)

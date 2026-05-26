@@ -210,10 +210,39 @@ export interface GhostReport {
   investigation_input_tokens?: number | null;
   investigation_output_tokens?: number | null;
   dynatrace_event_id?: string | null;
+  // New: avoided-incident cost + Dynatrace Notebook + Workflow + Slack
+  avoided_incident_cost_usd?: number | null;
+  dynatrace_notebook_url?: string | null;
+  dynatrace_workflow_id?: string | null;
+  slack_notification_sent?: boolean;
   // Deep-link fields for direct Dynatrace navigation
   davis_problem_id?: string | null;
   new_service_entity_id?: string | null;
   created_at: string;
+}
+
+// ── Migration Readiness Score ─────────────────────────────────────────────────
+
+export interface CategoryCompliance {
+  category: ContractCategory;
+  total_contracts: number;
+  compliant: number;
+  violated: number;
+  score: number | null;   // 0–100; null if no contracts in category
+  weight: number;         // relative weight used in overall score
+}
+
+export interface MigrationReadiness {
+  service_id: string;
+  service_name: string;
+  phase: string;
+  overall_score: number | null;   // 0–100 weighted compliance; null if no contracts
+  category_breakdown: CategoryCompliance[];
+  total_contracts: number;
+  total_violations_active: number;
+  avoided_incident_cost_total_usd: number;
+  recommendation: string;
+  computed_at: string;
 }
 
 // ── Watcher live log SSE events ───────────────────────────────────────────────

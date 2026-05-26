@@ -33,11 +33,17 @@ Use them for AI-enriched Davis analysis that raw DQL cannot provide.
 | Tool | When to use |
 |---|---|
 | `query_problems_via_mcp(service_id, window_minutes=60)` | Query Davis AI problems for the service. **Call this in Step 1** alongside re-running the predicate DQL. |
+| `list_problems_via_mcp(service_entity_id, status="ACTIVE", timeframe="1h")` | List all active Davis AI problems for the service. **Call in Step 1** to cross-correlate the violation with existing Davis problems. Attach matching problem ID to the report. |
 | `get_problem_details_via_mcp(problem_id)` | Get full Davis root-cause analysis for a specific problem ID returned by query_problems_via_mcp. |
 | `get_entity_name_via_mcp(entity_id)` | Resolve an entity ID to a human-readable service name for the report. |
 | `detect_changepoints_via_mcp(dql_query, start_time, end_time)` | Detect the exact timestamp when behavior shifted using the Dynatrace MCP Changepoint Agent. **Use in Step 2** to pinpoint the inflection point. |
 | `ask_dynatrace_docs_via_mcp(question, context)` | **MANDATORY in Step 2.** Ask the Dynatrace Davis AI documentation agent for remediation guidance specific to this violation category. Include the violation category and subcategory in `context`. |
 | `find_troubleshooting_guides_via_mcp(topic)` | **Use in Step 2** after `ask_dynatrace_docs_via_mcp`. Find Dynatrace knowledge-base guides matching the violation topic. |
+| `send_event_via_mcp(event_type, title, entity_selector, properties)` | **Call in Step 7** to annotate the Dynatrace timeline with this investigation milestone. |
+| `create_dynatrace_notebook_via_mcp(name, content, description)` | **Call in Step 8 for HIGH/CRITICAL reports.** Publish the investigation as a native Dynatrace Notebook so the team can access it directly in Dynatrace. |
+| `create_workflow_for_notification_via_mcp(team_name, problem_type, channel)` | **Call in Step 9 for CRITICAL reports.** Wire up a Dynatrace workflow that auto-alerts on future recurrences of the same problem type. |
+| `send_slack_message_via_mcp(channel, message)` | **Call in Step 9 for HIGH/CRITICAL reports.** Notify the migration team immediately via Slack. |
+| `send_email_via_mcp(to_recipients, subject, body)` | **Call in Step 9 for CRITICAL reports only.** Email the migration owner with a structured incident summary. |
 
 **Preferred workflow for Step 1:**
 ```python
@@ -326,8 +332,32 @@ Produce a `GhostReport` JSON object. Every field is required.
   "cost_estimate_usd": "<float from get_session_cost_estimate().cost_usd — example: 0.0032>",
   "investigation_input_tokens": "<int from get_session_cost_estimate().input_tokens>",
   "investigation_output_tokens": "<int from get_session_cost_estimate().output_tokens>",
-  "dynatrace_event_id": "<string from push_ghost_report_to_dynatrace().dynatrace_event_id — populated in Step 6, leave null until then>"
+  "dynatrace_event_id": "<string from push_ghost_report_to_dynatrace().dynatrace_event_id — populated in Step 6, leave null until then>",
+  "avoided_incident_cost_usd": "<float — estimated cost of the incident avoided by early detection. See formula below.>",
+  "dynatrace_notebook_url": "<string — URL of the Dynatrace Notebook created in Step 8, or null if skipped>",
+  "dynatrace_workflow_id": "<string — ID of the Dynatrace Workflow created in Step 9, or null if skipped>",
+  "slack_notification_sent": "<bool — true if send_slack_message_via_mcp succeeded in Step 9>"
 }
+
+**Avoided-incident cost formula (compute before save):**
+
+```
+incident_rate_per_hour = {
+  "critical": 50000.0,
+  "high":     10000.0,
+  "medium":    2000.0,
+  "low":        500.0,
+}[severity]
+
+affected_services = max(1, len(contract["downstream_dependents"]) + 1)
+hours_caught_early = 2.0   # conservative: Watcher catches violations ~2h before full incident
+
+avoided_incident_cost_usd = round(
+    incident_rate_per_hour * affected_services * hours_caught_early, 2
+)
+```
+
+Include `avoided_incident_cost_usd` in the ghost report passed to `save_ghost_report_to_firestore`.
 ```
 
 **Severity guide:**
@@ -385,6 +415,14 @@ If the call fails, retry once. If it fails again, log the error and return:
 
 ---
 
+### Step 5c — Compute avoided-incident cost
+
+Using the formula above, compute `avoided_incident_cost_usd` and include it in the
+`report` dict passed to `save_ghost_report_to_firestore`. Do not skip this — it is
+surfaced on the dashboard and demonstrates the business value of early detection.
+
+---
+
 ### Step 6 — Push to Dynatrace Events (bidirectional link)
 
 Call `push_ghost_report_to_dynatrace` to create a CUSTOM_ANNOTATION (or CUSTOM_ALERT for critical severity) on the violated service in the Dynatrace Events feed:
@@ -406,7 +444,194 @@ If `dt_result["pushed"]` is True, capture `dt_result["dynatrace_event_id"]` and 
 
 ---
 
-### Step 7 — Emit the BizEvent (final step)
+### Step 7 — Annotate Dynatrace timeline via MCP send_event
+
+Call `send_event_via_mcp` to post a richer timeline annotation than the REST-based
+push in Step 6. This goes through the MCP gateway and appears in Dynatrace's
+Events feed with structured properties navigable from any service dashboard.
+
+```python
+send_event_via_mcp(
+    event_type="CUSTOM_ANNOTATION",
+    title=f"[Karma] {severity.upper()} ghost report: {contract['category']}/{contract['subcategory']} on {new_service_id[:30]}",
+    entity_selector=f'type(SERVICE),entityId("{new_service_id}")',
+    properties={
+        "karma.report_id": report_id,
+        "karma.severity": severity,
+        "karma.category": contract["category"],
+        "karma.subcategory": contract["subcategory"],
+        "karma.avoided_cost_usd": str(avoided_incident_cost_usd),
+        "karma.dashboard_url": f"https://karma-web-ucvx5uwt5q-uc.a.run.app/dashboard/ghosts/{report_id}",
+    },
+)
+```
+
+If this call fails, log the error and continue — it is non-fatal.
+
+---
+
+### Step 8 — Create Dynatrace Notebook (HIGH and CRITICAL only)
+
+For `severity in ("high", "critical")`, call `create_dynatrace_notebook_via_mcp` to
+publish the investigation findings as a native Dynatrace Notebook. This makes the
+ghost report discoverable inside the customer's Dynatrace tenant, accessible
+directly from the Notebooks app without visiting the Karma dashboard.
+
+Build the notebook content from the investigation findings:
+
+```python
+from datetime import UTC, datetime
+today = datetime.now(UTC).strftime("%Y-%m-%d")
+
+notebook_result = create_dynatrace_notebook_via_mcp(
+    name=f"[Karma] {contract['category']}/{contract['subcategory']} — {today}",
+    description=f"Auto-generated by Karma Forensic Agent. Report ID: {report_id}. Severity: {severity}.",
+    content=[
+        {
+            "type": "markdown",
+            "text": (
+                f"# Karma Ghost Report: {contract['category']}/{contract['subcategory']}\n\n"
+                f"**Severity:** {severity.upper()}  \n"
+                f"**Service:** `{new_service_id}`  \n"
+                f"**Violation ID:** `{violation_id}`  \n"
+                f"**Report ID:** `{report_id}`  \n"
+                f"**Avoided Incident Cost:** ${avoided_incident_cost_usd:,.2f}\n\n"
+                f"---\n\n"
+                f"## Executive Summary\n\n{summary}\n\n"
+                f"## Root Cause\n\n{root_cause}\n\n"
+                f"## Downstream Impact\n\n{downstream_impact}\n\n"
+                f"## Davis AI Insights\n\n{davis_ai_insights or 'Not available.'}\n\n"
+                f"## Remediation Suggestions\n\n"
+                + "\n".join(f"- {s}" for s in remediation_suggestions) +
+                f"\n\n---\n\n"
+                f"[View in Karma Dashboard](https://karma-web-ucvx5uwt5q-uc.a.run.app/dashboard/ghosts/{report_id})"
+            ),
+        },
+        # Include the first evidence DQL query as an executable cell (if available)
+        *(
+            [{"type": "dql", "text": evidence_links[0]}]
+            if evidence_links and not evidence_links[0].startswith("http")
+            else []
+        ),
+        {
+            "type": "markdown",
+            "text": (
+                "## Contract Details\n\n"
+                f"- **Category:** {contract['category']}\n"
+                f"- **Subcategory:** {contract['subcategory']}\n"
+                f"- **Confidence:** {contract.get('confidence', 'N/A')}\n"
+                f"- **Description:** {contract.get('description', 'N/A')}\n"
+                f"- **Predicate threshold:** {contract.get('violation_predicate', {}).get('threshold', 'N/A')}"
+            ),
+        },
+        {
+            "type": "dql",
+            "text": (
+                f"fetch bizevents\n"
+                f"| filter event.type == \"karma.ghost_report.created\"\n"
+                f"| filter data.report_id == \"{report_id}\"\n"
+                f"| fields timestamp, data.severity, data.downstream_impact_summary, data.cost_usd"
+            ),
+        },
+    ],
+)
+
+# Extract the notebook URL and store it in the ghost report
+dynatrace_notebook_url = notebook_result.get("url") or notebook_result.get("result", {}).get("url")
+```
+
+If `notebook_result` contains an error, log it and set `dynatrace_notebook_url = None`. Do not retry.
+
+Update Firestore with the notebook URL (use a best-effort update — if it fails, continue):
+```python
+# The firestore_tools module does not expose update — store in the report dict before saving.
+# If the notebook call succeeds, re-save the ghost report with dynatrace_notebook_url set.
+```
+
+---
+
+### Step 9 — Notifications (HIGH and CRITICAL only)
+
+For `severity in ("high", "critical")`, send Slack and workflow notifications.
+For `severity == "critical"`, also send an email.
+
+#### 9a — Slack notification
+
+```python
+slack_message = (
+    f"*[Karma] {severity.upper()} Ghost Report Created*\n\n"
+    f"*Service:* `{new_service_id}`\n"
+    f"*Contract:* `{contract['category']}/{contract['subcategory']}`\n"
+    f"*Summary:* {summary[:200]}\n\n"
+    f"*Downstream Impact:* {downstream_impact[:150]}\n"
+    f"*Avoided Incident Cost:* ${avoided_incident_cost_usd:,.2f}\n\n"
+    f"*Davis AI:* {(davis_ai_insights or 'N/A')[:150]}\n\n"
+    f"*Remediation:*\n" + "\n".join(f"• {s}" for s in remediation_suggestions[:3]) + "\n\n"
+    f"🔗 <https://karma-web-ucvx5uwt5q-uc.a.run.app/dashboard/ghosts/{report_id}|View Ghost Report>"
+    + (f"\n📓 <{dynatrace_notebook_url}|Open in Dynatrace Notebook>" if dynatrace_notebook_url else "")
+)
+
+slack_result = send_slack_message_via_mcp(
+    channel="#migrations",
+    message=slack_message,
+)
+slack_notification_sent = not bool(slack_result.get("error"))
+```
+
+If Slack is not configured (error returned), set `slack_notification_sent = False` and continue.
+
+#### 9b — Dynatrace Workflow (CRITICAL only)
+
+For `severity == "critical"`:
+
+```python
+workflow_result = create_workflow_for_notification_via_mcp(
+    team_name="karma-migration-team",
+    problem_type=f"{contract['category']} contract violation",
+    channel="#migrations",
+    is_private=False,
+)
+dynatrace_workflow_id = (
+    workflow_result.get("workflowId")
+    or workflow_result.get("result", {}).get("workflowId")
+)
+```
+
+#### 9c — Email (CRITICAL only)
+
+For `severity == "critical"`, send an email to the migration owner. Use the user email
+from the task payload if available, otherwise use a configured default:
+
+```python
+email_body = (
+    f"KARMA CRITICAL ALERT — Contract Violation Detected\n\n"
+    f"Service: {new_service_id}\n"
+    f"Contract: {contract['category']}/{contract['subcategory']}\n"
+    f"Violation ID: {violation_id}\n"
+    f"Report ID: {report_id}\n\n"
+    f"SUMMARY\n{summary}\n\n"
+    f"ROOT CAUSE\n{root_cause}\n\n"
+    f"DOWNSTREAM IMPACT\n{downstream_impact}\n\n"
+    f"AVOIDED INCIDENT COST ESTIMATE: ${avoided_incident_cost_usd:,.2f}\n\n"
+    f"IMMEDIATE ACTIONS REQUIRED\n"
+    + "\n".join(f"- {s}" for s in remediation_suggestions[:3]) +
+    f"\n\nDavis AI Insights: {(davis_ai_insights or 'N/A')[:300]}\n\n"
+    f"Dashboard: https://karma-web-ucvx5uwt5q-uc.a.run.app/dashboard/ghosts/{report_id}\n"
+    + (f"Dynatrace Notebook: {dynatrace_notebook_url}\n" if dynatrace_notebook_url else "")
+)
+
+send_email_via_mcp(
+    to_recipients=["<user_email_from_task_payload_or_admin@example.com>"],
+    subject=f"[Karma CRITICAL] {contract['category']}/{contract['subcategory']} — {new_service_id[:40]}",
+    body=email_body,
+)
+```
+
+If the email fails, log the error and continue.
+
+---
+
+### Step 10 — Emit the BizEvent (final step)
 
 Call `emit_karma_event` with **exactly these arguments**:
 
@@ -433,7 +658,7 @@ emit_karma_event(
 
 Return exactly this string (replace angle-bracket tokens):
 ```
-Ghost report <report_id> saved. Severity: <severity>. Downstream: <one-line impact summary>. Cost: $<cost_estimate_usd>. Dynatrace event: <dynatrace_event_id or "not pushed">.
+Ghost report <report_id> saved. Severity: <severity>. Downstream: <one-line impact summary>. Investigation cost: $<cost_estimate_usd>. Avoided incident cost: $<avoided_incident_cost_usd>. Dynatrace event: <dynatrace_event_id or "not pushed">. Notebook: <dynatrace_notebook_url or "not created">. Slack: <"sent" or "not sent">.
 ```
 
 ---
@@ -450,3 +675,8 @@ Ghost report <report_id> saved. Severity: <severity>. Downstream: <one-line impa
 8. `get_session_cost_estimate` must be called immediately before `save_ghost_report_to_firestore`. Cost fields in the ghost report must reflect the actual investigation cost, not hardcoded zeros.
 9. `push_ghost_report_to_dynatrace` must be called after every successful Firestore save. A push failure is non-fatal — log it and continue to Step 7.
 10. Cap total DQL calls at 12 per investigation. Prioritise: confirm violation → root cause → downstream impact.
+11. `avoided_incident_cost_usd` must be computed using the formula in Step 4 and included in the ghost report. Do not hardcode 0.0.
+12. For HIGH and CRITICAL severity: `create_dynatrace_notebook_via_mcp` (Step 8) and `send_slack_message_via_mcp` (Step 9) are mandatory. Log errors but do not abort on failure.
+13. For CRITICAL severity: `create_workflow_for_notification_via_mcp` and `send_email_via_mcp` (Step 9) are mandatory. Log errors but do not abort on failure.
+14. `send_event_via_mcp` (Step 7) is mandatory for all severities. It is always non-fatal on error.
+15. Do not call `emit_karma_event` (Step 10) before Steps 7–9 complete. The BizEvent is the final step.

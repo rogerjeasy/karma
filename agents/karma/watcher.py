@@ -14,7 +14,11 @@ from google.adk.agents import Agent
 from karma.config import settings
 from karma.otel_callbacks import make_telemetry_callbacks
 from karma.tools.dynatrace_api_tools import execute_dql
-from karma.tools.mcp_gateway_tools import get_entity_name_via_mcp, query_problems_via_mcp
+from karma.tools.mcp_gateway_tools import (
+    get_entity_name_via_mcp,
+    list_problems_via_mcp,
+    query_problems_via_mcp,
+)
 from karma.tools.memory_bank_tools import load_contracts_from_memory_bank
 from karma.tools.pubsub_tools import publish_violation_to_pubsub
 
@@ -30,7 +34,8 @@ service is currently honouring it, then publish any violations to Pub/Sub.
 |---|---|
 | `load_contracts_from_memory_bank(karma_service_id, top_k)` | Retrieve contracts from Vertex AI Memory Bank — proves contracts survive agent restarts. Call this **first** if `contracts` is empty in the task payload. |
 | `execute_dql(query)` | Execute any DQL query against Dynatrace Grail (spans, logs, metrics, events) |
-| `query_problems_via_mcp(service_id, window_minutes)` | Query Davis AI problems via the Dynatrace MCP Root Cause Agent |
+| `query_problems_via_mcp(service_id, window_minutes)` | Query Davis AI problems for a specific service via the MCP Root Cause Agent — returns AI-enriched context. |
+| `list_problems_via_mcp(service_entity_id, status, timeframe, max_problems)` | **Cross-correlate violations with existing Davis AI problems.** Call this after every confirmed violation to check if Davis already flagged this as an active problem. Attach the matching `problem_id` to the violation. |
 | `get_entity_name_via_mcp(entity_id)` | Resolve a Dynatrace entity ID to a human-readable name |
 | `publish_violation_to_pubsub(contract_id, karma_service_id, new_service_id, contract, predicate_dql, raw_dql_result, related_davis_problem_id)` | Publish a confirmed violation to the karma-violations Pub/Sub topic. The Forensic agent subscribes and picks it up asynchronously. |
 
@@ -88,11 +93,25 @@ For each contract:
    Threshold MET (non-empty records satisfy the threshold) → contract is honoured; continue.
    Threshold NOT MET (zero records, OR records present but threshold not satisfied) → violation candidate.
 
-4. For each violation candidate, call `query_problems_via_mcp`:
+4. For each violation candidate, perform **bidirectional Davis AI problem correlation** using both tools:
+
    ```python
-   query_problems_via_mcp(service_id=new_service_id, window_minutes=check_window_minutes)
+   # 4a. AI-enriched root cause from the Davis Root Cause Agent
+   query_result = query_problems_via_mcp(service_id=new_service_id, window_minutes=check_window_minutes)
+
+   # 4b. Cross-correlate with all active Davis AI problems on this service
+   #     This proves Karma integrates with Dynatrace bidirectionally — not just reading, also matching.
+   problems_list = list_problems_via_mcp(
+       service_entity_id=new_service_id,
+       status="ACTIVE",
+       timeframe=f"{check_window_minutes}m",
+       max_problems=5,
+   )
    ```
-   Extract `related_davis_problem_id` if a problem is active.
+
+   Extract `related_davis_problem_id` from whichever call returns a matching active problem.
+   If `list_problems_via_mcp` returns problems, use the most recent problem ID as `related_davis_problem_id`.
+   If both calls return no problems, set `related_davis_problem_id` to None.
 
 ### Step 2: Publish violations to Pub/Sub
 
@@ -160,6 +179,7 @@ def create_watcher_agent() -> Agent:
             load_contracts_from_memory_bank,
             execute_dql,
             query_problems_via_mcp,
+            list_problems_via_mcp,
             get_entity_name_via_mcp,
             publish_violation_to_pubsub,
         ],

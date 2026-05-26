@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   ExternalLink, ArrowRight, Clock, Copy, Check,
   Brain, Coins, Cpu, AlertOctagon, ServerCrash,
-  BookOpen, Zap, FileSearch,
+  BookOpen, Zap, FileSearch, TrendingUp, Bell, NotebookText,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { GhostReport, ViolationSeverity } from "@/lib/types";
@@ -156,7 +156,8 @@ export function GhostCard({ report }: GhostCardProps) {
   const entityUrl        = report.new_service_entity_id ? buildEntityUrl(report.new_service_entity_id) : null;
   const eventUrl         = report.dynatrace_event_id ? buildEventUrl(report.dynatrace_event_id) : null;
   const bizEventUrl      = buildBizEventUrl(report.report_id);
-  const hasDtLinks       = dtBase && (problemUrl || entityUrl || eventUrl || bizEventUrl);
+  const notebookUrl      = report.dynatrace_notebook_url ?? null;
+  const hasDtLinks       = dtBase && (problemUrl || entityUrl || eventUrl || bizEventUrl || notebookUrl);
 
   return (
     <article
@@ -279,7 +280,33 @@ export function GhostCard({ report }: GhostCardProps) {
                   color="teal"
                 />
               )}
+              {notebookUrl && (
+                <DtLink
+                  href={notebookUrl}
+                  icon={NotebookText}
+                  label="DT Notebook"
+                  color="violet"
+                />
+              )}
             </div>
+          </div>
+        )}
+
+        {/* ── Avoided incident cost highlight ── */}
+        {report.avoided_incident_cost_usd != null && report.avoided_incident_cost_usd > 0 && (
+          <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.04] px-3 py-2">
+            <TrendingUp className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+            <p className="text-[11px] text-emerald-300">
+              Early detection avoided an estimated{" "}
+              <span className="font-bold">${report.avoided_incident_cost_usd.toLocaleString()}</span>{" "}
+              incident cost
+            </p>
+            {report.slack_notification_sent && (
+              <div className="ml-auto flex items-center gap-1 text-[10px] text-sky-400">
+                <Bell className="h-3 w-3" />
+                <span>Slack notified</span>
+              </div>
+            )}
           </div>
         )}
 

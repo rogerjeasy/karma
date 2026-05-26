@@ -148,6 +148,15 @@ class GhostReport(BaseModel):
     # Input/output token counts for the full investigation session
     investigation_input_tokens: int | None = None
     investigation_output_tokens: int | None = None
+    # Estimated cost of the incident that was avoided by early detection.
+    # Computed from severity × affected service count × hours caught early.
+    avoided_incident_cost_usd: float | None = None
+    # Dynatrace Notebook URL created by the Forensic agent for HIGH/CRITICAL reports.
+    dynatrace_notebook_url: str | None = None
+    # Dynatrace Workflow ID created for recurring problem notification (CRITICAL only).
+    dynatrace_workflow_id: str | None = None
+    # Whether a Slack notification was sent for this ghost report.
+    slack_notification_sent: bool = False
 
     def to_firestore_dict(self) -> dict[str, object]:
         return self.model_dump(mode="json")

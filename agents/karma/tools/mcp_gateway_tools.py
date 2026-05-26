@@ -381,6 +381,224 @@ def find_troubleshooting_guides_via_mcp(
     return _call_mcp_tool("find-troubleshooting-guides", {"query": topic})
 
 
+# ── New action tools: notifications, notebooks, workflows, problem listing ────
+
+
+def list_problems_via_mcp(
+    service_entity_id: str | None = None,
+    status: str = "ACTIVE",
+    timeframe: str = "1h",
+    max_problems: int = 10,
+) -> dict[str, Any]:
+    """List Davis AI problems from Dynatrace, optionally filtered to a specific service.
+
+    Use this in the Watcher to cross-correlate a newly detected contract violation
+    with any existing Davis AI problem on the same service. If a matching problem
+    exists, attach its ID to the violation before publishing to Pub/Sub.
+
+    Args:
+        service_entity_id: Dynatrace entity ID to filter by (e.g. "SERVICE-XXX").
+                           Pass None to query all problems across the tenant.
+        status: "ACTIVE" (only open problems), "CLOSED", or "ALL" (default "ACTIVE").
+        timeframe: Look-back window — "1h", "6h", "24h", "7d" (default "1h").
+        max_problems: Maximum problems to return (default 10, max 5000).
+
+    Returns:
+        Dict with a list of active Davis AI problems and their IDs, titles, and statuses.
+    """
+    logger.info(
+        "mcp_list_problems",
+        service_entity_id=service_entity_id,
+        status=status,
+        timeframe=timeframe,
+    )
+    args: dict[str, Any] = {
+        "status": status,
+        "timeframe": timeframe,
+        "maxProblemsToDisplay": max_problems,
+    }
+    if service_entity_id:
+        args["additionalFilter"] = f'dt.entity.service == "{service_entity_id}"'
+    return _call_mcp_tool("list-problems", args)
+
+
+def send_event_via_mcp(
+    event_type: str,
+    title: str,
+    entity_selector: str = "",
+    properties: dict[str, str] | None = None,
+    start_time_ms: int | None = None,
+    end_time_ms: int | None = None,
+) -> dict[str, Any]:
+    """Send a custom event to Dynatrace via the Events API v2 through the MCP gateway.
+
+    Use this to annotate the Dynatrace timeline with significant Karma milestones:
+    cutover decisions, investigation completions, or migration state changes.
+    Events appear on entity timelines and can trigger Davis AI correlation.
+
+    Args:
+        event_type: DT event type — "CUSTOM_INFO", "CUSTOM_DEPLOYMENT", "CUSTOM_ALERT",
+                    "CUSTOM_ANNOTATION", "CUSTOM_CONFIGURATION", "ERROR_EVENT".
+        title: Event title shown on the Dynatrace timeline (max 500 chars).
+        entity_selector: Optional entity selector, e.g. 'type(SERVICE),entityId(SERVICE-XXX)'.
+        properties: Optional key-value string pairs attached to the event.
+        start_time_ms: Start timestamp in UTC milliseconds (default: now).
+        end_time_ms: End timestamp in UTC milliseconds (default: now).
+
+    Returns:
+        Dict with event creation result and correlation ID.
+    """
+    logger.info("mcp_send_event", event_type=event_type, title=title[:60])
+    args: dict[str, Any] = {"eventType": event_type, "title": title}
+    if entity_selector:
+        args["entitySelector"] = entity_selector
+    if properties:
+        args["properties"] = properties
+    if start_time_ms is not None:
+        args["startTime"] = start_time_ms
+    if end_time_ms is not None:
+        args["endTime"] = end_time_ms
+    return _call_mcp_tool("send-event", args)
+
+
+def send_slack_message_via_mcp(
+    channel: str,
+    message: str,
+) -> dict[str, Any]:
+    """Send a Slack message via the Dynatrace Slack Connector through the MCP gateway.
+
+    Use this to notify the migration team when a HIGH or CRITICAL ghost report is
+    generated. Prefer concise, actionable messages with evidence links. Dynatrace
+    Slack markdown is supported — use *bold*, `code`, and links freely.
+
+    The Dynatrace Slack Connector must be configured in the tenant before this works.
+    If the connector is not set up, the call returns an error — log it and continue.
+
+    Args:
+        channel: Slack channel name (e.g. "#migrations" or "#alerts").
+        message: Slack-markdown message body. Avoid raw log lines — use summaries,
+                 links, and structured context. Max ~3000 chars.
+
+    Returns:
+        Dict with Slack delivery status.
+    """
+    logger.info("mcp_send_slack", channel=channel, message_len=len(message))
+    return _call_mcp_tool(
+        "send-slack-message",
+        {"channel": channel, "message": message},
+    )
+
+
+def send_email_via_mcp(
+    to_recipients: list[str],
+    subject: str,
+    body: str,
+    cc_recipients: list[str] | None = None,
+) -> dict[str, Any]:
+    """Send an email via the Dynatrace Email API through the MCP gateway.
+
+    Sender is always no-reply@apps.dynatrace.com. Use for CRITICAL ghost reports
+    where the migration owner must be notified urgently (data loss risk, cascading
+    failures, SLO breach imminent).
+
+    Maximum 10 recipients total across TO, CC, and BCC.
+
+    Args:
+        to_recipients: List of TO email addresses (max 10 total with CC/BCC).
+        subject: Email subject line.
+        body: Plain-text email body. Focus on: what broke, what's at risk,
+              link to the ghost report, recommended immediate action.
+        cc_recipients: Optional CC email addresses.
+
+    Returns:
+        Dict with email delivery status.
+    """
+    logger.info(
+        "mcp_send_email",
+        to=to_recipients,
+        subject=subject[:80],
+    )
+    args: dict[str, Any] = {
+        "toRecipients": to_recipients,
+        "subject": subject,
+        "body": body,
+    }
+    if cc_recipients:
+        args["ccRecipients"] = cc_recipients
+    return _call_mcp_tool("send-email", args)
+
+
+def create_dynatrace_notebook_via_mcp(
+    name: str,
+    content: list[dict[str, str]],
+    description: str = "",
+) -> dict[str, Any]:
+    """Create a Dynatrace Notebook containing the ghost report investigation findings.
+
+    A Dynatrace Notebook is a collaborative analysis document that lives inside
+    the Dynatrace tenant — SREs can find it natively in the Notebooks app. Each
+    cell is either a DQL query (executable in the notebook) or Markdown text.
+
+    Call this for HIGH and CRITICAL ghost reports after save_ghost_report_to_firestore
+    succeeds. The returned notebook URL should be stored in the ghost report.
+
+    Args:
+        name: Notebook name shown in the Dynatrace Notebooks app.
+              Convention: "[Karma] <category>/<subcategory> — <service-name> — <date>".
+        content: Ordered list of cells. Each cell: {"type": "dql"|"markdown", "text": "..."}.
+                 DQL cells are rendered as executable queries. Markdown cells support
+                 full GFM including headers, tables, code blocks, and links.
+        description: Optional notebook description (purpose, scope, summary).
+
+    Returns:
+        Dict with the notebook ID and URL (navigable in the Dynatrace Notebooks app).
+    """
+    logger.info("mcp_create_notebook", name=name[:80], cells=len(content))
+    args: dict[str, Any] = {"name": name, "content": content}
+    if description:
+        args["description"] = description
+    return _call_mcp_tool("create-dynatrace-notebook", args)
+
+
+def create_workflow_for_notification_via_mcp(
+    team_name: str,
+    problem_type: str,
+    channel: str = "",
+    is_private: bool = False,
+) -> dict[str, Any]:
+    """Create a Dynatrace workflow that fires notifications when problems of a specific type occur.
+
+    Use this for CRITICAL ghost reports to wire up an automated Dynatrace workflow
+    that will alert the migration team on any future recurrence of the same problem
+    type — even when Karma is not actively watching.
+
+    Args:
+        team_name: The Dynatrace team name (dt.owner tag or team identifier).
+        problem_type: The Davis AI problem type to trigger on
+                      (e.g. "Performance degradation", "Response time degradation",
+                      "Error rate increase", "Service unavailable").
+        channel: Optional Slack channel for workflow notifications.
+        is_private: Whether to create a private workflow (default False).
+
+    Returns:
+        Dict with workflow ID and execution URL.
+    """
+    logger.info(
+        "mcp_create_workflow",
+        team_name=team_name,
+        problem_type=problem_type,
+        channel=channel,
+    )
+    args: dict[str, Any] = {
+        "teamName": team_name,
+        "problemType": problem_type,
+        "isPrivate": is_private,
+    }
+    if channel:
+        args["channel"] = channel
+    return _call_mcp_tool("create-workflow-for-notification", args)
+
+
 def adaptive_anomaly_detection_via_mcp(
     dql_query: str,
     start_time: str = "now-2h",

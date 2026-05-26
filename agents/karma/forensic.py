@@ -34,11 +34,17 @@ from karma.tools.dynatrace_problems import (
 from karma.tools.firestore_tools import save_ghost_report_to_firestore
 from karma.tools.mcp_gateway_tools import (
     ask_dynatrace_docs_via_mcp,
+    create_dynatrace_notebook_via_mcp,
+    create_workflow_for_notification_via_mcp,
     detect_changepoints_via_mcp,
     find_troubleshooting_guides_via_mcp,
     get_entity_name_via_mcp,
     get_problem_details_via_mcp,
+    list_problems_via_mcp,
     query_problems_via_mcp,
+    send_email_via_mcp,
+    send_event_via_mcp,
+    send_slack_message_via_mcp,
 )
 
 _SYSTEM_PROMPT_PATH = Path(__file__).parent / "prompts" / "forensic_system.md"
@@ -53,10 +59,10 @@ def create_forensic_agent() -> Agent:
         description=(
             "Deep-investigation agent. Triggered on contract violations; "
             "pulls trace + log context, runs Davis AI root-cause analysis, "
-            "assesses downstream impact, estimates investigation cost, "
-            "and produces structured ghost reports with linked Dynatrace evidence. "
-            "Pushes annotations back to the Dynatrace service timeline. "
-            "Emits a BizEvent to Dynatrace after each report for auditability."
+            "assesses downstream impact, estimates investigation cost and avoided-incident savings, "
+            "produces structured ghost reports, creates Dynatrace Notebooks and Workflows, "
+            "sends Slack/email notifications for HIGH+CRITICAL reports, "
+            "and pushes annotations back to the Dynatrace service timeline."
         ),
         instruction=system_prompt,
         tools=[
@@ -64,12 +70,19 @@ def create_forensic_agent() -> Agent:
             execute_dql,
             # Dynatrace MCP gateway — Davis AI analysis, changepoints, entity resolution
             query_problems_via_mcp,
+            list_problems_via_mcp,
             get_problem_details_via_mcp,
             get_entity_name_via_mcp,
             detect_changepoints_via_mcp,
             # Dynatrace MCP gateway — Davis AI documentation + remediation guidance
             ask_dynatrace_docs_via_mcp,
             find_troubleshooting_guides_via_mcp,
+            # Dynatrace MCP gateway — timeline events, notebooks, workflows, notifications
+            send_event_via_mcp,
+            create_dynatrace_notebook_via_mcp,
+            create_workflow_for_notification_via_mcp,
+            send_slack_message_via_mcp,
+            send_email_via_mcp,
             # Session telemetry — operational cost of this investigation
             get_session_cost_estimate,
             # Persistence and self-observability

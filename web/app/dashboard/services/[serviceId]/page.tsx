@@ -25,9 +25,13 @@ import { useUserProfile } from "@/lib/user-profile-context";
 import { apiFetch } from "@/lib/api";
 import { ContractTimeline } from "@/components/ContractTimeline";
 import { GhostCard } from "@/components/GhostCard";
+import { MigrationReadinessScore } from "@/components/MigrationReadinessScore";
+import { ContractRadarChart } from "@/components/ContractRadarChart";
 import type {
+  CategoryCompliance,
   ContractResponse,
   GhostReport,
+  MigrationReadiness,
   ServiceResponse,
   SystemService,
   WatcherRun,
@@ -231,6 +235,14 @@ export default function ServiceDetailPage() {
         />
       </div>
 
+      {/* ── Migration Readiness + Radar (shown when learning is complete) ── */}
+      {(phase === "haunting" || phase === "ready" || phase === "completed") && contracts.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <MigrationReadinessScore serviceId={serviceId} isSystem={isSystem} />
+          <ReadinessRadarBridge serviceId={serviceId} />
+        </div>
+      )}
+
       {/* Ghost reports */}
       <div className="space-y-3">
         <div className="flex items-center gap-2 px-1">
@@ -326,6 +338,24 @@ export default function ServiceDetailPage() {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+/**
+ * Fetches MigrationReadiness data and passes the breakdown to the radar chart.
+ * Keeps the service detail page clean by co-locating the data-fetch with the display.
+ */
+function ReadinessRadarBridge({ serviceId }: { serviceId: string }) {
+  const [breakdown, setBreakdown] = useState<CategoryCompliance[]>([]);
+  const [loaded, setLoaded]       = useState(false);
+
+  useEffect(() => {
+    apiFetch<MigrationReadiness>(`/services/${serviceId}/readiness`)
+      .then((d) => { setBreakdown(d.category_breakdown); setLoaded(true); })
+      .catch(() => setLoaded(true));
+  }, [serviceId]);
+
+  if (!loaded) return null;
+  return <ContractRadarChart breakdown={breakdown} />;
+}
 
 function StatCard({
   icon,

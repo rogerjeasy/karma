@@ -488,6 +488,156 @@ async def compute_platform_stats() -> dict[str, Any]:
     }
 
 
+# ── Migration Readiness Score ─────────────────────────────────────────────────
+
+# Weights for each contract category in the overall readiness score.
+# Weights sum to 1.0. Higher weight = more impact on the cutover decision.
+_CATEGORY_WEIGHTS: dict[str, float] = {
+    "latency":         0.20,
+    "error_semantics": 0.20,
+    "throughput":      0.15,
+    "side_effect":     0.15,
+    "timing":          0.10,
+    "dependency":      0.10,
+    "resource":        0.05,
+    "sequencing":      0.05,
+}
+
+_SEVERITY_INCIDENT_RATE: dict[str, float] = {
+    "critical": 50_000.0,
+    "high":     10_000.0,
+    "medium":    2_000.0,
+    "low":         500.0,
+}
+
+
+async def compute_readiness_score(service_id: str) -> dict[str, Any]:
+    """Compute a 0–100 Migration Readiness Score for a service.
+
+    The score is a weighted average of per-category contract compliance rates:
+    - 1.0 (100%) if no recent violations exist for that category's contracts
+    - linearly reduced by (violated / total) per category
+    Categories with zero contracts are excluded from the weight pool.
+
+    Also computes the total avoided-incident cost from all ghost reports for this service.
+    """
+    db = get_db()
+
+    # Pull all contracts and recent ghost reports in parallel
+    contracts = await list_contracts_for_service(service_id)
+
+    ghost_query = (
+        db.collection("ghost_reports")
+        .where(filter=FieldFilter("karma_service_id", "==", service_id))
+        .order_by("created_at", direction=firestore.Query.DESCENDING)
+        .limit(200)
+    )
+    ghost_docs: list[dict[str, Any]] = [
+        d async for doc in ghost_query.stream() if (d := doc.to_dict()) is not None
+    ]
+
+    # Build a set of contract IDs that have a recent ghost report (i.e. active violation).
+    # "Recent" = within the last 7 days.
+    recent_cutoff = datetime.now(dt.UTC) - timedelta(days=7)
+    violated_contract_ids: set[str] = set()
+    for ghost in ghost_docs:
+        raw_ts = ghost.get("created_at") or ghost.get("saved_at")
+        if raw_ts:
+            try:
+                ts = raw_ts if isinstance(raw_ts, datetime) else datetime.fromisoformat(str(raw_ts))
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=dt.UTC)
+                if ts >= recent_cutoff:
+                    cid = ghost.get("contract", {}).get("contract_id") or ghost.get("contract_id")
+                    if cid:
+                        violated_contract_ids.add(cid)
+            except Exception:
+                pass
+
+    # Build per-category compliance data
+    from collections import defaultdict
+    category_contracts: dict[str, list[str]] = defaultdict(list)
+    for c in contracts:
+        cat = c.get("category", "")
+        cid = c.get("contract_id", "")
+        if cat and cid:
+            category_contracts[cat].append(cid)
+
+    breakdown: list[dict[str, Any]] = []
+    weighted_sum = 0.0
+    active_weight = 0.0
+
+    for category, weight in _CATEGORY_WEIGHTS.items():
+        cat_ids = category_contracts.get(category, [])
+        total = len(cat_ids)
+        if total == 0:
+            breakdown.append({
+                "category": category,
+                "total_contracts": 0,
+                "compliant": 0,
+                "violated": 0,
+                "score": None,
+                "weight": weight,
+            })
+            continue
+
+        violated = len([cid for cid in cat_ids if cid in violated_contract_ids])
+        compliant = total - violated
+        cat_score = compliant / total
+
+        weighted_sum += cat_score * weight
+        active_weight += weight
+
+        breakdown.append({
+            "category": category,
+            "total_contracts": total,
+            "compliant": compliant,
+            "violated": violated,
+            "score": round(cat_score * 100, 1),
+            "weight": weight,
+        })
+
+    overall_score: float | None = None
+    if active_weight > 0:
+        overall_score = round((weighted_sum / active_weight) * 100, 1)
+
+    # Sum avoided-incident costs from all ghost reports
+    avoided_total = sum(
+        float(g.get("avoided_incident_cost_usd") or 0.0)
+        for g in ghost_docs
+    )
+
+    recommendation = _readiness_recommendation(overall_score, len(contracts))
+    return {
+        "overall_score": overall_score,
+        "category_breakdown": breakdown,
+        "total_contracts": len(contracts),
+        "total_violations_active": len(violated_contract_ids),
+        "avoided_incident_cost_total_usd": round(avoided_total, 2),
+        "recommendation": recommendation,
+    }
+
+
+def _readiness_recommendation(score: float | None, total_contracts: int) -> str:
+    if total_contracts == 0:
+        return "No contracts found — run the Learner agent first to discover implicit contracts."
+    if score is None:
+        return "Score unavailable — check if learning is complete."
+    if score >= 95:
+        return "Ready for cutover — all critical contracts are compliant. Proceed with confidence."
+    if score >= 80:
+        return "Nearly ready — minor violations detected. Review open ghost reports before cutover."
+    if score >= 60:
+        return (
+            "Caution — significant violations present. "
+            "Investigate ghost reports and remediate before cutover."
+        )
+    return (
+        "Not ready — critical contract violations detected. "
+        "Cutover is high risk. Remediate immediately."
+    )
+
+
 # ── Watcher runs ──────────────────────────────────────────────────────────────
 
 async def save_watcher_run(run_id: str, data: dict[str, Any]) -> None:

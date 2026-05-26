@@ -56,6 +56,14 @@ TOOL_TROUBLESHOOTING    = "find-troubleshooting-guides"        # Troubleshooting
 TOOL_SMARTSCAPE_ID      = "get-entity-id"                      # Smartscape Agent (name → ID)
 TOOL_SMARTSCAPE_NAME    = "get-entity-name"                    # Smartscape Agent (ID → name)
 
+# Action tools — notifications, notebooks, workflows, event ingestion
+TOOL_LIST_PROBLEMS      = "list-problems"                      # List Davis AI problems
+TOOL_SEND_EVENT         = "send-event"                         # Events API v2 ingestion
+TOOL_SEND_SLACK         = "send-slack-message"                 # Slack Connector notification
+TOOL_SEND_EMAIL         = "send-email"                         # Email notification
+TOOL_CREATE_NOTEBOOK    = "create-dynatrace-notebook"          # Dynatrace Notebook creation
+TOOL_CREATE_WORKFLOW    = "create-workflow-for-notification"   # Workflow automation
+
 # All known tools — used by the verify-tools script only
 ALL_KNOWN_TOOLS: frozenset[str] = frozenset({
     TOOL_GRAIL_QUERY,
@@ -75,6 +83,13 @@ ALL_KNOWN_TOOLS: frozenset[str] = frozenset({
     TOOL_TROUBLESHOOTING,
     TOOL_SMARTSCAPE_ID,
     TOOL_SMARTSCAPE_NAME,
+    # Action tools
+    TOOL_LIST_PROBLEMS,
+    TOOL_SEND_EVENT,
+    TOOL_SEND_SLACK,
+    TOOL_SEND_EMAIL,
+    TOOL_CREATE_NOTEBOOK,
+    TOOL_CREATE_WORKFLOW,
 })
 
 # Per-agent subsets — documentation only, describe intended usage, not filters
@@ -85,12 +100,19 @@ LEARNER_TOOLS: frozenset[str] = frozenset({
     TOOL_KUBERNETES, TOOL_HELP,
 })
 WATCHER_TOOLS: frozenset[str] = frozenset({
-    TOOL_DATA_ANALYSIS, TOOL_ROOT_CAUSE,
+    TOOL_DATA_ANALYSIS, TOOL_ROOT_CAUSE, TOOL_LIST_PROBLEMS,
 })
 FORENSIC_TOOLS: frozenset[str] = frozenset({
     TOOL_DATA_ANALYSIS, TOOL_ROOT_CAUSE, TOOL_ROOT_CAUSE_DETAILS,
     TOOL_SMARTSCAPE_ID, TOOL_SMARTSCAPE_NAME, TOOL_VULNERABILITY,
     TOOL_HELP, TOOL_TROUBLESHOOTING, TOOL_DOCUMENT, TOOL_CHANGEPOINT,
+    # Action tools — notifications, notebooks, workflows, timeline events
+    TOOL_LIST_PROBLEMS,
+    TOOL_SEND_EVENT,
+    TOOL_SEND_SLACK,
+    TOOL_SEND_EMAIL,
+    TOOL_CREATE_NOTEBOOK,
+    TOOL_CREATE_WORKFLOW,
 })
 
 # Alias kept for the verify-tools script
