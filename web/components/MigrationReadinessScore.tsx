@@ -110,7 +110,7 @@ function CategoryBar({ cat }: { cat: CategoryCompliance }) {
   );
 }
 
-export function MigrationReadinessScore({ serviceId, isSystem = false }: MigrationReadinessScoreProps) {
+export function MigrationReadinessScore({ serviceId }: MigrationReadinessScoreProps) {
   const [data, setData]       = useState<MigrationReadiness | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(false);

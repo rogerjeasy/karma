@@ -3,8 +3,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Bot,
-  CheckCircle2,
-  Clock,
   DollarSign,
   Ghost,
   Loader2,
@@ -13,7 +11,6 @@ import {
   Search,
   Sparkles,
   Users,
-  XCircle,
   Zap,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -21,7 +18,6 @@ import { cn } from "@/lib/utils";
 import { useSSEEvent } from "@/lib/sse-context";
 import { SEV_BAR_COLORS, SEV_TEXT_COLORS } from "./constants";
 import { formatTokens, formatCost } from "./utils";
-import { SeverityBar } from "./SeverityBar";
 import { UserRow } from "./UserRow";
 import type { InvestigationEngineData, ViolationSeverity } from "@/lib/types";
 
