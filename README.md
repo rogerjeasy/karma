@@ -35,6 +35,30 @@ Karma catches it.
 
 ---
 
+## Screenshots
+
+### User Dashboard
+
+| Live Overview | Services Panel | Ghost Reports |
+|:---:|:---:|:---:|
+| ![Overview](web/public/screenshots/users/user-dashboard-1.png) | ![Services](web/public/screenshots/users/user-dashboard-2.png) | ![Ghost Reports](web/public/screenshots/users/user-dashboard-3.png) |
+
+| Ghost Details | Event Timeline | Contract Inspector |
+|:---:|:---:|:---:|
+| ![Ghost Details](web/public/screenshots/users/user-ghost-dashboard.png) | ![Timeline](web/public/screenshots/users/user-timeline-dashboard.png) | ![Contracts](web/public/screenshots/users/user-contract-detail-dashboard.png) |
+
+### Admin Dashboard
+
+| Admin Panel | Infrastructure | Ghost Management |
+|:---:|:---:|:---:|
+| ![Admin Panel](web/public/screenshots/admin/admin-dashboard-1.png) | ![Infrastructure](web/public/screenshots/admin/admin-dashboard-2.png) | ![Ghosts](web/public/screenshots/admin/admin-ghosts.png) |
+
+| Cost Tracking | Platform Observability | Davis AI Forensics |
+|:---:|:---:|:---:|
+| ![Cost](web/public/screenshots/admin/admin-cost-dashboard.png) | ![Observability](web/public/screenshots/admin/admin-platform-obs-1.png) | ![Davis AI](web/public/screenshots/admin/admin-ai-investigation.png) |
+
+---
+
 ## Demo
 
 [**Watch the 2:45 demo video**](#) · [**Try the live demo**](https://karma-web-ucvx5uwt5q-uc.a.run.app) · [**Devpost submission**](https://rapid-agent.devpost.com)
