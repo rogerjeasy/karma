@@ -452,9 +452,14 @@ async def get_agent_observability(
     cc_from_grail = False
 
     if grail_ok:
+        # Filter on span-level attribute gen_ai.system (not the resource-level service.name)
+        # because Dynatrace evaluates service.name at entity level where span attributes read
+        # as null — making the subsequent isNotNull(gen_ai.usage.input_tokens) drop those spans.
+        # gen_ai.system == "anthropic" uniquely identifies Claude Code in this environment
+        # (all karma ADK agents use "google_vertex").
         dql_cc = (
             "fetch spans, from:now()-30d\n"
-            '| filter service.name == "claude-code-dev"\n'
+            '| filter gen_ai.system == "anthropic"\n'
             "| filter isNotNull(gen_ai.usage.input_tokens)\n"
             "| summarize\n"
             "    input_tokens  = sum(toLong(gen_ai.usage.input_tokens)),\n"
