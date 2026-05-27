@@ -65,6 +65,13 @@ class Settings(BaseSettings):
     # DT API token with storage:logs:read + storage:events:read scopes (Grail DQL).
     dt_query_token: str = ""
 
+    @field_validator("dt_query_token", "dt_otel_token", "dt_env", "api_secret_key", mode="after")
+    @classmethod
+    def _strip_whitespace(cls, v: str) -> str:
+        # Cloud Run secrets are sometimes stored with a trailing \r\n which causes
+        # httpx to raise "Illegal header value".  Strip all leading/trailing whitespace.
+        return v.strip()
+
     # ── GitHub ────────────────────────────────────────────────────────────────
     # Fine-grained PAT with Contents:read + Pull requests:read on the repo(s).
     # Used by the cutover endpoint to attach real engineering metrics to the
