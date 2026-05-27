@@ -403,70 +403,159 @@ async def delete_system_service(
     return {"service_id": service_id, **result}
 
 
+_DQL_KARMA_TOTALS = (
+    "fetch spans, from:now()-30d\n"
+    '| filter service.name == "karma-agent-system"\n'
+    "| filter isNotNull(gen_ai.usage.input_tokens)\n"
+    "| summarize\n"
+    "    input_tokens  = sum(toLong(gen_ai.usage.input_tokens)),\n"
+    "    output_tokens = sum(toLong(gen_ai.usage.output_tokens)),\n"
+    "    span_count    = count()"
+)
+
+_DQL_PER_AGENT = (
+    "fetch spans, from:now()-30d\n"
+    '| filter service.name == "karma-agent-system"\n'
+    "| filter isNotNull(gen_ai.usage.input_tokens)\n"
+    "| summarize\n"
+    "    input_tokens  = sum(toLong(gen_ai.usage.input_tokens)),\n"
+    "    output_tokens = sum(toLong(gen_ai.usage.output_tokens)),\n"
+    "    span_count    = count()\n"
+    "  by: agent = karma.agent"
+)
+
+_DQL_RECENT_INVOCATIONS = (
+    "fetch spans, from:now()-7d\n"
+    '| filter service.name == "karma-agent-system"\n'
+    '| filter span.name == "karma.agent_run"\n'
+    "| fields timestamp, trace.id, karma.agent, session.id, user.email, karma.model_turns\n"
+    "| sort timestamp desc\n"
+    "| limit 10"
+)
+
+_DQL_CC_TOTALS = (
+    "fetch spans, from:now()-30d\n"
+    '| filter gen_ai.system == "anthropic"\n'
+    "| filter isNotNull(gen_ai.usage.input_tokens)\n"
+    "| summarize\n"
+    "    input_tokens  = sum(toLong(gen_ai.usage.input_tokens)),\n"
+    "    output_tokens = sum(toLong(gen_ai.usage.output_tokens)),\n"
+    "    span_count    = count()"
+)
+
+_DQL_CC_DAILY = (
+    "fetch spans, from:now()-7d\n"
+    '| filter gen_ai.system == "anthropic"\n'
+    "| filter isNotNull(gen_ai.usage.input_tokens)\n"
+    "| summarize\n"
+    "    input_tokens  = sum(toLong(gen_ai.usage.input_tokens)),\n"
+    "    output_tokens = sum(toLong(gen_ai.usage.output_tokens))\n"
+    "  by: day = bin(timestamp, 1d)\n"
+    "| sort day asc"
+)
+
+# USD / 1M tokens for cost attribution per agent
+_AGENT_PRICING: dict[str, dict[str, float]] = {
+    "karma_learner":     {"input": 2.50, "output": 10.0},
+    "karma_forensic":    {"input": 2.50, "output": 10.0},
+    "karma_watcher":     {"input": 0.075, "output": 0.30},
+    "karma_coordinator": {"input": 0.075, "output": 0.30},
+}
+_DEFAULT_PRICING = {"input": 2.50, "output": 10.0}
+
+
 @router.get("/agent-observability")
 async def get_agent_observability(
     _: dict[str, Any] = Depends(require_admin),
 ) -> dict[str, Any]:
-    """Return token spend and cost data for both the karma ADK agents and Claude Code sessions.
+    """Token spend and trace data for Karma ADK agents (Agent Platform story) and Claude Code.
 
-    Queries Dynatrace Grail for real OTel gen_ai span data when DT_QUERY_TOKEN is set.
-    Falls back to Firestore-aggregated investigation costs otherwise.
+    Runs five Grail DQL queries in parallel when DT_QUERY_TOKEN is set:
+      1. Karma total token aggregation (30-day)
+      2. Per-agent token breakdown grouped by karma.agent
+      3. Recent karma.agent_run invocations (last 10, 7-day window)
+      4. Claude Code total token aggregation (30-day)
+      5. Claude Code daily token breakdown (7-day, binned per day)
+
+    Falls back to Firestore-aggregated investigation costs for Karma when Grail
+    is unavailable.  Claude Code fields are zeroed out without a fallback because
+    there is no Firestore path for Claude Code activity.
     """
     from app.config import settings as _settings
     from app.dt_client import query_grail
 
     grail_ok = bool(_settings.dt_env and _settings.dt_query_token)
+    dt_base = f"https://{_settings.dt_env}.apps.dynatrace.com" if _settings.dt_env else ""
 
-    # ── ADK agents (karma-agent-system) ──────────────────────────────────────
+    # ── Run all Grail queries in parallel ─────────────────────────────────────
     karma_input = karma_output = karma_spans = 0
     karma_from_grail = False
+    per_agent: list[dict[str, Any]] = []
+    recent_invocations: list[dict[str, Any]] = []
+    cc_input = cc_output = cc_sessions = 0
+    cc_from_grail = False
+    cc_daily: list[dict[str, Any]] = []
 
     if grail_ok:
-        dql_karma = (
-            "fetch spans, from:now()-30d\n"
-            '| filter service.name == "karma-agent-system"\n'
-            "| filter isNotNull(gen_ai.usage.input_tokens)\n"
-            "| summarize\n"
-            "    input_tokens  = sum(toLong(gen_ai.usage.input_tokens)),\n"
-            "    output_tokens = sum(toLong(gen_ai.usage.output_tokens)),\n"
-            "    span_count    = count()"
+        (
+            karma_rows,
+            per_agent_rows,
+            recent_rows,
+            cc_rows,
+            cc_daily_rows,
+        ) = await asyncio.gather(
+            query_grail(_DQL_KARMA_TOTALS),
+            query_grail(_DQL_PER_AGENT),
+            query_grail(_DQL_RECENT_INVOCATIONS),
+            query_grail(_DQL_CC_TOTALS),
+            query_grail(_DQL_CC_DAILY),
         )
-        rows = await query_grail(dql_karma)
-        if rows:
-            r = rows[0]
+
+        # Karma totals
+        if karma_rows:
+            r = karma_rows[0]
             karma_input   = int(r.get("input_tokens")  or 0)
             karma_output  = int(r.get("output_tokens") or 0)
             karma_spans   = int(r.get("span_count")    or 0)
             karma_from_grail = True
 
-    # Fall back to Firestore investigation-engine totals when Grail is unavailable
-    if not karma_from_grail:
-        inv_stats = await firestore_client.get_investigation_engine_stats()
-        agg = inv_stats.get("aggregate", {})
-        karma_input  = agg.get("total_input_tokens", 0) or 0
-        karma_output = agg.get("total_output_tokens", 0) or 0
-        karma_spans  = agg.get("total_reports", 0) or 0
+        # Per-agent breakdown
+        for row in per_agent_rows:
+            agent = str(row.get("agent") or "unknown")
+            inp   = int(row.get("input_tokens")  or 0)
+            out   = int(row.get("output_tokens") or 0)
+            p     = _AGENT_PRICING.get(agent, _DEFAULT_PRICING)
+            cost  = (inp / 1_000_000 * p["input"]) + (out / 1_000_000 * p["output"])
+            per_agent.append({
+                "agent":         agent,
+                "input_tokens":  inp,
+                "output_tokens": out,
+                "total_tokens":  inp + out,
+                "span_count":    int(row.get("span_count") or 0),
+                "cost_usd":      round(cost, 4),
+            })
+        per_agent.sort(key=lambda x: x["total_tokens"], reverse=True)
 
-    # ── Claude Code dev sessions (claude-code-dev) ───────────────────────────
-    cc_input = cc_output = cc_sessions = 0
-    cc_from_grail = False
+        # Recent invocations
+        for row in recent_rows:
+            trace_id = str(row.get("trace.id") or "")
+            # Apps-platform distributed tracing deep-link
+            dt_trace_url = (
+                f"{dt_base}/ui/apps/dynatrace.apm.distributed-tracing"
+                f"/#/ui/trace-detail?traceId={trace_id}"
+                if trace_id and dt_base else None
+            )
+            recent_invocations.append({
+                "trace_id":    trace_id,
+                "agent":       str(row.get("karma.agent") or "unknown"),
+                "started_at":  str(row.get("timestamp")  or ""),
+                "session_id":  str(row.get("session.id") or ""),
+                "user_email":  str(row.get("user.email") or ""),
+                "model_turns": int(row.get("karma.model_turns") or 0),
+                "dt_trace_url": dt_trace_url,
+            })
 
-    if grail_ok:
-        # Filter on span-level attribute gen_ai.system (not the resource-level service.name)
-        # because Dynatrace evaluates service.name at entity level where span attributes read
-        # as null — making the subsequent isNotNull(gen_ai.usage.input_tokens) drop those spans.
-        # gen_ai.system == "anthropic" uniquely identifies Claude Code in this environment
-        # (all karma ADK agents use "google_vertex").
-        dql_cc = (
-            "fetch spans, from:now()-30d\n"
-            '| filter gen_ai.system == "anthropic"\n'
-            "| filter isNotNull(gen_ai.usage.input_tokens)\n"
-            "| summarize\n"
-            "    input_tokens  = sum(toLong(gen_ai.usage.input_tokens)),\n"
-            "    output_tokens = sum(toLong(gen_ai.usage.output_tokens)),\n"
-            "    span_count    = count()"
-        )
-        cc_rows = await query_grail(dql_cc)
+        # Claude Code totals
         if cc_rows:
             cr = cc_rows[0]
             cc_input    = int(cr.get("input_tokens")  or 0)
@@ -474,23 +563,43 @@ async def get_agent_observability(
             cc_sessions = int(cr.get("span_count")    or 0)
             cc_from_grail = True
 
-    # Cost estimates (Gemini 2.5 Pro: ~$2.50/1M in, $10/1M out;
-    #                 Claude Sonnet 4.6: ~$3/1M in, $15/1M out)
+        # Claude Code daily breakdown
+        for row in cc_daily_rows:
+            day_val = row.get("day") or row.get("timestamp") or ""
+            cc_daily.append({
+                "date":   str(day_val)[:10],
+                "input":  int(row.get("input_tokens")  or 0),
+                "output": int(row.get("output_tokens") or 0),
+            })
+
+    # ── Firestore fallback for Karma when Grail is unavailable ────────────────
+    if not karma_from_grail:
+        inv_stats = await firestore_client.get_investigation_engine_stats()
+        agg = inv_stats.get("aggregate", {})
+        karma_input  = agg.get("total_input_tokens", 0) or 0
+        karma_output = agg.get("total_output_tokens", 0) or 0
+        karma_spans  = agg.get("total_reports", 0) or 0
+
+    # ── Cost estimates ────────────────────────────────────────────────────────
+    # Gemini 2.5 Pro: $2.50/1M in, $10/1M out (blended rate — Learner + Forensic dominate)
+    # Claude Sonnet 4.6: $3/1M in, $15/1M out
     karma_cost = (karma_input / 1_000_000 * 2.50) + (karma_output / 1_000_000 * 10.0)
     cc_cost    = (cc_input    / 1_000_000 * 3.00) + (cc_output    / 1_000_000 * 15.0)
 
     return {
         "grail_configured": grail_ok,
         "karma_agents": {
-            "service_name":   "karma-agent-system",
-            "description":    "ADK multi-agent system (Coordinator · Learner · Watcher · Forensic)",
-            "model":          "Gemini 2.5 Pro (Vertex AI)",
-            "span_count":     karma_spans,
-            "input_tokens":   karma_input,
-            "output_tokens":  karma_output,
-            "total_tokens":   karma_input + karma_output,
-            "cost_usd":       round(karma_cost, 4),
-            "from_grail":     karma_from_grail,
+            "service_name":        "karma-agent-system",
+            "description":         "ADK agents: Coordinator · Learner · Watcher · Forensic",
+            "model":               "Gemini 2.5 Pro / Flash (Vertex AI)",
+            "span_count":          karma_spans,
+            "input_tokens":        karma_input,
+            "output_tokens":       karma_output,
+            "total_tokens":        karma_input + karma_output,
+            "cost_usd":            round(karma_cost, 4),
+            "from_grail":          karma_from_grail,
+            "per_agent":           per_agent,
+            "recent_invocations":  recent_invocations,
         },
         "claude_code": {
             "service_name":   "claude-code-dev",
@@ -502,9 +611,11 @@ async def get_agent_observability(
             "total_tokens":   cc_input + cc_output,
             "cost_usd":       round(cc_cost, 4),
             "from_grail":     cc_from_grail,
+            "setup_required": not cc_from_grail,
+            "daily_tokens":   cc_daily,
             "note":           (
                 None if cc_from_grail
-                else "Claude Code telemetry not yet emitting gen_ai spans to this DT environment"
+                else "Claude Code OTel telemetry not yet flowing to this Dynatrace environment"
             ),
         },
     }

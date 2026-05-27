@@ -313,10 +313,48 @@ export interface AgentSystemStats {
   note?: string | null;
 }
 
+// Per-agent token breakdown (Learner, Watcher, Forensic, Coordinator)
+export interface PerAgentStats {
+  agent: string;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  span_count: number;
+  cost_usd: number;
+}
+
+// One entry from the recent karma.agent_run invocations DQL query
+export interface RecentInvocation {
+  trace_id: string;
+  agent: string;
+  started_at: string;
+  session_id: string;
+  user_email: string;
+  model_turns: number;
+  dt_trace_url: string | null;
+}
+
+// One entry from the Claude Code daily token bucketing DQL query
+export interface DailyTokens {
+  date: string;   // "YYYY-MM-DD"
+  input: number;
+  output: number;
+}
+
+export interface KarmaAgentsStats extends AgentSystemStats {
+  per_agent: PerAgentStats[];
+  recent_invocations: RecentInvocation[];
+}
+
+export interface ClaudeCodeStats extends AgentSystemStats {
+  setup_required: boolean;
+  daily_tokens: DailyTokens[];
+}
+
 export interface AgentObservabilityData {
   grail_configured: boolean;
-  karma_agents: AgentSystemStats;
-  claude_code: AgentSystemStats;
+  karma_agents: KarmaAgentsStats;
+  claude_code: ClaudeCodeStats;
 }
 
 // ── AI cost SSE event ─────────────────────────────────────────────────────────

@@ -555,7 +555,7 @@ Built for the [Google Cloud Rapid Agent Hackathon — Dynatrace Track](https://r
 
 The `synthetic-env/` directory is a purpose-built three-service demo environment. It is not production traffic. Every claim in a ghost report is backed by real Dynatrace telemetry from that environment — the Redis write truly happens, the cache truly warms, the downstream service truly degrades when it stops.
 
-**No OpenAI, Anthropic, or non-Google AI services are used in the application.** Gemini family only, per hackathon rules.
+**No OpenAI, Anthropic, or non-Google AI services are used in the application.** Gemini family only.
 
 ---
 

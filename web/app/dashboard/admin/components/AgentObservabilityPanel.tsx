@@ -2,20 +2,34 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  Activity,
   Bot,
   Brain,
+  Calendar,
   Code2,
+  Copy,
   Cpu,
   DollarSign,
   ExternalLink,
+  Info,
   Loader2,
   RefreshCw,
   Sparkles,
+  Terminal,
   Zap,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { AgentObservabilityData, AgentSystemStats } from "@/lib/types";
+import type {
+  AgentObservabilityData,
+  ClaudeCodeStats,
+  DailyTokens,
+  KarmaAgentsStats,
+  PerAgentStats,
+  RecentInvocation,
+} from "@/lib/types";
+
+// ── Formatters ────────────────────────────────────────────────────────────────
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
@@ -29,136 +43,435 @@ function formatCost(n: number): string {
   return `$${n.toFixed(4)}`;
 }
 
-// ── Token comparison bar ─────────────────────────────────────────────────────
+function timeAgo(isoString: string): string {
+  if (!isoString) return "—";
+  const ms = Date.now() - new Date(isoString).getTime();
+  if (ms < 0) return "just now";
+  const secs = Math.floor(ms / 1000);
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
 
-function TokenBar({
-  labelA, tokensA, colorA,
-  labelB, tokensB, colorB,
-}: {
-  labelA: string; tokensA: number; colorA: string;
-  labelB: string; tokensB: number; colorB: string;
-}) {
-  const total = tokensA + tokensB;
-  const pctA = total > 0 ? (tokensA / total) * 100 : 50;
-  const pctB = 100 - pctA;
+// ── Agent label / color maps ─────────────────────────────────────────────────
+
+const AGENT_LABEL: Record<string, string> = {
+  karma_learner:     "Learner",
+  karma_forensic:    "Forensic",
+  karma_watcher:     "Watcher",
+  karma_coordinator: "Coordinator",
+};
+
+const AGENT_BAR_COLOR: Record<string, string> = {
+  karma_learner:     "bg-cyan-500/70",
+  karma_forensic:    "bg-rose-500/70",
+  karma_watcher:     "bg-violet-500/70",
+  karma_coordinator: "bg-amber-500/70",
+};
+
+const AGENT_TEXT_COLOR: Record<string, string> = {
+  karma_learner:     "text-cyan-400",
+  karma_forensic:    "text-rose-400",
+  karma_watcher:     "text-violet-400",
+  karma_coordinator: "text-amber-400",
+};
+
+const AGENT_BORDER_COLOR: Record<string, string> = {
+  karma_learner:     "border-cyan-500/40",
+  karma_forensic:    "border-rose-500/40",
+  karma_watcher:     "border-violet-500/40",
+  karma_coordinator: "border-amber-500/40",
+};
+
+const AGENT_BG_COLOR: Record<string, string> = {
+  karma_learner:     "bg-cyan-500/10",
+  karma_forensic:    "bg-rose-500/10",
+  karma_watcher:     "bg-violet-500/10",
+  karma_coordinator: "bg-amber-500/10",
+};
+
+// ── Karma ADK — per-agent breakdown ──────────────────────────────────────────
+
+function PerAgentBar({ row, maxTokens }: { row: PerAgentStats; maxTokens: number }) {
+  const label = AGENT_LABEL[row.agent] ?? row.agent;
+  const pct   = maxTokens > 0 ? (row.total_tokens / maxTokens) * 100 : 0;
+  const bar   = AGENT_BAR_COLOR[row.agent]   ?? "bg-muted/60";
+  const text  = AGENT_TEXT_COLOR[row.agent]  ?? "text-muted-foreground";
+
   return (
-    <div className="space-y-2">
-      <div className="flex h-3 overflow-hidden rounded-full gap-0.5">
-        <div
-          className={cn("transition-all rounded-l-full", colorA)}
-          style={{ width: `${pctA}%` }}
-          title={`${labelA}: ${formatTokens(tokensA)} tokens (${pctA.toFixed(1)}%)`}
-        />
-        <div
-          className={cn("transition-all rounded-r-full", colorB)}
-          style={{ width: `${pctB}%` }}
-          title={`${labelB}: ${formatTokens(tokensB)} tokens (${pctB.toFixed(1)}%)`}
-        />
-      </div>
-      <div className="flex justify-between text-[10px] text-muted-foreground">
-        <span>
-          <span className={cn("font-semibold", colorA.replace("bg-", "text-"))}>{pctA.toFixed(0)}%</span>
-          {" "}{labelA}
-        </span>
-        <span>
-          {labelB}{" "}
-          <span className={cn("font-semibold", colorB.replace("bg-", "text-"))}>{pctB.toFixed(0)}%</span>
-        </span>
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-[11px]">
+        <span className={cn("font-semibold w-24 shrink-0", text)}>{label}</span>
+        <div className="flex-1 mx-3 h-1.5 rounded-full bg-muted/20 overflow-hidden">
+          <div className={cn("h-full rounded-full transition-all", bar)} style={{ width: `${pct}%` }} />
+        </div>
+        <span className="text-muted-foreground tabular-nums w-16 text-right">{formatTokens(row.total_tokens)}</span>
+        <span className="text-muted-foreground/60 tabular-nums w-14 text-right">{formatCost(row.cost_usd)}</span>
       </div>
     </div>
   );
 }
 
-// ── Single agent card ─────────────────────────────────────────────────────────
+// ── Karma ADK — recent invocations ───────────────────────────────────────────
 
-function AgentCard({
-  stats,
-  color,
-  icon: Icon,
-}: {
-  stats: AgentSystemStats;
-  color: "cyan" | "violet";
-  icon: React.ElementType;
-}) {
-  const border  = color === "cyan"   ? "border-cyan-500/25"   : "border-violet-500/25";
-  const bg      = color === "cyan"   ? "bg-cyan-950/20"        : "bg-violet-950/20";
-  const iconBg  = color === "cyan"   ? "bg-cyan-500/15 border-cyan-500/25"   : "bg-violet-500/15 border-violet-500/25";
-  const iconClr = color === "cyan"   ? "text-cyan-400"          : "text-violet-400";
-  const valClr  = color === "cyan"   ? "text-cyan-300"          : "text-violet-300";
-  const barFill = color === "cyan"   ? "bg-cyan-500/70"         : "bg-violet-500/70";
-
-  const pctOut = stats.total_tokens > 0
-    ? (stats.output_tokens / stats.total_tokens) * 100
-    : 0;
+function InvocationRow({ inv }: { inv: RecentInvocation }) {
+  const label  = AGENT_LABEL[inv.agent] ?? inv.agent;
+  const text   = AGENT_TEXT_COLOR[inv.agent]   ?? "text-muted-foreground";
+  const border = AGENT_BORDER_COLOR[inv.agent] ?? "border-border";
+  const bg     = AGENT_BG_COLOR[inv.agent]     ?? "bg-muted/10";
+  const email  = inv.user_email && inv.user_email !== "unknown"
+    ? inv.user_email.split("@")[0]
+    : "system";
 
   return (
-    <div className={cn("rounded-xl border p-4 space-y-4 backdrop-blur-sm", border, bg)}>
-      {/* Header */}
-      <div className="flex items-start gap-3">
-        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border", iconBg)}>
-          <Icon className={cn("h-4.5 w-4.5", iconClr)} style={{ width: 18, height: 18 }} />
+    <div className="flex items-center gap-2 px-3 py-2 hover:bg-muted/10 transition-colors group">
+      <div className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0", text, border, bg)}>
+        {label[0]}
+      </div>
+      <span className={cn("text-[11px] font-semibold w-20 shrink-0", text)}>{label}</span>
+      <span className="text-[11px] text-muted-foreground flex-1 truncate">{email}</span>
+      {inv.model_turns > 0 && (
+        <span className="text-[10px] text-muted-foreground/60 tabular-nums shrink-0">
+          {inv.model_turns} turn{inv.model_turns !== 1 ? "s" : ""}
+        </span>
+      )}
+      <span className="text-[10px] text-muted-foreground/50 shrink-0 w-16 text-right">
+        {timeAgo(inv.started_at)}
+      </span>
+      {inv.dt_trace_url ? (
+        <a
+          href={inv.dt_trace_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+          title="Open trace in Dynatrace"
+        >
+          <ExternalLink className="h-3 w-3 text-cyan-400 hover:text-cyan-300" />
+        </a>
+      ) : (
+        <div className="w-3 shrink-0" />
+      )}
+    </div>
+  );
+}
+
+// ── Karma ADK panel ───────────────────────────────────────────────────────────
+
+function KarmaAgentPlatformPanel({ stats }: { stats: KarmaAgentsStats }) {
+  const hasPerAgent = stats.per_agent && stats.per_agent.length > 0;
+  const maxTokens   = hasPerAgent ? Math.max(...stats.per_agent.map((r) => r.total_tokens)) : 0;
+  const hasRecent   = stats.recent_invocations && stats.recent_invocations.length > 0;
+
+  return (
+    <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/10 overflow-hidden">
+      {/* Panel header */}
+      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-cyan-500/15 bg-cyan-950/20">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-500/15 border border-cyan-500/25">
+          <Bot className="h-3.5 w-3.5 text-cyan-400" />
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-foreground leading-tight">{stats.service_name}</p>
-          <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">{stats.description}</p>
-          <p className="text-[10px] font-mono text-muted-foreground/60 mt-0.5">{stats.model}</p>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-bold text-foreground leading-tight">Karma ADK</p>
+          <p className="text-[10px] text-muted-foreground">Agent Platform · Vertex AI · Gemini 2.5</p>
         </div>
         {stats.from_grail && (
-          <div className="flex items-center gap-1 shrink-0 text-[10px] text-emerald-400 border border-emerald-500/30 rounded-full px-2 py-0.5">
+          <div className="flex items-center gap-1 text-[10px] text-emerald-400 border border-emerald-500/30 rounded-full px-2 py-0.5 shrink-0">
             <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            Grail
+            Grail live
           </div>
         )}
       </div>
 
-      {/* KPIs */}
-      {stats.total_tokens > 0 ? (
-        <>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-lg bg-background/30 border border-border/40 px-3 py-2">
-              <div className="flex items-center gap-1 text-muted-foreground mb-0.5">
-                <Zap className="h-3 w-3" />
-                <span className="text-[10px]">Total tokens</span>
-              </div>
-              <p className={cn("text-lg font-bold tabular-nums", valClr)}>
-                {formatTokens(stats.total_tokens)}
-              </p>
-            </div>
-            <div className="rounded-lg bg-background/30 border border-border/40 px-3 py-2">
-              <div className="flex items-center gap-1 text-muted-foreground mb-0.5">
-                <DollarSign className="h-3 w-3" />
-                <span className="text-[10px]">Est. cost</span>
-              </div>
-              <p className={cn("text-lg font-bold tabular-nums", valClr)}>
-                {formatCost(stats.cost_usd)}
-              </p>
-            </div>
-          </div>
-
-          {/* Input / output breakdown */}
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-[10px] text-muted-foreground">
-              <span>↑ {formatTokens(stats.input_tokens)} in</span>
-              <span>↓ {formatTokens(stats.output_tokens)} out</span>
-            </div>
-            <div className="h-1.5 rounded-full bg-muted/20 overflow-hidden">
-              <div className={cn("h-full rounded-full", barFill)} style={{ width: `${100 - pctOut}%` }} />
-            </div>
-          </div>
-
-          {stats.span_count > 0 && (
-            <p className="text-[10px] text-muted-foreground/60 text-right tabular-nums">
-              {stats.span_count.toLocaleString()} span{stats.span_count !== 1 ? "s" : ""} observed
+      <div className="p-4 space-y-4">
+        {/* Totals row */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-lg bg-background/30 border border-cyan-500/15 px-3 py-2 text-center">
+            <p className="text-[10px] text-muted-foreground mb-0.5 flex items-center justify-center gap-1">
+              <Zap className="h-2.5 w-2.5" /> Tokens
             </p>
-          )}
-        </>
-      ) : (
-        <div className="rounded-lg bg-muted/10 border border-border/30 px-3 py-3 text-center">
-          <p className="text-[11px] text-muted-foreground/70 leading-relaxed">
-            {stats.note ?? "No gen_ai spans found in this DT environment."}
+            <p className="text-sm font-bold text-cyan-300 tabular-nums">{formatTokens(stats.total_tokens)}</p>
+          </div>
+          <div className="rounded-lg bg-background/30 border border-cyan-500/15 px-3 py-2 text-center">
+            <p className="text-[10px] text-muted-foreground mb-0.5 flex items-center justify-center gap-1">
+              <DollarSign className="h-2.5 w-2.5" /> Cost
+            </p>
+            <p className="text-sm font-bold text-cyan-300 tabular-nums">{formatCost(stats.cost_usd)}</p>
+          </div>
+          <div className="rounded-lg bg-background/30 border border-cyan-500/15 px-3 py-2 text-center">
+            <p className="text-[10px] text-muted-foreground mb-0.5 flex items-center justify-center gap-1">
+              <Activity className="h-2.5 w-2.5" /> Spans
+            </p>
+            <p className="text-sm font-bold text-cyan-300 tabular-nums">{stats.span_count.toLocaleString()}</p>
+          </div>
+        </div>
+
+        {/* Per-agent token breakdown */}
+        {hasPerAgent ? (
+          <div className="space-y-2">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Sparkles className="h-3 w-3" /> Token split by agent
+            </p>
+            <div className="space-y-2.5">
+              {stats.per_agent.map((row) => (
+                <PerAgentBar key={row.agent} row={row} maxTokens={maxTokens} />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-lg bg-muted/10 border border-border/30 px-3 py-2.5 text-center">
+            <p className="text-[11px] text-muted-foreground/60">
+              Per-agent breakdown available once agent_run spans appear in Grail.
+            </p>
+          </div>
+        )}
+
+        {/* Recent invocations */}
+        {hasRecent && (
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground px-1 flex items-center gap-1.5">
+              <Activity className="h-3 w-3" /> Recent invocations
+            </p>
+            <div className="rounded-lg border border-border/30 overflow-hidden divide-y divide-border/20">
+              {stats.recent_invocations.map((inv, i) => (
+                <InvocationRow key={inv.trace_id || i} inv={inv} />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Claude Code daily mini-chart ──────────────────────────────────────────────
+
+function DailyChart({ data }: { data: DailyTokens[] }) {
+  if (!data || data.length === 0) return null;
+  const maxTotal = Math.max(...data.map((d) => d.input + d.output), 1);
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+        <Calendar className="h-3 w-3" /> Daily token usage (7 days)
+      </p>
+      <div className="flex items-end gap-1 h-16">
+        {data.map((day, i) => {
+          const total = day.input + day.output;
+          const pct   = total / maxTotal;
+          const label = day.date.slice(5); // "MM-DD"
+          return (
+            <div key={i} className="flex-1 flex flex-col items-center gap-1 group" title={`${day.date}: ${formatTokens(total)} tokens`}>
+              <div className="w-full flex flex-col justify-end" style={{ height: "44px" }}>
+                <div
+                  className="w-full rounded-t bg-violet-500/50 group-hover:bg-violet-400/70 transition-colors"
+                  style={{ height: `${Math.max(pct * 44, 2)}px` }}
+                />
+              </div>
+              <span className="text-[8px] text-muted-foreground/50 tabular-nums">{label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Claude Code setup guide ───────────────────────────────────────────────────
+
+function ClaudeCodeSetupGuide({ dtEnv }: { dtEnv: string }) {
+  const [copied, setCopied] = useState<string | null>(null);
+
+  function copy(text: string, key: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(key);
+      setTimeout(() => setCopied(null), 1500);
+    });
+  }
+
+  const endpoint = dtEnv
+    ? `https://${dtEnv}.live.dynatrace.com/api/v2/otlp`
+    : "https://<env>.live.dynatrace.com/api/v2/otlp";
+  const headers  = "Authorization=Api-Token <dt-otel-token>";
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/25 bg-amber-950/20 px-3 py-2.5">
+        <Info className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
+        <div className="space-y-0.5">
+          <p className="text-[11px] font-semibold text-amber-300">Telemetry not flowing</p>
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            Set these environment variables before starting Claude Code to stream OTel
+            spans to this Dynatrace tenant.
           </p>
         </div>
-      )}
+      </div>
+
+      <div className="space-y-2">
+        {[
+          { key: "OTEL_EXPORTER_OTLP_ENDPOINT", value: endpoint },
+          { key: "OTEL_EXPORTER_OTLP_HEADERS",  value: headers  },
+        ].map(({ key, value }) => (
+          <div key={key} className="rounded-lg border border-border/40 overflow-hidden">
+            <div className="flex items-center justify-between px-2.5 py-1 bg-muted/20 border-b border-border/30">
+              <span className="text-[10px] font-mono text-muted-foreground">{key}</span>
+              <button
+                onClick={() => copy(value, key)}
+                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Copy className="h-2.5 w-2.5" />
+                {copied === key ? "copied" : "copy"}
+              </button>
+            </div>
+            <div className="px-2.5 py-1.5 bg-background/30">
+              <code className="text-[10px] font-mono text-violet-300 break-all">{value}</code>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
+        Token: requires{" "}
+        <span className="font-mono text-muted-foreground">openTelemetryTrace.ingest</span> scope.
+        Once connected, this panel shows session activity, token spend, tool call events,
+        and engineering metrics — queryable live via Grail DQL.
+      </p>
+
+      <a
+        href="https://docs.dynatrace.com/docs/analyze-explore-automate/ai-observability/ai-coding-agent-monitoring"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 text-[11px] text-violet-400 hover:text-violet-300 transition-colors"
+      >
+        <Terminal className="h-3 w-3" />
+        Dynatrace Coding Agent Monitoring docs
+        <ExternalLink className="h-2.5 w-2.5" />
+      </a>
+    </div>
+  );
+}
+
+// ── Claude Code panel ─────────────────────────────────────────────────────────
+
+function ClaudeCodePanel({ stats, dtEnv }: { stats: ClaudeCodeStats; dtEnv: string }) {
+  const hasData   = stats.from_grail && stats.total_tokens > 0;
+  const hasDaily  = stats.daily_tokens && stats.daily_tokens.length > 0;
+
+  return (
+    <div className="rounded-xl border border-violet-500/20 bg-violet-950/10 overflow-hidden">
+      {/* Panel header */}
+      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-violet-500/15 bg-violet-950/20">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/15 border border-violet-500/25">
+          <Code2 className="h-3.5 w-3.5 text-violet-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-bold text-foreground leading-tight">Claude Code</p>
+          <p className="text-[10px] text-muted-foreground">AI Coding Agent · Anthropic · built Karma</p>
+        </div>
+        {stats.from_grail ? (
+          <div className="flex items-center gap-1 text-[10px] text-emerald-400 border border-emerald-500/30 rounded-full px-2 py-0.5 shrink-0">
+            <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Grail live
+          </div>
+        ) : (
+          <div className="flex items-center gap-1 text-[10px] text-amber-400 border border-amber-500/30 rounded-full px-2 py-0.5 shrink-0">
+            <div className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+            Setup needed
+          </div>
+        )}
+      </div>
+
+      <div className="p-4 space-y-4">
+        {hasData ? (
+          <>
+            {/* Totals */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-lg bg-background/30 border border-violet-500/15 px-3 py-2 text-center">
+                <p className="text-[10px] text-muted-foreground mb-0.5 flex items-center justify-center gap-1">
+                  <Zap className="h-2.5 w-2.5" /> Tokens
+                </p>
+                <p className="text-sm font-bold text-violet-300 tabular-nums">{formatTokens(stats.total_tokens)}</p>
+              </div>
+              <div className="rounded-lg bg-background/30 border border-violet-500/15 px-3 py-2 text-center">
+                <p className="text-[10px] text-muted-foreground mb-0.5 flex items-center justify-center gap-1">
+                  <DollarSign className="h-2.5 w-2.5" /> Cost
+                </p>
+                <p className="text-sm font-bold text-violet-300 tabular-nums">{formatCost(stats.cost_usd)}</p>
+              </div>
+              <div className="rounded-lg bg-background/30 border border-violet-500/15 px-3 py-2 text-center">
+                <p className="text-[10px] text-muted-foreground mb-0.5 flex items-center justify-center gap-1">
+                  <Activity className="h-2.5 w-2.5" /> Spans
+                </p>
+                <p className="text-sm font-bold text-violet-300 tabular-nums">{stats.span_count.toLocaleString()}</p>
+              </div>
+            </div>
+
+            {/* Input / output split bar */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-[10px] text-muted-foreground">
+                <span>↑ {formatTokens(stats.input_tokens)} prompt</span>
+                <span>↓ {formatTokens(stats.output_tokens)} completion</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-muted/20 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-violet-500/70"
+                  style={{
+                    width: stats.total_tokens > 0
+                      ? `${(stats.input_tokens / stats.total_tokens) * 100}%`
+                      : "50%",
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Daily chart */}
+            {hasDaily && <DailyChart data={stats.daily_tokens} />}
+
+            {/* Live DQL link */}
+            {dtEnv && (
+              <a
+                href={`https://${dtEnv}.apps.dynatrace.com/ui/apps/dynatrace.notebooks/?query=${encodeURIComponent(
+                  'fetch spans, from:now()-30d\n| filter gen_ai.system == "anthropic"\n| filter isNotNull(gen_ai.usage.input_tokens)\n| summarize input_tokens = sum(toLong(gen_ai.usage.input_tokens)), output_tokens = sum(toLong(gen_ai.usage.output_tokens)), span_count = count()'
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-[11px] text-violet-400 hover:text-violet-300 transition-colors"
+              >
+                <Terminal className="h-3 w-3" />
+                Run the DQL in Dynatrace
+                <ExternalLink className="h-2.5 w-2.5" />
+              </a>
+            )}
+          </>
+        ) : (
+          <ClaudeCodeSetupGuide dtEnv={dtEnv} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Grand-total header ────────────────────────────────────────────────────────
+
+function TotalBar({
+  tokensA, tokensB,
+}: {
+  tokensA: number;
+  tokensB: number;
+}) {
+  const total = tokensA + tokensB;
+  const pctA  = total > 0 ? (tokensA / total) * 100 : 50;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex h-2.5 overflow-hidden rounded-full gap-0.5">
+        <div className="transition-all rounded-l-full bg-cyan-500/70"   style={{ width: `${pctA}%` }}     title={`Karma ADK: ${pctA.toFixed(1)}%`} />
+        <div className="transition-all rounded-r-full bg-violet-500/70" style={{ width: `${100 - pctA}%` }} title={`Claude Code: ${(100 - pctA).toFixed(1)}%`} />
+      </div>
+      <div className="flex justify-between text-[10px] text-muted-foreground">
+        <span><span className="font-semibold text-cyan-400">{pctA.toFixed(0)}%</span> Karma ADK</span>
+        <span>Claude Code <span className="font-semibold text-violet-400">{(100 - pctA).toFixed(0)}%</span></span>
+      </div>
     </div>
   );
 }
@@ -169,6 +482,8 @@ export function AgentObservabilityPanel() {
   const [data, setData]       = useState<AgentObservabilityData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
+
+  const dtEnv = process.env.NEXT_PUBLIC_DT_ENV ?? "";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -215,7 +530,8 @@ export function AgentObservabilityPanel() {
 
   return (
     <div className="space-y-5">
-      {/* Header card */}
+
+      {/* ── Grand-total header card ────────────────────────────────────── */}
       <div className="relative overflow-hidden rounded-xl border border-cyan-500/20 bg-gradient-to-br from-cyan-950/30 via-card to-violet-950/20 p-5">
         <div className="pointer-events-none absolute -top-8 -right-8 h-36 w-36 rounded-full bg-cyan-500/5 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-8 -left-8 h-36 w-36 rounded-full bg-violet-500/5 blur-3xl" />
@@ -226,9 +542,9 @@ export function AgentObservabilityPanel() {
               <Sparkles className="h-5 w-5 text-cyan-400" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-foreground">Coding Agent Observability</h2>
+              <h2 className="text-base font-bold text-foreground">AI Agent Observability</h2>
               <p className="text-xs text-muted-foreground">
-                Dynatrace monitors the agents that built this monitoring system
+                Dynatrace monitors both the system that built this and the system it built
               </p>
             </div>
           </div>
@@ -254,64 +570,77 @@ export function AgentObservabilityPanel() {
           </div>
         </div>
 
-        {/* Grand totals */}
         {totalTokens > 0 && (
           <div className="relative mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="rounded-lg border border-border/60 bg-background/40 backdrop-blur-sm px-4 py-3">
-              <p className="text-[11px] text-muted-foreground mb-1">Total AI spend (both systems)</p>
+              <p className="text-[11px] text-muted-foreground mb-1">Combined AI spend</p>
               <p className="text-2xl font-bold text-foreground tabular-nums">{formatCost(totalCost)}</p>
             </div>
             <div className="rounded-lg border border-border/60 bg-background/40 backdrop-blur-sm px-4 py-3">
-              <p className="text-[11px] text-muted-foreground mb-1">Combined token consumption</p>
+              <p className="text-[11px] text-muted-foreground mb-1">Combined tokens</p>
               <p className="text-2xl font-bold text-foreground tabular-nums">{formatTokens(totalTokens)}</p>
             </div>
             <div className="col-span-2 sm:col-span-1 rounded-lg border border-border/60 bg-background/40 backdrop-blur-sm px-4 py-3">
-              <p className="text-[11px] text-muted-foreground mb-2">Token split (Karma agents vs Claude Code)</p>
-              <TokenBar
-                labelA="Karma ADK" tokensA={ka.total_tokens} colorA="bg-cyan-500/70"
-                labelB="Claude Code" tokensB={cc.total_tokens} colorB="bg-violet-500/70"
-              />
+              <p className="text-[11px] text-muted-foreground mb-2">Token split</p>
+              <TotalBar tokensA={ka.total_tokens} tokensB={cc.total_tokens} />
             </div>
           </div>
         )}
       </div>
 
-      {/* Side-by-side cards */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <AgentCard stats={ka} color="cyan"   icon={Bot} />
-        <AgentCard stats={cc} color="violet" icon={Code2} />
+      {/* ── Two-column agent panels ────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <KarmaAgentPlatformPanel stats={ka} />
+        <ClaudeCodePanel stats={cc} dtEnv={dtEnv} />
       </div>
 
-      {/* Narrative callout */}
+      {/* ── Narrative callout ──────────────────────────────────────────── */}
       <div className="rounded-xl border border-violet-500/15 bg-violet-500/[0.04] p-4">
         <div className="flex items-start gap-3">
           <Brain className="h-4 w-4 text-violet-400 shrink-0 mt-0.5" />
           <div className="space-y-1">
             <p className="text-sm font-semibold text-foreground">The recursive loop</p>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              The Karma multi-agent system was built with Claude Code and monitored end-to-end
-              by Dynatrace. Every ADK agent invocation emits{" "}
-              <span className="font-mono text-cyan-400">gen_ai.*</span> OTel spans that land in
-              Grail — so judges can see exactly how much Gemini 2.5 Pro was consumed to analyse
-              the hackathon services. This panel is itself powered by a live DQL query against
-              those same spans.{" "}
-              {data.grail_configured && (
+              Karma was built with Claude Code, a Dynatrace-monitored AI coding agent. Every
+              Claude Code session emits{" "}
+              <span className="font-mono text-violet-400">gen_ai.*</span> OTel spans via native
+              OpenTelemetry support — token spend, tool calls, session activity — flowing to the
+              same Dynatrace tenant that Karma&#39;s ADK agents write to. Meanwhile, every
+              Karma agent invocation emits its own{" "}
+              <span className="font-mono text-cyan-400">karma.agent_run</span> spans with
+              per-agent token attribution. Dynatrace watches both. This panel queries both
+              live from Grail.
+            </p>
+            {data.grail_configured && (
+              <div className="flex flex-wrap gap-3 pt-1">
                 <a
-                  href={`https://${process.env.NEXT_PUBLIC_DT_ENV}.apps.dynatrace.com/ui/apps/dynatrace.notebooks/?query=${encodeURIComponent(
-                    'fetch spans, from:now()-30d\n| filter service.name == "karma-agent-system"\n| filter isNotNull(gen_ai.usage.input_tokens)\n| summarize input_tokens = sum(toLong(gen_ai.usage.input_tokens)), output_tokens = sum(toLong(gen_ai.usage.output_tokens)), span_count = count()'
+                  href={`https://${dtEnv}.apps.dynatrace.com/ui/apps/dynatrace.notebooks/?query=${encodeURIComponent(
+                    'fetch spans, from:now()-30d\n| filter service.name == "karma-agent-system"\n| filter isNotNull(gen_ai.usage.input_tokens)\n| summarize input_tokens = sum(toLong(gen_ai.usage.input_tokens)), output_tokens = sum(toLong(gen_ai.usage.output_tokens))\n  by: agent = karma.agent'
                   )}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-teal-400 hover:text-teal-300 transition-colors"
+                  className="inline-flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300 transition-colors"
                 >
-                  Run the DQL yourself
-                  <ExternalLink className="h-3 w-3" />
+                  Query Karma agent spans
+                  <ExternalLink className="h-2.5 w-2.5" />
                 </a>
-              )}
-            </p>
+                <a
+                  href={`https://${dtEnv}.apps.dynatrace.com/ui/apps/dynatrace.notebooks/?query=${encodeURIComponent(
+                    'fetch spans, from:now()-30d\n| filter gen_ai.system == "anthropic"\n| filter isNotNull(gen_ai.usage.input_tokens)\n| summarize input_tokens = sum(toLong(gen_ai.usage.input_tokens)), output_tokens = sum(toLong(gen_ai.usage.output_tokens)), sessions = countDistinct(session.id)'
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors"
+                >
+                  Query Claude Code spans
+                  <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+              </div>
+            )}
           </div>
         </div>
       </div>
+
     </div>
   );
 }
