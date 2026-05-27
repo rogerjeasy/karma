@@ -549,7 +549,7 @@ async def get_agent_observability(
             trace_id = str(row.get("trace_id") or "")
             dt_trace_url = (
                 f"{dt_base}/ui/apps/dynatrace.distributedtracing/explorer"
-                f"?filter=trace.id+%3D+{trace_id}"
+                f"?filter=trace.id+%3D+{trace_id}&v=spans&tf=now-7d%3Bnow"
                 if trace_id and dt_base else None
             )
             recent_invocations.append({
