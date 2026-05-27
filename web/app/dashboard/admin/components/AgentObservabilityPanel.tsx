@@ -5,7 +5,6 @@ import {
   Activity,
   Bot,
   Brain,
-  Calendar,
   Code2,
   Copy,
   Cpu,
@@ -23,7 +22,6 @@ import { cn } from "@/lib/utils";
 import type {
   AgentObservabilityData,
   ClaudeCodeStats,
-  DailyTokens,
   KarmaAgentsStats,
   PerAgentStats,
   RecentInvocation,
@@ -41,19 +39,6 @@ function formatCost(n: number): string {
   if (n === 0) return "$0.00";
   if (n < 0.01) return `$${n.toFixed(5)}`;
   return `$${n.toFixed(4)}`;
-}
-
-function timeAgo(isoString: string): string {
-  if (!isoString) return "—";
-  const ms = Date.now() - new Date(isoString).getTime();
-  if (ms < 0) return "just now";
-  const secs = Math.floor(ms / 1000);
-  if (secs < 60) return `${secs}s ago`;
-  const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
 }
 
 // ── Agent label / color maps ─────────────────────────────────────────────────
@@ -122,9 +107,7 @@ function InvocationRow({ inv }: { inv: RecentInvocation }) {
   const text   = AGENT_TEXT_COLOR[inv.agent]   ?? "text-muted-foreground";
   const border = AGENT_BORDER_COLOR[inv.agent] ?? "border-border";
   const bg     = AGENT_BG_COLOR[inv.agent]     ?? "bg-muted/10";
-  const email  = inv.user_email && inv.user_email !== "unknown"
-    ? inv.user_email.split("@")[0]
-    : "system";
+  const userId = inv.user_id && inv.user_id !== "unknown" ? inv.user_id : "system";
 
   return (
     <div className="flex items-center gap-2 px-3 py-2 hover:bg-muted/10 transition-colors group">
@@ -132,15 +115,12 @@ function InvocationRow({ inv }: { inv: RecentInvocation }) {
         {label[0]}
       </div>
       <span className={cn("text-[11px] font-semibold w-20 shrink-0", text)}>{label}</span>
-      <span className="text-[11px] text-muted-foreground flex-1 truncate">{email}</span>
+      <span className="text-[11px] text-muted-foreground flex-1 truncate font-mono">{userId.slice(0, 8)}</span>
       {inv.model_turns > 0 && (
         <span className="text-[10px] text-muted-foreground/60 tabular-nums shrink-0">
           {inv.model_turns} turn{inv.model_turns !== 1 ? "s" : ""}
         </span>
       )}
-      <span className="text-[10px] text-muted-foreground/50 shrink-0 w-16 text-right">
-        {timeAgo(inv.started_at)}
-      </span>
       {inv.dt_trace_url ? (
         <a
           href={inv.dt_trace_url}
@@ -245,39 +225,6 @@ function KarmaAgentPlatformPanel({ stats }: { stats: KarmaAgentsStats }) {
   );
 }
 
-// ── Claude Code daily mini-chart ──────────────────────────────────────────────
-
-function DailyChart({ data }: { data: DailyTokens[] }) {
-  if (!data || data.length === 0) return null;
-  const maxTotal = Math.max(...data.map((d) => d.input + d.output), 1);
-
-  return (
-    <div className="space-y-1.5">
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-        <Calendar className="h-3 w-3" /> Daily token usage (7 days)
-      </p>
-      <div className="flex items-end gap-1 h-16">
-        {data.map((day, i) => {
-          const total = day.input + day.output;
-          const pct   = total / maxTotal;
-          const label = day.date.slice(5); // "MM-DD"
-          return (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1 group" title={`${day.date}: ${formatTokens(total)} tokens`}>
-              <div className="w-full flex flex-col justify-end" style={{ height: "44px" }}>
-                <div
-                  className="w-full rounded-t bg-violet-500/50 group-hover:bg-violet-400/70 transition-colors"
-                  style={{ height: `${Math.max(pct * 44, 2)}px` }}
-                />
-              </div>
-              <span className="text-[8px] text-muted-foreground/50 tabular-nums">{label}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ── Claude Code setup guide ───────────────────────────────────────────────────
 
 function ClaudeCodeSetupGuide({ dtEnv }: { dtEnv: string }) {
@@ -355,8 +302,24 @@ function ClaudeCodeSetupGuide({ dtEnv }: { dtEnv: string }) {
 // ── Claude Code panel ─────────────────────────────────────────────────────────
 
 function ClaudeCodePanel({ stats, dtEnv }: { stats: ClaudeCodeStats; dtEnv: string }) {
-  const hasData   = stats.from_grail && stats.total_tokens > 0;
-  const hasDaily  = stats.daily_tokens && stats.daily_tokens.length > 0;
+  const hasData = stats.from_grail && stats.total_tokens > 0;
+  const [dqlCopied, setDqlCopied] = useState(false);
+
+  const dql30d =
+    'fetch spans, from:now()-30d\n' +
+    '| filter gen_ai.system == "anthropic"\n' +
+    '| filter isNotNull(gen_ai.usage.input_tokens)\n' +
+    '| summarize input_tokens = sum(toLong(gen_ai.usage.input_tokens)), output_tokens = sum(toLong(gen_ai.usage.output_tokens)), span_count = count()';
+
+  function copyDql() {
+    navigator.clipboard.writeText(dql30d).then(() => {
+      setDqlCopied(true);
+      setTimeout(() => setDqlCopied(false), 1500);
+    });
+  }
+
+  const weekTokens = stats.week_input_tokens + stats.week_output_tokens;
+  const weekPct    = stats.total_tokens > 0 ? (weekTokens / stats.total_tokens) * 100 : 0;
 
   return (
     <div className="rounded-xl border border-violet-500/20 bg-violet-950/10 overflow-hidden">
@@ -385,11 +348,11 @@ function ClaudeCodePanel({ stats, dtEnv }: { stats: ClaudeCodeStats; dtEnv: stri
       <div className="p-4 space-y-4">
         {hasData ? (
           <>
-            {/* Totals */}
+            {/* 30-day totals */}
             <div className="grid grid-cols-3 gap-2">
               <div className="rounded-lg bg-background/30 border border-violet-500/15 px-3 py-2 text-center">
                 <p className="text-[10px] text-muted-foreground mb-0.5 flex items-center justify-center gap-1">
-                  <Zap className="h-2.5 w-2.5" /> Tokens
+                  <Zap className="h-2.5 w-2.5" /> 30d tokens
                 </p>
                 <p className="text-sm font-bold text-violet-300 tabular-nums">{formatTokens(stats.total_tokens)}</p>
               </div>
@@ -425,24 +388,31 @@ function ClaudeCodePanel({ stats, dtEnv }: { stats: ClaudeCodeStats; dtEnv: stri
               </div>
             </div>
 
-            {/* Daily chart */}
-            {hasDaily && <DailyChart data={stats.daily_tokens} />}
-
-            {/* Live DQL link */}
-            {dtEnv && (
-              <a
-                href={`https://${dtEnv}.apps.dynatrace.com/ui/apps/dynatrace.notebooks/?query=${encodeURIComponent(
-                  'fetch spans, from:now()-30d\n| filter gen_ai.system == "anthropic"\n| filter isNotNull(gen_ai.usage.input_tokens)\n| summarize input_tokens = sum(toLong(gen_ai.usage.input_tokens)), output_tokens = sum(toLong(gen_ai.usage.output_tokens)), span_count = count()'
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-[11px] text-violet-400 hover:text-violet-300 transition-colors"
-              >
-                <Terminal className="h-3 w-3" />
-                Run the DQL in Dynatrace
-                <ExternalLink className="h-2.5 w-2.5" />
-              </a>
+            {/* 7-day vs 30-day comparison */}
+            {weekTokens > 0 && (
+              <div className="rounded-lg border border-violet-500/15 bg-background/20 px-3 py-2.5 space-y-1.5">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Last 7 days</p>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-violet-300 tabular-nums">{formatTokens(weekTokens)}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {weekPct.toFixed(0)}% of 30d total · {stats.week_span_count.toLocaleString()} spans
+                  </span>
+                </div>
+                <div className="h-1 rounded-full bg-muted/20 overflow-hidden">
+                  <div className="h-full rounded-full bg-violet-400/50" style={{ width: `${weekPct}%` }} />
+                </div>
+              </div>
             )}
+
+            {/* Copy DQL button */}
+            <button
+              onClick={copyDql}
+              className="inline-flex items-center gap-1.5 text-[11px] text-violet-400 hover:text-violet-300 transition-colors"
+            >
+              <Terminal className="h-3 w-3" />
+              {dqlCopied ? "DQL copied!" : "Copy DQL query"}
+              <Copy className="h-2.5 w-2.5" />
+            </button>
           </>
         ) : (
           <ClaudeCodeSetupGuide dtEnv={dtEnv} />
@@ -473,6 +443,25 @@ function TotalBar({
         <span>Claude Code <span className="font-semibold text-violet-400">{(100 - pctA).toFixed(0)}%</span></span>
       </div>
     </div>
+  );
+}
+
+// ── DQL copy button ───────────────────────────────────────────────────────────
+
+function DqlCopyButton({ label, dql, color = "cyan" }: { label: string; dql: string; color?: "cyan" | "violet" }) {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    navigator.clipboard.writeText(dql).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+  const textClass = color === "violet" ? "text-violet-400 hover:text-violet-300" : "text-cyan-400 hover:text-cyan-300";
+  return (
+    <button onClick={copy} className={cn("inline-flex items-center gap-1 text-[11px] transition-colors", textClass)}>
+      {copied ? "Copied!" : label}
+      <Copy className="h-2.5 w-2.5" />
+    </button>
   );
 }
 
@@ -613,28 +602,27 @@ export function AgentObservabilityPanel() {
             </p>
             {data.grail_configured && (
               <div className="flex flex-wrap gap-3 pt-1">
-                <a
-                  href={`https://${dtEnv}.apps.dynatrace.com/ui/apps/dynatrace.notebooks/?query=${encodeURIComponent(
-                    'fetch spans, from:now()-30d\n| filter service.name == "karma-agent-system"\n| filter isNotNull(gen_ai.usage.input_tokens)\n| summarize input_tokens = sum(toLong(gen_ai.usage.input_tokens)), output_tokens = sum(toLong(gen_ai.usage.output_tokens))\n  by: agent = karma.agent'
-                  )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300 transition-colors"
-                >
-                  Query Karma agent spans
-                  <ExternalLink className="h-2.5 w-2.5" />
-                </a>
-                <a
-                  href={`https://${dtEnv}.apps.dynatrace.com/ui/apps/dynatrace.notebooks/?query=${encodeURIComponent(
-                    'fetch spans, from:now()-30d\n| filter gen_ai.system == "anthropic"\n| filter isNotNull(gen_ai.usage.input_tokens)\n| summarize input_tokens = sum(toLong(gen_ai.usage.input_tokens)), output_tokens = sum(toLong(gen_ai.usage.output_tokens)), sessions = countDistinct(session.id)'
-                  )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors"
-                >
-                  Query Claude Code spans
-                  <ExternalLink className="h-2.5 w-2.5" />
-                </a>
+                <DqlCopyButton
+                  label="Copy Karma ADK DQL"
+                  color="cyan"
+                  dql={
+                    'fetch spans, from:now()-30d\n' +
+                    '| filter service.name == "karma-agent-system"\n' +
+                    '| filter span.name == "gen_ai.chat"\n' +
+                    '| filter isNotNull(karma.agent)\n' +
+                    '| summarize input_tokens = sum(toLong(gen_ai.usage.input_tokens)), output_tokens = sum(toLong(gen_ai.usage.output_tokens)), span_count = count(), by: {agent = karma.agent}'
+                  }
+                />
+                <DqlCopyButton
+                  label="Copy Claude Code DQL"
+                  color="violet"
+                  dql={
+                    'fetch spans, from:now()-30d\n' +
+                    '| filter gen_ai.system == "anthropic"\n' +
+                    '| filter isNotNull(gen_ai.usage.input_tokens)\n' +
+                    '| summarize input_tokens = sum(toLong(gen_ai.usage.input_tokens)), output_tokens = sum(toLong(gen_ai.usage.output_tokens)), span_count = count()'
+                  }
+                />
               </div>
             )}
           </div>

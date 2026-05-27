@@ -323,22 +323,15 @@ export interface PerAgentStats {
   cost_usd: number;
 }
 
-// One entry from the recent karma.agent_run invocations DQL query
+// One entry from the recent gen_ai.chat invocations DQL query (grouped by trace.id)
 export interface RecentInvocation {
   trace_id: string;
   agent: string;
   started_at: string;
   session_id: string;
-  user_email: string;
+  user_id: string;
   model_turns: number;
   dt_trace_url: string | null;
-}
-
-// One entry from the Claude Code daily token bucketing DQL query
-export interface DailyTokens {
-  date: string;   // "YYYY-MM-DD"
-  input: number;
-  output: number;
 }
 
 export interface KarmaAgentsStats extends AgentSystemStats {
@@ -348,7 +341,9 @@ export interface KarmaAgentsStats extends AgentSystemStats {
 
 export interface ClaudeCodeStats extends AgentSystemStats {
   setup_required: boolean;
-  daily_tokens: DailyTokens[];
+  week_input_tokens: number;
+  week_output_tokens: number;
+  week_span_count: number;
 }
 
 export interface AgentObservabilityData {

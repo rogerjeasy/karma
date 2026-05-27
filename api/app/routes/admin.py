@@ -403,55 +403,62 @@ async def delete_system_service(
     return {"service_id": service_id, **result}
 
 
+# summarize requires by: on the same line — multiline by: is a parse error in Grail DQL.
+# karma.agent_run custom spans are not emitted by the deployed agents (ADK creates its own
+# invocation/invoke_agent spans instead). Use gen_ai.chat spans, which carry karma.agent,
+# session.id, and user.id, for both per-agent aggregation and recent-invocation listing.
+# timestamp/startTime fields are null when projected in Grail spans — bin()-based daily
+# bucketing is unreliable; use a separate 7-day total query instead.
+
 _DQL_KARMA_TOTALS = (
-    "fetch spans, from:now()-30d\n"
-    '| filter service.name == "karma-agent-system"\n'
-    "| filter isNotNull(gen_ai.usage.input_tokens)\n"
-    "| summarize\n"
-    "    input_tokens  = sum(toLong(gen_ai.usage.input_tokens)),\n"
-    "    output_tokens = sum(toLong(gen_ai.usage.output_tokens)),\n"
-    "    span_count    = count()"
+    "fetch spans, from:now()-30d"
+    ' | filter service.name == "karma-agent-system"'
+    " | filter isNotNull(gen_ai.usage.input_tokens)"
+    " | summarize input_tokens = sum(toLong(gen_ai.usage.input_tokens)),"
+    " output_tokens = sum(toLong(gen_ai.usage.output_tokens)), span_count = count()"
 )
 
+# Only gen_ai.chat spans carry karma.agent; other spans with gen_ai.usage tokens
+# (generate_content, call_llm — emitted by ADK internals) have karma.agent == null.
 _DQL_PER_AGENT = (
-    "fetch spans, from:now()-30d\n"
-    '| filter service.name == "karma-agent-system"\n'
-    "| filter isNotNull(gen_ai.usage.input_tokens)\n"
-    "| summarize\n"
-    "    input_tokens  = sum(toLong(gen_ai.usage.input_tokens)),\n"
-    "    output_tokens = sum(toLong(gen_ai.usage.output_tokens)),\n"
-    "    span_count    = count()\n"
-    "  by: agent = karma.agent"
+    "fetch spans, from:now()-30d"
+    ' | filter service.name == "karma-agent-system"'
+    ' | filter span.name == "gen_ai.chat"'
+    " | filter isNotNull(karma.agent)"
+    " | summarize input_tokens = sum(toLong(gen_ai.usage.input_tokens)),"
+    " output_tokens = sum(toLong(gen_ai.usage.output_tokens)),"
+    " span_count = count(), by: {agent = karma.agent}"
 )
 
+# One row per trace: takeFirst gives the dominant agent and user context; count() gives
+# model turns. Sorted by turns (desc) since timestamp projection returns null in Grail.
 _DQL_RECENT_INVOCATIONS = (
-    "fetch spans, from:now()-7d\n"
-    '| filter service.name == "karma-agent-system"\n'
-    '| filter span.name == "karma.agent_run"\n'
-    "| fields timestamp, trace.id, karma.agent, session.id, user.email, karma.model_turns\n"
-    "| sort timestamp desc\n"
-    "| limit 10"
+    "fetch spans, from:now()-7d"
+    ' | filter service.name == "karma-agent-system"'
+    ' | filter span.name == "gen_ai.chat"'
+    " | filter isNotNull(karma.agent)"
+    " | summarize agent = takeFirst(karma.agent), session_id = takeFirst(session.id),"
+    " user_id = takeFirst(user.id), model_turns = count(), by: {trace_id = trace.id}"
+    " | sort model_turns desc"
+    " | limit 10"
 )
 
 _DQL_CC_TOTALS = (
-    "fetch spans, from:now()-30d\n"
-    '| filter gen_ai.system == "anthropic"\n'
-    "| filter isNotNull(gen_ai.usage.input_tokens)\n"
-    "| summarize\n"
-    "    input_tokens  = sum(toLong(gen_ai.usage.input_tokens)),\n"
-    "    output_tokens = sum(toLong(gen_ai.usage.output_tokens)),\n"
-    "    span_count    = count()"
+    "fetch spans, from:now()-30d"
+    ' | filter gen_ai.system == "anthropic"'
+    " | filter isNotNull(gen_ai.usage.input_tokens)"
+    " | summarize input_tokens = sum(toLong(gen_ai.usage.input_tokens)),"
+    " output_tokens = sum(toLong(gen_ai.usage.output_tokens)), span_count = count()"
 )
 
-_DQL_CC_DAILY = (
-    "fetch spans, from:now()-7d\n"
-    '| filter gen_ai.system == "anthropic"\n'
-    "| filter isNotNull(gen_ai.usage.input_tokens)\n"
-    "| summarize\n"
-    "    input_tokens  = sum(toLong(gen_ai.usage.input_tokens)),\n"
-    "    output_tokens = sum(toLong(gen_ai.usage.output_tokens))\n"
-    "  by: day = bin(timestamp, 1d)\n"
-    "| sort day asc"
+# 7-day window for Claude Code activity — timestamp bin() is unreliable in Grail spans
+# so we use a simple total instead of day-by-day breakdown.
+_DQL_CC_WEEK = (
+    "fetch spans, from:now()-7d"
+    ' | filter gen_ai.system == "anthropic"'
+    " | filter isNotNull(gen_ai.usage.input_tokens)"
+    " | summarize input_tokens = sum(toLong(gen_ai.usage.input_tokens)),"
+    " output_tokens = sum(toLong(gen_ai.usage.output_tokens)), span_count = count()"
 )
 
 # USD / 1M tokens for cost attribution per agent
@@ -494,7 +501,7 @@ async def get_agent_observability(
     recent_invocations: list[dict[str, Any]] = []
     cc_input = cc_output = cc_sessions = 0
     cc_from_grail = False
-    cc_daily: list[dict[str, Any]] = []
+    cc_week_input = cc_week_output = cc_week_spans = 0
 
     if grail_ok:
         (
@@ -502,13 +509,13 @@ async def get_agent_observability(
             per_agent_rows,
             recent_rows,
             cc_rows,
-            cc_daily_rows,
+            cc_week_rows,
         ) = await asyncio.gather(
             query_grail(_DQL_KARMA_TOTALS),
             query_grail(_DQL_PER_AGENT),
             query_grail(_DQL_RECENT_INVOCATIONS),
             query_grail(_DQL_CC_TOTALS),
-            query_grail(_DQL_CC_DAILY),
+            query_grail(_DQL_CC_WEEK),
         )
 
         # Karma totals
@@ -538,8 +545,7 @@ async def get_agent_observability(
 
         # Recent invocations
         for row in recent_rows:
-            trace_id = str(row.get("trace.id") or "")
-            # Apps-platform distributed tracing deep-link
+            trace_id = str(row.get("trace_id") or "")
             dt_trace_url = (
                 f"{dt_base}/ui/apps/dynatrace.apm.distributed-tracing"
                 f"/#/ui/trace-detail?traceId={trace_id}"
@@ -547,11 +553,11 @@ async def get_agent_observability(
             )
             recent_invocations.append({
                 "trace_id":    trace_id,
-                "agent":       str(row.get("karma.agent") or "unknown"),
-                "started_at":  str(row.get("timestamp")  or ""),
-                "session_id":  str(row.get("session.id") or ""),
-                "user_email":  str(row.get("user.email") or ""),
-                "model_turns": int(row.get("karma.model_turns") or 0),
+                "agent":       str(row.get("agent")      or "unknown"),
+                "started_at":  "",
+                "session_id":  str(row.get("session_id") or ""),
+                "user_id":     str(row.get("user_id")    or ""),
+                "model_turns": int(row.get("model_turns") or 0),
                 "dt_trace_url": dt_trace_url,
             })
 
@@ -563,14 +569,12 @@ async def get_agent_observability(
             cc_sessions = int(cr.get("span_count")    or 0)
             cc_from_grail = True
 
-        # Claude Code daily breakdown
-        for row in cc_daily_rows:
-            day_val = row.get("day") or row.get("timestamp") or ""
-            cc_daily.append({
-                "date":   str(day_val)[:10],
-                "input":  int(row.get("input_tokens")  or 0),
-                "output": int(row.get("output_tokens") or 0),
-            })
+        # Claude Code 7-day rolling totals
+        if cc_week_rows:
+            wr = cc_week_rows[0]
+            cc_week_input  = int(wr.get("input_tokens")  or 0)
+            cc_week_output = int(wr.get("output_tokens") or 0)
+            cc_week_spans  = int(wr.get("span_count")    or 0)
 
     # ── Firestore fallback for Karma when Grail is unavailable ────────────────
     if not karma_from_grail:
@@ -611,9 +615,11 @@ async def get_agent_observability(
             "total_tokens":   cc_input + cc_output,
             "cost_usd":       round(cc_cost, 4),
             "from_grail":     cc_from_grail,
-            "setup_required": not cc_from_grail,
-            "daily_tokens":   cc_daily,
-            "note":           (
+            "setup_required":       not cc_from_grail,
+            "week_input_tokens":    cc_week_input,
+            "week_output_tokens":   cc_week_output,
+            "week_span_count":      cc_week_spans,
+            "note":                 (
                 None if cc_from_grail
                 else "Claude Code OTel telemetry not yet flowing to this Dynatrace environment"
             ),
