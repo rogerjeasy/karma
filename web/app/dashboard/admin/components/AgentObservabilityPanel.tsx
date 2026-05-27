@@ -213,10 +213,12 @@ function KarmaAgentPlatformPanel({ stats }: { stats: KarmaAgentsStats }) {
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground px-1 flex items-center gap-1.5">
               <Activity className="h-3 w-3" /> Recent invocations
             </p>
-            <div className="rounded-lg border border-border/30 overflow-hidden divide-y divide-border/20">
-              {stats.recent_invocations.map((inv, i) => (
-                <InvocationRow key={inv.trace_id || i} inv={inv} />
-              ))}
+            <div className="rounded-lg border border-border/30 overflow-hidden">
+              <div className="max-h-[220px] overflow-y-auto divide-y divide-border/20 [scrollbar-width:thin] [scrollbar-color:hsl(var(--border)/0.4)_transparent]">
+                {stats.recent_invocations.map((inv, i) => (
+                  <InvocationRow key={inv.trace_id || i} inv={inv} />
+                ))}
+              </div>
             </div>
           </div>
         )}
