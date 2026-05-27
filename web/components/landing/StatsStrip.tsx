@@ -3,10 +3,17 @@
 import { useState, useEffect } from "react";
 import { useInView, useCountUp } from "./hooks";
 
-const STAT_META = [
-  { suffix: "%",    label: "of regressions start silent",  sub: "never caught by existing tests"  },
-  { suffix: "",     label: "avg contracts auto-discovered", sub: "per deprecated service"           },
-  { suffix: " min", label: "to first violation alert",      sub: "from replacement deployment"      },
+function formatMinutes(mins: number): string {
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
+const STAT_META: { label: string; sub: string; suffix?: string; format?: (n: number) => string }[] = [
+  { suffix: "%", label: "of regressions start silent",  sub: "never caught by existing tests" },
+  { suffix: "",  label: "avg contracts auto-discovered", sub: "per deprecated service"          },
+  { format: formatMinutes, label: "to first violation alert", sub: "from replacement deployment" },
 ];
 
 interface PlatformStats {
@@ -59,7 +66,7 @@ export default function StatsStrip() {
           {STAT_META.map((s, i) => (
             <div key={s.label} className="text-center space-y-1.5">
               <p className="text-4xl sm:text-5xl lg:text-6xl font-black tabular-nums gradient-text">
-                {vals[i]}{s.suffix}
+                {s.format ? s.format(vals[i]) : `${vals[i]}${s.suffix ?? ""}`}
               </p>
               <p className="text-[13px] sm:text-[14px] font-semibold text-foreground">{s.label}</p>
               <p className="text-xs text-slate-300">{s.sub}</p>
