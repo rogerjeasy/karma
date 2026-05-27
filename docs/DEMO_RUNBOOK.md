@@ -12,6 +12,31 @@ This runbook lets a judge (or teammate) reproduce the full demo without assistan
 
 ---
 
+## Quick-Start (Admin Panel Demo Seed)
+
+For the fastest path to a working demo state, use the **Admin Panel → Infrastructure** tab:
+
+1. Sign in with a Google account that has the `admin` role
+2. Navigate to **Dashboard → Admin**
+3. On the **Infrastructure** tab, find the **Demo Quick-Start** panel
+4. Click **Seed Demo Data** — this calls `POST /demo/seed` which pre-populates Firestore with:
+   - `svc-payments-v2 [demo]` in `haunting` phase
+   - 4 validated contracts (cache warming, latency, dependency, error semantics)
+   - 1 ghost report for the cache-warming violation
+   - 1 deployment metric record
+5. Navigate to **Dashboard → Services** to see the seeded service
+6. Navigate to **Dashboard → Ghosts** to see the ghost report
+
+To reset: click **Reset Demo** in the same panel, or call `DELETE /demo/reset`.
+
+---
+
+## Full Manual Walkthrough
+
+Use this path to reproduce the end-to-end agent flow (learning + watching + forensic).
+
+---
+
 ## Step 0 — Verify the synthetic environment is healthy
 
 ```bash
@@ -47,6 +72,12 @@ This script:
 2. Clears Karma's Memory Bank for the demo tenant
 3. Confirms reset with a summary
 
+Alternatively, use the API:
+```bash
+curl -X DELETE https://api.karma.<domain>/demo/reset \
+  -H "Authorization: Bearer <firebase-id-token>"
+```
+
 ---
 
 ## Step 2 — Register svc-payments-v2 for deprecation
@@ -79,6 +110,13 @@ Alternatively, to run the Learner live (takes 3–5 minutes):
 1. On the dashboard, click **"Run learning pass now"**
 2. Watch the contract discovery log panel — contracts appear one by one
 3. When the Learner finishes, you'll see 4–6 contracts in the timeline
+
+To re-trigger learning via API:
+
+```bash
+curl -X POST https://api.karma.<domain>/services/<service_id>/learn \
+  -H "Authorization: Bearer <token>"
+```
 
 ---
 
@@ -115,7 +153,7 @@ You should see three SLOs:
 - `karma/svc-payments-v2/throughput/sustained_qps` — 95% target
 - `karma/svc-payments-v2/error-rate/idempotency_response` — 95% target
 
-These are live Dynatrace SLOs with burn-rate alerting enabled. If a judge looks at the Dynatrace SLO dashboard, they can see Karma's discovered contracts enforced as first-class SLOs.
+These are live Dynatrace SLOs. If a judge looks at the Dynatrace SLO dashboard, they can see Karma's discovered contracts enforced as first-class SLOs.
 
 ### 4b — Verify BizEvents
 
@@ -127,12 +165,12 @@ fetch bizevents
 | limit 5
 ```
 
-If contract #4 is missing, run:
+If contract #4 is missing, re-run the Learner with the cache-warming hint:
 
 ```bash
-# Manually trigger the Learner with the cache-warming hint
-curl -X POST https://api.karma.<domain>/services/svc-payments-v2/learn \
+curl -X POST https://api.karma.<domain>/services/<service_id>/learn \
   -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
   -d '{"hint": "pay attention to async writes to external stores (Redis, queues)"}'
 ```
 
@@ -152,11 +190,21 @@ The dashboard transitions to *Haunting mode*. The Watcher is now active.
 
 ## Step 6 — Observe the ghost detection
 
-The Watcher runs every 10 minutes. To trigger it immediately:
+The Watcher runs every 10 minutes via Cloud Scheduler → `POST /pubsub/watcher-tick`.
+
+To trigger it immediately via the Admin Panel:
+
+1. Go to **Dashboard → Admin → Infrastructure**
+2. Find the system service for `svc-payments-v3`
+3. Click the Watcher run button
+
+Or trigger via API (requires admin token):
 
 ```bash
-curl -X POST https://api.karma.<domain>/watchers/run-now \
-  -H "Authorization: Bearer <token>"
+curl -X POST https://api.karma.<domain>/pubsub/watcher-tick \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"service_id": "<service_id>"}'
 ```
 
 Within 30–60 seconds, the dashboard should show:
@@ -186,7 +234,11 @@ Click on the ghost report for contract #4. You should see:
 - **Root cause:** "svc-payments-v3 does not implement the Redis cache-warming background task present in v2"
 - **Downstream impact:** live svc-reporting metrics showing the p95 latency increase
 - **Evidence links:** clickable DQL queries that open in Dynatrace
-- **Dynatrace BizEvent link:** the `emit_karma_event` audit record — verify in Dynatrace with:
+- **Davis AI insights:** remediation guidance from `ask-dynatrace-docs`
+- **Investigation cost:** token count + USD estimate from `get_session_cost_estimate`
+- **Avoided incident cost:** estimated savings from early detection
+- **Dynatrace Notebook link:** opens the investigation notebook created by Forensic (for CRITICAL reports)
+- **Dynatrace BizEvent:** verify the `karma.ghost_report.created` audit record:
   ```dql
   fetch bizevents
   | filter event.type == "karma.ghost_report.created"
@@ -199,11 +251,35 @@ Click on the ghost report for contract #4. You should see:
 
 ---
 
-## Step 8 — Reset for next judge
+## Step 8 — Migration Readiness Score
+
+Navigate to **Dashboard → Services → svc-payments-v3** to see the Migration Readiness Score panel:
+
+- **Overall score:** weighted 0–100 across all contract categories
+- **Category breakdown:** per-category compliance status
+- **Avoided incident cost:** total estimated savings across all ghost reports
+
+A score below 80 shows a banner: "Unresolved violations — address before cutting over."
+
+---
+
+## Step 9 — Admin — Coding Agent Observability
+
+Navigate to **Dashboard → Admin → Coding Agents** to see the agent token/cost comparison:
+
+- **Karma ADK agents** (Gemini 2.5 Pro) — total tokens + cost for the entire Learner/Watcher/Forensic system
+- **Claude Code dev sessions** (Claude Sonnet 4.6) — tokens from the development sessions that built this system
+- Both powered by live DQL against `fetch spans` in Grail (falls back to Firestore when `DT_QUERY_TOKEN` is not set)
+
+---
+
+## Step 10 — Reset for next judge
 
 ```bash
 ./scripts/reset-demo.sh
 ```
+
+Or via Admin Panel → Infrastructure → Reset Demo.
 
 ---
 
@@ -211,11 +287,14 @@ Click on the ghost report for contract #4. You should see:
 
 | Symptom | Fix |
 |---------|-----|
-| Contract #4 not discovered | Re-run Learner with cache-warming hint (Step 4) |
-| Ghost not detected | Confirm load generator is running; wait one full Watcher cycle |
+| Contract #4 not discovered | Re-run Learner with cache-warming hint (Step 4b) |
+| Ghost not detected | Confirm load generator is running; trigger watcher manually (Step 6) |
 | Dashboard shows auth error | Firebase Auth — sign out and sign back in |
 | SSE events not streaming | Refresh the page; check Cloud Run logs for the API service |
 | Firestore permission denied | Verify Firebase Auth token is valid; check Firestore rules |
+| Slack notification not sent | Check Dynatrace Slack Connector is configured (optional feature) |
+| Dynatrace Notebook not created | Check Platform Token has `document:documents:write` scope |
+| Agent observability shows $0 | Set `DT_QUERY_TOKEN` env var; Firestore fallback shows only ghost report costs |
 
 ---
 
@@ -227,4 +306,4 @@ If the live environment is unavailable, restore from the golden run snapshot:
 ./scripts/golden-run-snapshot.sh restore
 ```
 
-This loads a pre-captured Firestore state that reflects a complete successful demo run.
+This loads a pre-captured Firestore state that reflects a complete successful demo run. Alternatively, use the Admin Panel → Demo Quick-Start → Seed Demo Data for an instant seeded state.

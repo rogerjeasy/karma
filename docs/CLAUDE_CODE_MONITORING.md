@@ -2,6 +2,8 @@
 
 This document explains how to route Claude Code's development-session telemetry to Dynatrace, so you can observe your AI-assisted engineering workflow the same way Karma observes its own AI agents.
 
+> **Already integrated:** The Karma dashboard's **Admin → Coding Agents** tab shows a live side-by-side comparison of Karma ADK agent token spend (Gemini 2.5 Pro) vs Claude Code dev session token spend (Claude Sonnet 4.6). This view is powered by real DQL against `fetch spans` in Grail — no manual dashboard import required. See `web/app/dashboard/admin/components/AgentObservabilityPanel.tsx` and `api/app/routes/admin.py` (`/admin/agent-observability`).
+
 ---
 
 ## Why this matters

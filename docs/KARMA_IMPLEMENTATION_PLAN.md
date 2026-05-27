@@ -685,11 +685,28 @@ Decide cut lines now — while you're calm — so future-you doesn't make bad ca
 - ❌ Multi-tenancy or team workspaces. Single user.
 - ❌ Production OAuth flow for Dynatrace tenant onboarding. Demo uses a hardcoded tenant.
 - ❌ Service auto-discovery. User manually registers services in the dashboard.
-- ❌ Notification integrations (Slack, email). Ghosts only appear in the dashboard.
 - ❌ Configurable contract schemas. Hardcode the 8 categories.
 - ❌ A mobile app. Web only.
 - ❌ A marketing landing page. The dashboard *is* the entry point.
 - ❌ A pricing tier or "free trial" gate. Demo is open.
+
+### What was built beyond the original plan (implemented stretch features)
+
+The following items were originally scoped out but were subsequently implemented:
+
+- ✅ **Slack/email notifications** — The Forensic agent sends Slack messages and emails via the Dynatrace MCP `send-slack-message` and `send-email` tools for HIGH and CRITICAL ghost reports.
+- ✅ **Dynatrace Notebooks** — The Forensic agent creates a collaborative investigation Notebook in the Dynatrace tenant for HIGH/CRITICAL reports, embedding DQL queries and Markdown analysis.
+- ✅ **Dynatrace Workflows** — The Forensic agent creates a recurring-notification Workflow in Dynatrace for CRITICAL reports, ensuring future recurrences are automatically flagged.
+- ✅ **Dynatrace SLOs from contracts** — The Learner registers validated `latency`, `throughput`, and `error_semantics` contracts as official Dynatrace SLOs with burn-rate alerting.
+- ✅ **Session cost estimation** — Ghost reports include the ADK session's token count and USD cost estimate, computed by `get_session_cost_estimate`.
+- ✅ **Avoided incident cost** — The Forensic agent estimates the avoided incident cost (severity × affected services × hours detected early) and stores it on the ghost report.
+- ✅ **Admin self-monitoring panel** — The dashboard includes a full admin panel with 4 tabs: Infrastructure (system services), Platform Observability, AI Investigation Engine, and Coding Agent Observability.
+- ✅ **Coding Agent Observability** — Side-by-side token/cost view of Karma ADK agents (Gemini 2.5 Pro) vs Claude Code dev sessions (Claude Sonnet), powered by live Grail DQL.
+- ✅ **Migration Readiness Score** — Weighted 0–100 compliance score across all 8 contract categories, with avoided-incident-cost totals.
+- ✅ **Demo seed/reset API** — `POST /demo/seed` and `DELETE /demo/reset` for instant judge-ready state, with an Admin Panel quick-start button.
+- ✅ **GitHub deployment metrics** — The Admin panel's record-deployment endpoint fetches real commits, PRs, and line changes from the GitHub API.
+- ✅ **Watcher auto-completion** — User services automatically transition from `haunting` → `completed` after 3 consecutive violation-free Watcher cycles.
+- ✅ **System services (Karma self-monitoring)** — Karma monitors its own infrastructure services (Karma API, Karma Agent System) as first-class self-monitoring use cases.
 
 ---
 

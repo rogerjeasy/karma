@@ -44,10 +44,13 @@ Required by the API Cloud Run deployment (`deploy-api.yml`):
 **These were created automatically by `terraform apply`** using the values from
 `infrastructure/terraform/terraform.tfvars`. No manual setup needed.
 
-| Secret Manager secret | Used by | Status |
-|---|---|---|
-| `dt-api-token` | `deploy-api.yml` → Cloud Run | ✅ Done (Terraform) |
-| `api-secret-key` | `deploy-api.yml` → Cloud Run | ✅ Done (Terraform) |
+| Secret Manager secret | Used by | Purpose | Status |
+|---|---|---|---|
+| `dt-api-token` | agents → MCP gateway | Platform Token (Bearer auth) | ✅ Done (Terraform) |
+| `dt-otel-token` | agents + api | Classic token: OTel, BizEvents, SLO, Events ingest | ✅ Done (Terraform) |
+| `dt-query-token` | api → agent observability | Classic token: Grail `storage:spans:read` | ✅ Done (Terraform) |
+| `api-secret-key` | `deploy-api.yml` → Cloud Run | API signing secret | ✅ Done (Terraform) |
+| `github-token` | api → deployment metrics | Fine-grained PAT (Contents:read, PRs:read) | ✅ Done (Terraform) |
 
 ---
 
@@ -154,7 +157,10 @@ Add the output of the first command as `GCP_WORKLOAD_IDENTITY_PROVIDER` and the 
 - [x] `FIREBASE_MESSAGING_SENDER_ID` secret set
 - [x] `FIREBASE_APP_ID` secret set
 - [x] `dt-api-token` in GCP Secret Manager (done by `terraform apply`)
+- [x] `dt-otel-token` in GCP Secret Manager (done by `terraform apply`)
+- [x] `dt-query-token` in GCP Secret Manager (done by `terraform apply`)
 - [x] `api-secret-key` in GCP Secret Manager (done by `terraform apply`)
+- [x] `github-token` in GCP Secret Manager (done by `terraform apply`)
 - [ ] `GCP_WORKLOAD_IDENTITY_PROVIDER` secret set → run `.\infrastructure\setup-wif.ps1`
 - [ ] `GCP_SERVICE_ACCOUNT` secret set → run `.\infrastructure\setup-wif.ps1`
 - [ ] `API_BASE_URL` variable set (after first deploy)

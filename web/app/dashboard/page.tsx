@@ -20,7 +20,6 @@ import type { ContractCategory, ContractResponse, GhostReport, PlatformStats, Vi
 import { WatcherLiveLog } from "@/components/WatcherLiveLog";
 import { DemoRunPanel } from "@/components/DemoRunPanel";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 interface Stats {
   totalServices: number;
@@ -53,13 +52,11 @@ export default function DashboardPage() {
   const davisEnriched = ghosts.filter((g) => g.davis_ai_insights && g.davis_ai_insights !== "not available").length;
   const hasCostData   = !loading && ghosts.some((g) => g.cost_estimate_usd != null);
 
-  // ── Fetch public /stats (no auth needed) ─────────────────────────────────
+  // ── Fetch /stats with auth so the backend returns user-scoped data ──────
   useEffect(() => {
-    fetch(`${API_BASE}/stats`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => d && setPlatformStats(d as PlatformStats))
+    apiFetch<PlatformStats>('/stats')
+      .then((d) => setPlatformStats(d))
       .catch(() => {});
-  // Re-fetch whenever the service or ghost count changes (add, delete, SSE).
   }, [services.length, ghosts.length]);
 
   // ── Fetch recent watcher runs across all services ─────────────────────────
@@ -224,39 +221,75 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* ── Platform impact stats strip ── */}
+      {/* ── Your Impact card ── */}
       {platformStats && (
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-border bg-card px-5 py-3.5">
-          <div className="flex items-center gap-2">
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          {/* Card header */}
+          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-border/60">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/25 bg-emerald-500/10">
               <BarChart3 className="h-3.5 w-3.5 text-emerald-400" />
             </div>
-            <span className="text-xs font-semibold text-slate-300">Platform Impact</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <FileCode2 className="h-3.5 w-3.5 text-teal-400 shrink-0" />
-            <span className="font-mono font-semibold text-foreground">{platformStats.total_contracts}</span>
-            <span className="text-slate-300">contracts discovered</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Ghost className="h-3.5 w-3.5 text-red-400 shrink-0" />
-            <span className="font-mono font-semibold text-foreground">{platformStats.total_ghost_reports}</span>
-            <span className="text-slate-300">ghost reports generated</span>
-          </div>
-          {platformStats.avg_minutes_to_first_alert != null && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Timer className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-              <span className="font-mono font-semibold text-foreground">{platformStats.avg_minutes_to_first_alert.toFixed(1)} min</span>
-              <span className="text-slate-300">avg time to first alert</span>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Your Impact</h3>
+              <p className="text-[11px] text-slate-400 leading-none mt-0.5">Detection metrics for your registered services</p>
             </div>
-          )}
-          {platformStats.pct_services_with_violations != null && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <AlertTriangle className="h-3.5 w-3.5 text-orange-400 shrink-0" />
-              <span className="font-mono font-semibold text-foreground">{platformStats.pct_services_with_violations}%</span>
-              <span className="text-slate-300">services with violations caught</span>
+          </div>
+          {/* Metric tiles — gap-px + bg-border/40 creates divider lines */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border/40">
+            <div className="bg-card px-5 py-5 hover:bg-muted/20 transition-colors">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="flex h-7 w-7 items-center justify-center rounded-md border border-teal-500/25 bg-teal-500/10">
+                  <FileCode2 className="h-3.5 w-3.5 text-teal-400" />
+                </div>
+                <span className="text-[11px] font-medium text-slate-300 uppercase tracking-wide">Contracts</span>
+              </div>
+              <p className="text-3xl font-bold tabular-nums text-foreground">{platformStats.total_contracts}</p>
+              <p className="text-xs text-slate-400 mt-1">discovered</p>
             </div>
-          )}
+
+            <div className="bg-card px-5 py-5 hover:bg-muted/20 transition-colors">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="flex h-7 w-7 items-center justify-center rounded-md border border-red-500/25 bg-red-500/10">
+                  <Ghost className="h-3.5 w-3.5 text-red-400" />
+                </div>
+                <span className="text-[11px] font-medium text-slate-300 uppercase tracking-wide">Ghost Reports</span>
+              </div>
+              <p className="text-3xl font-bold tabular-nums text-foreground">{platformStats.total_ghost_reports}</p>
+              <p className="text-xs text-slate-400 mt-1">generated</p>
+            </div>
+
+            <div className="bg-card px-5 py-5 hover:bg-muted/20 transition-colors">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="flex h-7 w-7 items-center justify-center rounded-md border border-amber-500/25 bg-amber-500/10">
+                  <Timer className="h-3.5 w-3.5 text-amber-400" />
+                </div>
+                <span className="text-[11px] font-medium text-slate-300 uppercase tracking-wide">Avg Alert</span>
+              </div>
+              <p className="text-3xl font-bold tabular-nums text-foreground">
+                {platformStats.avg_minutes_to_first_alert != null
+                  ? platformStats.avg_minutes_to_first_alert.toFixed(1)
+                  : "—"}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                {platformStats.avg_minutes_to_first_alert != null ? "min to first alert" : "no data yet"}
+              </p>
+            </div>
+
+            <div className="bg-card px-5 py-5 hover:bg-muted/20 transition-colors">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="flex h-7 w-7 items-center justify-center rounded-md border border-orange-500/25 bg-orange-500/10">
+                  <AlertTriangle className="h-3.5 w-3.5 text-orange-400" />
+                </div>
+                <span className="text-[11px] font-medium text-slate-300 uppercase tracking-wide">Violations</span>
+              </div>
+              <p className="text-3xl font-bold tabular-nums text-foreground">
+                {platformStats.pct_services_with_violations != null
+                  ? `${platformStats.pct_services_with_violations}%`
+                  : "—"}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">services with violations caught</p>
+            </div>
+          </div>
         </div>
       )}
 

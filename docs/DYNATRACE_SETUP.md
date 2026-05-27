@@ -48,6 +48,11 @@ davis-copilot:dql2nl:execute
 davis-copilot:conversations:execute
 ```
 
+**Troubleshooting Agent** (`find-troubleshooting-guides`):
+```
+davis-copilot:document-search:execute
+```
+
 **Data Analysis Agent** (`execute-dql`) — add data-type permissions for what you query:
 ```
 storage:buckets:read
@@ -77,11 +82,6 @@ storage:entities:read
 **Document Agent** (`find-documents`):
 ```
 document:documents:read
-```
-
-**Troubleshooting Agent** (`find-troubleshooting-guides`):
-```
-davis-copilot:document-search:execute
 ```
 
 **Vulnerability Agent** (`get-vulnerabilities`):
@@ -143,39 +143,45 @@ If you get 404: confirm the environment name in the URL is correct.
 
 ## 5. Available MCP Tools (confirmed from tools/list)
 
-The table below shows the **confirmed MCP tool names** from the live `tools/list` response
-(stored in `docs/dynatrace-mcp-info.md`). Use the exact `name` values in agent code —
-these use hyphens, not underscores.
+The table below shows the **confirmed MCP tool names** from the live `tools/list` response.
+Use the exact `name` values in agent code — these use hyphens, not underscores.
 
-| MCP `name` | Agent title | What it does | Key scope(s) |
+| MCP `name` | Karma wrapper function | What it does | Key scope(s) |
 |---|---|---|---|
-| `create-dql` | Grail Query Agent | Generate DQL from natural language (does not execute) | `davis-copilot:nl2dql:execute` |
-| `execute-dql` | Data Analysis Agent | Execute DQL, return raw results (max 1 000 records) | `storage:buckets:read` + data permissions |
-| `explain-dql` | DQL Explanation Agent | Explain a DQL query in natural language | `davis-copilot:dql2nl:execute` |
-| `ask-dynatrace-docs` | Help Agent | Answer Dynatrace product questions | `davis-copilot:conversations:execute` |
-| `query-problems` | Root Cause Agent | List all Davis problems (active or closed, max 200) | `storage:buckets:read`, `storage:events:read` |
-| `get-problem-by-id` | Root Cause Details Agent | Full details of a specific Davis problem | `storage:buckets:read`, `storage:events:read` |
-| `get-vulnerabilities` | Vulnerability Agent | List active security vulnerabilities | `storage:buckets:read`, `storage:security.events:read` |
-| `get-events-for-kubernetes-cluster` | Kubernetes Agent | K8s events for all clusters or a specific one | `storage:buckets:read`, `storage:events:read` |
-| `timeseries-forecast` | Forecasting Agent | Predict future timeseries values | `storage:buckets:read`, `davis:analyzers:*` |
-| `timeseries-novelty-detection` | Changepoint Agent | Find outliers, level changes, and trends | `storage:buckets:read`, `davis:analyzers:*` |
-| `adaptive-anomaly-detector` | Autoadaptive Threshold Agent | Anomaly detection with learned adaptive threshold | `storage:buckets:read`, `davis:analyzers:*` |
-| `seasonal-baseline-anomaly-detector` | Seasonal Baseline Agent | Anomaly detection accounting for seasonal patterns | `storage:buckets:read`, `davis:analyzers:*` |
-| `static-threshold-analyzer` | Static Threshold Agent | Anomaly detection against a fixed threshold | `storage:buckets:read`, `davis:analyzers:*` |
-| `find-documents` | Document Agent | Search Dashboards and Notebooks by title | `document:documents:read` |
-| `find-troubleshooting-guides` | Troubleshooting Agent | Find troubleshooting guide Notebooks | `davis-copilot:document-search:execute` |
-| `get-entity-id` | Smartscape Agent | Resolve entity name + type → Dynatrace entity ID | `storage:entities:read` |
-| `get-entity-name` | Smartscape Agent | Resolve Dynatrace entity ID → human-readable name | `storage:entities:read` |
+| `create-dql` | — | Generate DQL from natural language (does not execute) | `davis-copilot:nl2dql:execute` |
+| `execute-dql` | `execute_dql` (direct HTTP) | Execute DQL, return raw results (max 1 000 records) | `storage:buckets:read` + data permissions |
+| `explain-dql` | — | Explain a DQL query in natural language | `davis-copilot:dql2nl:execute` |
+| `ask-dynatrace-docs` | `ask_dynatrace_docs_via_mcp` | Answer Dynatrace product questions; remediation guidance | `davis-copilot:conversations:execute` |
+| `find-troubleshooting-guides` | `find_troubleshooting_guides_via_mcp` | Find troubleshooting guide Notebooks | `davis-copilot:document-search:execute` |
+| `query-problems` | `query_problems_via_mcp` | AI-enriched root cause for a service (Davis Root Cause Agent) | `storage:buckets:read`, `storage:events:read` |
+| `list-problems` | `list_problems_via_mcp` | List all Davis problems; cross-correlate violations | `storage:buckets:read`, `storage:events:read` |
+| `get-problem-by-id` | `get_problem_details_via_mcp` | Full details of a specific Davis problem | `storage:buckets:read`, `storage:events:read` |
+| `get-vulnerabilities` | — | List active security vulnerabilities | `storage:buckets:read`, `storage:security.events:read` |
+| `get-events-for-kubernetes-cluster` | — | K8s events for all clusters or a specific one | `storage:buckets:read`, `storage:events:read` |
+| `timeseries-forecast` | — | Predict future timeseries values | `storage:buckets:read`, `davis:analyzers:*` |
+| `timeseries-novelty-detection` | `detect_changepoints_via_mcp` | Find outliers, level changes, and trends | `storage:buckets:read`, `davis:analyzers:*` |
+| `adaptive-anomaly-detector` | `adaptive_anomaly_detection_via_mcp` | Anomaly detection with learned adaptive threshold | `storage:buckets:read`, `davis:analyzers:*` |
+| `seasonal-baseline-anomaly-detector` | — | Anomaly detection accounting for seasonal patterns | `storage:buckets:read`, `davis:analyzers:*` |
+| `static-threshold-analyzer` | — | Anomaly detection against a fixed threshold | `storage:buckets:read`, `davis:analyzers:*` |
+| `find-documents` | — | Search Dashboards and Notebooks by title | `document:documents:read` |
+| `get-entity-id` | `get_entity_id_via_mcp` | Resolve entity name + type → Dynatrace entity ID | `storage:entities:read` |
+| `get-entity-name` | `get_entity_name_via_mcp` | Resolve Dynatrace entity ID → human-readable name | `storage:entities:read` |
+| `send-event` | `send_event_via_mcp` | Post a custom event to a Dynatrace entity timeline | `storage:events:write` (platform scope) |
+| `send-slack-message` | `send_slack_message_via_mcp` | Send a Slack message via the DT Slack Connector | Slack Connector must be configured in DT |
+| `send-email` | `send_email_via_mcp` | Send an email via the Dynatrace Email API | Email connector must be configured in DT |
+| `create-dynatrace-notebook` | `create_dynatrace_notebook_via_mcp` | Create a collaborative Dynatrace Notebook | `document:documents:write` |
+| `create-workflow-for-notification` | `create_workflow_for_notification_via_mcp` | Create a Dynatrace Workflow for recurring alerts | `automation:workflows:write` |
 
-> **Not available via MCP:** `send_event`, `execute_davis_analyzer`, `verify_dql`, and
-> `chat_with_davis_copilot` do not exist in the current toolset. Karma uses the
-> Logs Ingest API directly for self-observability (see §8 below).
+> **Notes:**
+> - `execute_dql` is called via direct HTTP to the Grail API, not through the MCP gateway, to avoid anyio cancel scope issues in Agent Engine.
+> - `send-slack-message` and `send-email` require the respective Dynatrace connectors to be configured in your tenant. If not configured, Karma logs the error and continues.
+> - `create-dynatrace-notebook` requires `document:documents:write` scope on the Platform Token.
 
 ---
 
 ## 6. Configure OpenTelemetry Ingest
 
-The synthetic environment services export OTel traces and logs to your Dynatrace tenant.
+The synthetic environment services and the Karma API export OTel traces and logs to your Dynatrace tenant.
 
 ### OTel endpoint
 ```
@@ -184,7 +190,7 @@ https://<environment-name>.live.dynatrace.com/api/v2/otlp
 
 ### Authentication header
 ```
-Authorization: Api-Token <your-api-token>
+Authorization: Api-Token <your-otel-api-token>
 ```
 
 > Note: OTel ingest uses a **classic API token** (not a Platform Token). Create a separate API token with:
@@ -201,21 +207,25 @@ Store it as `dt-otel-token` in Secret Manager.
 
 ## 7. Environment Variables
 
-Only `DT_ENV` and `DT_API_TOKEN` are required. All other Dynatrace URLs are
-derived by the agent code from `DT_ENV` — never set them as raw URL strings
-in `.env` because pydantic-settings does not expand `${VAR}` references.
+Only `DT_ENV` and `DT_API_TOKEN` are required for the agent system. All Dynatrace URLs are derived by the agent code from `DT_ENV`.
 
 ```bash
-# Required
+# Required for agents (MCP gateway)
 DT_ENV=<your-environment-name>
 DT_API_TOKEN=<your-platform-token>
 
 # Optional — leave blank; derived from DT_ENV automatically
-# Set only if you need a local stdio override: stdio://localhost
+# Set only if you need a local stdio override
 DT_MCP_URL=
 
-# Classic API token for OTel ingest (separate from Platform Token)
+# Classic API token for OTel, BizEvents, SLO, and Events ingest
+# Required scopes: openTelemetryTrace.ingest, logs.ingest, metrics.ingest,
+#                  events.ingest, bizevents.ingest, slo.write
 DT_OTEL_TOKEN=<your-otel-classic-token>
+
+# Classic API token for Grail DQL read (agent observability panel)
+# Required scopes: storage:spans:read (or storage:buckets:read)
+DT_QUERY_TOKEN=<your-query-classic-token>
 ```
 
 The agent code exposes the following derived URLs via `settings`:
@@ -228,15 +238,14 @@ The agent code exposes the following derived URLs via `settings`:
 | `settings.dt_logs_endpoint` | `<dt_classic_base_url>/api/v2/logs/ingest` |
 | `settings.dt_bizevents_endpoint` | `<dt_classic_base_url>/api/v2/bizevents/ingest` |
 | `settings.dt_slo_endpoint` | `<dt_classic_base_url>/api/v2/slo` |
+| `settings.dt_events_endpoint` | `<dt_classic_base_url>/api/v2/events/ingest` |
 | `settings.dt_otel_endpoint` | `<dt_classic_base_url>/api/v2/otlp` |
 
 ---
 
 ## 8. BizEvents Ingest (Karma Self-Observability)
 
-The Dynatrace MCP server does not expose a `send_event` tool. Karma calls the
-**BizEvents Ingest API v2** directly to emit every agent decision as a structured
-CloudEvent, visible as business-process telemetry in Dynatrace Grail.
+Karma calls the **BizEvents Ingest API v2** directly to emit every agent decision as a structured CloudEvent, visible as business-process telemetry in Dynatrace Grail.
 
 **Endpoint** (derived from `settings.dt_bizevents_endpoint`):
 ```
@@ -250,8 +259,7 @@ Content-Type: application/cloudevents+json
 ```
 
 **Required scope on the classic API token:** `bizevents.ingest`
-This is a classic API scope — distinct from the platform scope
-`storage:bizevents:write` — and is available on Dynatrace free trials.
+This is a classic API scope — available on Dynatrace free trials.
 
 **Querying emitted events via DQL:**
 ```dql
@@ -270,7 +278,7 @@ fetch bizevents
 | limit 10
 ```
 
-Karma emits events under these types (defined in `dynatrace_events.py`):
+Karma emits events under these types (defined in `agents/karma/tools/dynatrace_events.py`):
 
 | Event type (`event.type`) | Emitted by | When |
 |---|---|---|
@@ -281,16 +289,33 @@ Karma emits events under these types (defined in `dynatrace_events.py`):
 | `karma.violation.detected` | Watcher (via Forensic) | When a predicate fails |
 | `karma.ghost_report.created` | Forensic | After producing a ghost report |
 
-The `dt_logs_endpoint` (`/api/v2/logs/ingest`) is still available for external
-service OTel logs. Karma self-observability moved to BizEvents in v1.1 so the
-demo runbook DQL queries (`fetch bizevents ...`) work as written.
+---
+
+## 9. Dynatrace Service Timeline Annotations
+
+In addition to BizEvents, the Forensic agent writes `CUSTOM_ANNOTATION` events directly onto the Dynatrace service entity timeline via `push_ghost_report_to_dynatrace`. These are visible under the service's **Events** tab in Dynatrace and can trigger Davis AI correlation.
+
+**Endpoint:** `settings.dt_events_endpoint` → `POST /api/v2/events/ingest`  
+**Required scope:** `events.ingest`
 
 ---
 
-## 9. Dynatrace Trial Expiry
+## 10. Dynatrace Trial Expiry
 
 The 15-day free trial may expire before the June 11 deadline.
 - A trial started on **May 18** expires around **June 2** — nine days before submission.
 - Start a **fresh trial on May 27** to ensure coverage through June 11.
 - Alternatively, request an extended trial from your Dynatrace contact.
 - The GCP $100 credit request covers GCP costs; Dynatrace trial costs are separate.
+
+---
+
+## 11. Slack Connector Setup (Optional)
+
+The `send_slack_message_via_mcp` tool requires the Dynatrace Slack Connector to be configured in your tenant.
+
+1. In Dynatrace → **Apps → Slack** (or search for Slack in the Apps marketplace)
+2. Connect your Slack workspace and authorize the `dynatrace` app
+3. Note the channel name format: `#channel-name` (with hash, in lowercase)
+
+If the connector is not configured, `send_slack_message_via_mcp` returns an error and the Forensic agent logs it and continues. Slack notifications are optional — ghost reports are always saved to Firestore regardless.
