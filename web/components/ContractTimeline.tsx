@@ -41,12 +41,9 @@ const CATEGORY_COLORS: Partial<Record<ContractCategory, string>> = {
 
 const DT_ENV = process.env.NEXT_PUBLIC_DT_ENV ?? "";
 
-function buildNotebookUrl(dql: string): string | null {
-  if (!DT_ENV || !dql.trim()) return null;
-  return (
-    `https://${DT_ENV}.apps.dynatrace.com/ui/apps/dynatrace.notebooks/` +
-    `?query=${encodeURIComponent(dql)}`
-  );
+// dynatrace.notebooks ignores ?query= — callers fall back to copy-to-clipboard
+function buildNotebookUrl(_dql: string): string | null {
+  return null;
 }
 
 function buildSloUrl(sloId: string): string | null {

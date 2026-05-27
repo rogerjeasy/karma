@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import {
-  ArrowLeft, Copy, Check, ExternalLink, Shield, Clock,
+  ArrowLeft, Copy, Check, Shield, Clock,
   FileCode2, AlertTriangle, ChevronRight, Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,6 @@ import { useDashboardData } from "@/lib/dashboard-context";
 import { GhostCard } from "@/components/GhostCard";
 import type { ContractDetail, ContractEvidence } from "@/lib/types";
 
-const DT_ENV = process.env.NEXT_PUBLIC_DT_ENV ?? "";
 
 const CATEGORY_COLOR: Record<string, string> = {
   latency:         "bg-blue-500/15   text-blue-400   border-blue-500/20",
@@ -47,23 +46,12 @@ function CopyButton({ value, className }: { value: string; className?: string })
 }
 
 function DqlBlock({ dql, label }: { dql: string; label?: string }) {
-  const href = DT_ENV
-    ? `https://${DT_ENV}.apps.dynatrace.com/ui/apps/dynatrace.notebooks/?query=${encodeURIComponent(dql)}`
-    : null;
   return (
     <div className="rounded-lg border border-border bg-zinc-950/60 overflow-hidden">
       {label && (
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/60 bg-muted/20">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-300">{label}</span>
-          <div className="flex items-center gap-2">
-            <CopyButton value={dql} />
-            {href && (
-              <a href={href} target="_blank" rel="noopener noreferrer"
-                className="text-primary/60 hover:text-primary transition-colors">
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            )}
-          </div>
+          <CopyButton value={dql} />
         </div>
       )}
       <pre className="px-4 py-3 text-[11px] font-mono text-emerald-300/80 leading-relaxed overflow-x-auto whitespace-pre-wrap break-all">

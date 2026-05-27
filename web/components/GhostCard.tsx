@@ -36,12 +36,6 @@ function extractDql(raw: string): string {
   return withoutPrefix.replace(/\s*--\s*RESULT:[\s\S]*$/i, "").trim();
 }
 
-function buildNotebookUrl(dql: string): string | null {
-  const base = buildDtBase();
-  if (!base || !dql) return null;
-  return `${base}/ui/apps/dynatrace.notebooks/?query=${encodeURIComponent(dql)}`;
-}
-
 function buildProblemUrl(problemId: string): string | null {
   const base = buildDtBase();
   if (!base || !problemId) return null;
@@ -60,12 +54,6 @@ function buildEventUrl(eventId: string): string | null {
   return `${base}/ui/apps/dynatrace.events/events?filter=${encodeURIComponent(eventId)}`;
 }
 
-function buildBizEventUrl(reportId: string): string | null {
-  const base = buildDtBase();
-  if (!base || !reportId) return null;
-  const dql = `fetch bizevents\n| filter event.type == "karma.ghost_report.created"\n| filter event.data.report_id == "${reportId}"`;
-  return `${base}/ui/apps/dynatrace.notebooks/?query=${encodeURIComponent(dql)}`;
-}
 
 // ── Shared DT link button ──────────────────────────────────────────────────────
 
@@ -107,11 +95,13 @@ function DtLink({
 
 // ── Evidence DQL link/copy ────────────────────────────────────────────────────
 
-function EvidenceLink({ raw, index }: { raw: string; index: number }) {
+function EvidenceLink({ raw, index, notebookUrl }: { raw: string; index: number; notebookUrl: string | null }) {
   const [copied, setCopied] = useState(false);
   const isUrl = /^https?:\/\//i.test(raw);
   const dql = isUrl ? "" : extractDql(raw);
-  const href = isUrl ? raw : buildNotebookUrl(dql);
+  // Absolute URLs (e.g. Davis problem deep-links) are used as-is.
+  // DQL strings link to the report's Dynatrace Notebook (which has the DQL embedded as an executable cell).
+  const href = isUrl ? raw : notebookUrl;
 
   if (href) {
     return (
@@ -155,9 +145,8 @@ export function GhostCard({ report }: GhostCardProps) {
   const problemUrl       = report.davis_problem_id  ? buildProblemUrl(report.davis_problem_id) : null;
   const entityUrl        = report.new_service_entity_id ? buildEntityUrl(report.new_service_entity_id) : null;
   const eventUrl         = report.dynatrace_event_id ? buildEventUrl(report.dynatrace_event_id) : null;
-  const bizEventUrl      = buildBizEventUrl(report.report_id);
   const notebookUrl      = report.dynatrace_notebook_url ?? null;
-  const hasDtLinks       = dtBase && (problemUrl || entityUrl || eventUrl || bizEventUrl || notebookUrl);
+  const hasDtLinks       = dtBase && (problemUrl || entityUrl || eventUrl || notebookUrl);
 
   return (
     <article
@@ -231,7 +220,7 @@ export function GhostCard({ report }: GhostCardProps) {
         {report.evidence_links.length > 0 && (
           <div className="flex flex-wrap gap-2 pt-0.5">
             {report.evidence_links.map((link, i) => (
-              <EvidenceLink key={i} raw={link} index={i + 1} />
+              <EvidenceLink key={i} raw={link} index={i + 1} notebookUrl={notebookUrl} />
             ))}
           </div>
         )}
@@ -264,20 +253,20 @@ export function GhostCard({ report }: GhostCardProps) {
                   color="blue"
                 />
               )}
-              {bizEventUrl && (
-                <DtLink
-                  href={bizEventUrl}
-                  icon={BookOpen}
-                  label="BizEvent"
-                  color="violet"
-                />
-              )}
               {eventUrl && (
                 <DtLink
                   href={eventUrl}
                   icon={FileSearch}
                   label="Timeline Annotation"
                   color="teal"
+                />
+              )}
+              {notebookUrl && (
+                <DtLink
+                  href={notebookUrl}
+                  icon={BookOpen}
+                  label="BizEvent"
+                  color="violet"
                 />
               )}
               {notebookUrl && (
