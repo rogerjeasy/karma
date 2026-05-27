@@ -107,7 +107,7 @@ function InvocationRow({ inv }: { inv: RecentInvocation }) {
   const text   = AGENT_TEXT_COLOR[inv.agent]   ?? "text-muted-foreground";
   const border = AGENT_BORDER_COLOR[inv.agent] ?? "border-border";
   const bg     = AGENT_BG_COLOR[inv.agent]     ?? "bg-muted/10";
-  const userId = inv.user_id && inv.user_id !== "unknown" ? inv.user_id : "system";
+  const traceHandle = inv.trace_id ? inv.trace_id.slice(0, 8) : "--------";
 
   return (
     <div className="flex items-center gap-2 px-3 py-2 hover:bg-muted/10 transition-colors group">
@@ -115,7 +115,7 @@ function InvocationRow({ inv }: { inv: RecentInvocation }) {
         {label[0]}
       </div>
       <span className={cn("text-[11px] font-semibold w-20 shrink-0", text)}>{label}</span>
-      <span className="text-[11px] text-muted-foreground flex-1 truncate font-mono">{userId.slice(0, 8)}</span>
+      <span className="text-[11px] text-muted-foreground flex-1 truncate font-mono">{traceHandle}</span>
       {inv.model_turns > 0 && (
         <span className="text-[10px] text-muted-foreground/60 tabular-nums shrink-0">
           {inv.model_turns} turn{inv.model_turns !== 1 ? "s" : ""}

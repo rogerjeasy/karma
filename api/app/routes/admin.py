@@ -431,9 +431,10 @@ _DQL_PER_AGENT = (
 )
 
 # One row per trace: takeFirst gives the dominant agent and user context; count() gives
-# model turns. Sorted by turns (desc) since timestamp projection returns null in Grail.
+# model turns. Sorted by turns (desc) since timestamp/startTime project as null in Grail.
+# 48h window keeps results genuinely recent while still capturing multi-turn sessions.
 _DQL_RECENT_INVOCATIONS = (
-    "fetch spans, from:now()-7d"
+    "fetch spans, from:now()-48h"
     ' | filter service.name == "karma-agent-system"'
     ' | filter span.name == "gen_ai.chat"'
     " | filter isNotNull(karma.agent)"
@@ -547,8 +548,7 @@ async def get_agent_observability(
         for row in recent_rows:
             trace_id = str(row.get("trace_id") or "")
             dt_trace_url = (
-                f"{dt_base}/ui/apps/dynatrace.apm.distributed-tracing"
-                f"/#/ui/trace-detail?traceId={trace_id}"
+                f"{dt_base}/ui/apps/distributed-traces/trace;traceId={trace_id}"
                 if trace_id and dt_base else None
             )
             recent_invocations.append({
