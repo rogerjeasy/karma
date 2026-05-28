@@ -5,11 +5,13 @@ import {
   ExternalLink, ArrowRight, Clock, Copy, Check,
   Brain, Coins, Cpu, AlertOctagon, ServerCrash,
   BookOpen, Zap, FileSearch, TrendingUp, Bell, NotebookText,
+  GitPullRequest, FileCode2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import type { GhostReport, ViolationSeverity } from "@/lib/types";
+import type { GhostReport, RemediationPatch, ViolationSeverity } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import GhostChat from "@/components/GhostChat";
 
 interface GhostCardProps {
   report: GhostReport;
@@ -135,6 +137,97 @@ function EvidenceLink({ raw, index, notebookUrl }: { raw: string; index: number;
   );
 }
 
+// ── Suggested fix (agent-generated patch, preview-only) ───────────────────────
+
+function DiffBlock({ diff }: { diff: string }) {
+  return (
+    <pre className="max-h-72 overflow-auto rounded-md border border-border/60 bg-black/40 p-3 text-[11px] leading-relaxed font-mono">
+      {diff.split("\n").map((line, i) => {
+        const added = line.startsWith("+") && !line.startsWith("+++");
+        const removed = line.startsWith("-") && !line.startsWith("---");
+        const meta =
+          line.startsWith("@@") ||
+          line.startsWith("+++") ||
+          line.startsWith("---") ||
+          line.startsWith("diff ");
+        return (
+          <div
+            key={i}
+            className={cn(
+              "whitespace-pre-wrap break-words",
+              added && "bg-emerald-500/10 text-emerald-300",
+              removed && "bg-red-500/10 text-red-300",
+              meta && "text-slate-500",
+              !added && !removed && !meta && "text-slate-400",
+            )}
+          >
+            {line || " "}
+          </div>
+        );
+      })}
+    </pre>
+  );
+}
+
+function SuggestedFix({ patch }: { patch: RemediationPatch }) {
+  const [copiedPatch, setCopiedPatch] = useState(false);
+  const [copiedBody, setCopiedBody] = useState(false);
+
+  function copy(text: string, mark: (v: boolean) => void) {
+    navigator.clipboard.writeText(text);
+    mark(true);
+    setTimeout(() => mark(false), 1500);
+  }
+
+  return (
+    <div className="space-y-2.5 rounded-lg border border-sky-500/20 bg-sky-500/[0.04] p-3">
+      <div className="flex items-center gap-1.5">
+        <GitPullRequest className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+        <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400/80">
+          Suggested Fix
+        </span>
+        <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-muted-foreground/60 font-mono">
+          <FileCode2 className="h-3 w-3" />
+          {patch.target_file}
+        </span>
+      </div>
+
+      <p className="text-xs font-semibold text-slate-200 leading-snug">{patch.pr_title}</p>
+
+      {patch.patch_diff && <DiffBlock diff={patch.patch_diff} />}
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          onClick={() => copy(patch.patch_diff, setCopiedPatch)}
+          className="inline-flex items-center gap-1.5 rounded-md border border-sky-500/25 px-2 py-1 text-[11px] font-medium text-sky-400 transition-all hover:border-sky-400/40 hover:bg-sky-500/10"
+        >
+          {copiedPatch ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+          {copiedPatch ? "Copied" : "Copy patch"}
+        </button>
+        <button
+          onClick={() => copy(patch.pr_body, setCopiedBody)}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border/60 px-2 py-1 text-[11px] font-medium text-slate-300 transition-all hover:border-border hover:bg-accent"
+        >
+          {copiedBody ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+          {copiedBody ? "Copied" : "Copy PR description"}
+        </button>
+        {patch.github_url && (
+          <a
+            href={patch.github_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md border border-sky-500/25 px-2 py-1 text-[11px] font-medium text-sky-400 transition-all hover:border-sky-400/40 hover:bg-sky-500/10"
+          >
+            <GitPullRequest className="h-3 w-3" />
+            Open as PR on GitHub
+            <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main card ─────────────────────────────────────────────────────────────────
 
 export function GhostCard({ report }: GhostCardProps) {
@@ -215,6 +308,9 @@ export function GhostCard({ report }: GhostCardProps) {
             ))}
           </div>
         )}
+
+        {/* ── Suggested fix (agent-generated patch) ── */}
+        {report.remediation_patch && <SuggestedFix patch={report.remediation_patch} />}
 
         {/* ── Evidence DQL links (raw query copies) ── */}
         {report.evidence_links.length > 0 && (
@@ -317,6 +413,11 @@ export function GhostCard({ report }: GhostCardProps) {
             <span className="text-[10px] text-muted-foreground/30 ml-auto">investigation cost</span>
           </div>
         )}
+
+        {/* ── Ask Karma (constrained chat) ── */}
+        <div className="pt-1">
+          <GhostChat reportId={report.report_id} />
+        </div>
       </div>
     </article>
   );
