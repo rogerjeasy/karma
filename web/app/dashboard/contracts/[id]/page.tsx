@@ -6,7 +6,7 @@ import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import {
   ArrowLeft, Copy, Check, Shield, Clock,
-  FileCode2, AlertTriangle, ChevronRight, Brain,
+  FileCode2, AlertTriangle, ChevronRight, Brain, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
@@ -33,6 +33,13 @@ const PREDICATE_LABEL: Record<string, string> = {
   pattern_mismatch:    "Pattern Mismatch",
 };
 
+const DT_ENV = process.env.NEXT_PUBLIC_DT_ENV ?? "";
+
+/** Base URL for the tenant's Notebooks app — where a judge pastes the DQL to run it. */
+function notebooksAppUrl(): string | null {
+  return DT_ENV ? `https://${DT_ENV}.apps.dynatrace.com/ui/apps/dynatrace.notebooks/` : null;
+}
+
 function CopyButton({ value, className }: { value: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -45,15 +52,43 @@ function CopyButton({ value, className }: { value: string; className?: string })
   );
 }
 
+/**
+ * "Verify it yourself" — copies the exact DQL and opens the tenant's Notebooks app
+ * so a judge can run the query against their own Grail data and confirm the claim.
+ */
+function VerifyInDynatrace({ dql }: { dql: string }) {
+  const [copied, setCopied] = useState(false);
+  const url = notebooksAppUrl();
+  if (!url) return null;
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(dql);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+        window.open(url, "_blank", "noopener,noreferrer");
+      }}
+      title="Copies this DQL and opens Dynatrace Notebooks — paste to run it against your own Grail data"
+      className="inline-flex items-center gap-1.5 rounded-md border border-teal-500/25 px-2 py-1 text-[10px] font-medium text-teal-400 transition-all hover:border-teal-400/40 hover:bg-teal-500/10"
+    >
+      {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <ExternalLink className="h-3 w-3" />}
+      {copied ? "DQL copied — paste in notebook" : "Verify in Dynatrace"}
+    </button>
+  );
+}
+
 function DqlBlock({ dql, label }: { dql: string; label?: string }) {
   return (
     <div className="rounded-lg border border-border bg-zinc-950/60 overflow-hidden">
-      {label && (
-        <div className="flex items-center justify-between px-3 py-2 border-b border-border/60 bg-muted/20">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-300">{label}</span>
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/60 bg-muted/20">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-300">
+          {label ?? "DQL"}
+        </span>
+        <div className="flex items-center gap-2">
+          <VerifyInDynatrace dql={dql} />
           <CopyButton value={dql} />
         </div>
-      )}
+      </div>
       <pre className="px-4 py-3 text-[11px] font-mono text-emerald-300/80 leading-relaxed overflow-x-auto whitespace-pre-wrap break-all">
         {dql}
       </pre>
@@ -258,6 +293,11 @@ export default function ContractDetailPage() {
             <FileCode2 className="h-4 w-4 text-teal-400" />
             Evidence from Learning Window
           </h2>
+          <p className="text-xs text-slate-400 -mt-1">
+            Every claim is backed by a real Grail query — hit{" "}
+            <span className="text-teal-400 font-medium">Verify in Dynatrace</span> to run it against
+            your own data. No fabricated numbers.
+          </p>
           {detailLoading && !detail ? (
             <div className="space-y-2">
               <div className="h-20 rounded-lg bg-muted animate-pulse" />

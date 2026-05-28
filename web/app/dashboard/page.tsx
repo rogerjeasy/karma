@@ -52,6 +52,12 @@ export default function DashboardPage() {
   const davisEnriched = ghosts.filter((g) => g.davis_ai_insights && g.davis_ai_insights !== "not available").length;
   const hasCostData   = !loading && ghosts.some((g) => g.cost_estimate_usd != null);
 
+  // ── ROI: incident cost avoided by early detection vs. what the AI spent ───
+  const totalAvoidedUsd  = ghosts.reduce((sum, g) => sum + (g.avoided_incident_cost_usd ?? 0), 0);
+  const incidentsCaught  = ghosts.filter((g) => (g.avoided_incident_cost_usd ?? 0) > 0).length;
+  const roiMultiple      = totalCostUsd > 0 ? totalAvoidedUsd / totalCostUsd : 0;
+  const hasRoi           = !loading && totalAvoidedUsd > 0;
+
   // ── Fetch /stats with auth so the backend returns user-scoped data ──────
   useEffect(() => {
     apiFetch<PlatformStats>('/stats')
@@ -220,6 +226,16 @@ export default function DashboardPage() {
           </Link>
         ))}
       </div>
+
+      {/* ── ROI rollup — headline avoided-cost stat ── */}
+      {hasRoi && (
+        <RoiRollup
+          totalAvoidedUsd={totalAvoidedUsd}
+          incidentsCaught={incidentsCaught}
+          totalCostUsd={totalCostUsd}
+          roiMultiple={roiMultiple}
+        />
+      )}
 
       {/* ── Your Impact card ── */}
       {platformStats && (
@@ -495,6 +511,69 @@ function WatcherRunRow({ run }: { run: WatcherRun }) {
       <div className="ml-auto flex items-center gap-1 text-[10px] text-slate-400 shrink-0">
         <Clock className="h-3 w-3" />
         {formatDistanceToNow(new Date(run.run_at), { addSuffix: true })}
+      </div>
+    </div>
+  );
+}
+
+// ── ROI rollup — avoided incident cost vs. AI spend ──────────────────────────
+
+function formatMoney(n: number): string {
+  if (n >= 1000) return `$${Math.round(n).toLocaleString()}`;
+  return `$${n.toFixed(2)}`;
+}
+
+function RoiRollup({
+  totalAvoidedUsd,
+  incidentsCaught,
+  totalCostUsd,
+  roiMultiple,
+}: {
+  totalAvoidedUsd: number;
+  incidentsCaught: number;
+  totalCostUsd: number;
+  roiMultiple: number;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/[0.08] via-card to-card">
+      <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-emerald-500/[0.10] blur-3xl" />
+      <div className="relative flex flex-col gap-6 px-6 py-6 lg:flex-row lg:items-center lg:justify-between">
+        {/* Headline number */}
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/10">
+            <ShieldCheck className="h-6 w-6 text-emerald-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-emerald-400/80">
+              Incident cost avoided
+            </p>
+            <p className="text-[2.5rem] sm:text-[3rem] font-bold tracking-tight font-mono text-foreground leading-none tabular-nums">
+              {formatMoney(totalAvoidedUsd)}
+            </p>
+            <p className="mt-1.5 text-xs text-slate-300">
+              across <span className="font-semibold text-foreground">{incidentsCaught}</span> silent
+              regression{incidentsCaught !== 1 ? "s" : ""} caught before users felt them
+            </p>
+          </div>
+        </div>
+
+        {/* Supporting metrics */}
+        <div className="flex shrink-0 items-stretch gap-px overflow-hidden rounded-xl border border-border/60 bg-border/40">
+          <div className="bg-card px-5 py-3 text-center">
+            <p className="text-lg font-bold font-mono tabular-nums text-foreground">
+              ${totalCostUsd < 1 ? totalCostUsd.toFixed(2) : totalCostUsd.toFixed(0)}
+            </p>
+            <p className="mt-0.5 text-[10px] text-slate-400">AI spend</p>
+          </div>
+          <div className="bg-card px-5 py-3 text-center">
+            <p className="text-lg font-bold font-mono tabular-nums text-emerald-400">
+              {roiMultiple >= 1000
+                ? `${Math.round(roiMultiple / 1000)}k×`
+                : `${Math.round(roiMultiple).toLocaleString()}×`}
+            </p>
+            <p className="mt-0.5 text-[10px] text-slate-400">return on spend</p>
+          </div>
+        </div>
       </div>
     </div>
   );
