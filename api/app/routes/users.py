@@ -22,12 +22,14 @@ async def sync_user(user: dict[str, Any] = Depends(get_current_user)) -> UserSyn
     record of who owns which services, contracts, and ghost reports.
     """
     uid: str = user["uid"]
+    is_guest = user.get("firebase", {}).get("sign_in_provider") == "anonymous"
+    display_name = user.get("name", "") or ("Demo Guest" if is_guest else "")
     await firestore_client.upsert_user(
         uid,
         {
             "uid": uid,
             "email": user.get("email", ""),
-            "display_name": user.get("name", ""),
+            "display_name": display_name,
             "photo_url": user.get("picture", ""),
             "last_seen_at": datetime.now(dt.UTC),
         },

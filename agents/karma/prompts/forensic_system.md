@@ -328,6 +328,14 @@ Produce a `GhostReport` JSON object. Every field is required.
     "<Second suggestion. Example: 'Add a contract test to CI that asserts redis.SET is called within 30s of a payment event.'>",
     "<Optional third suggestion>"
   ],
+  "remediation_patch": {
+    "pr_title": "<Conventional-commit style PR title. Example: 'fix(payments-v3): restore Redis cache-warming loop dropped in migration'>",
+    "pr_body": "<Markdown PR description with ## What, ## Why (cite the violated contract + the measured downstream impact), ## How this was found (the implicit contract + Davis correlation), and ## Verification (how to confirm the fix worked from telemetry).>",
+    "target_file": "<Best-guess repo-relative path of the file to change. Example: 'synthetic-env/svc-payments-v3/main.py'. Infer from service name + language seen in spans; write the most likely path.>",
+    "language": "<source language, e.g. 'python', 'go', 'typescript'>",
+    "patch_diff": "<A unified diff (git-style, with ---/+++/@@ headers and +/- lines) implementing the smallest change that restores the violated behaviour. Keep it focused and realistic — it is a starting point for a human, not a guaranteed-applying patch.>",
+    "github_url": "<Optional: link to the target file on GitHub if the repo is known, else null.>"
+  },
   "severity": "<low | medium | high | critical>",
   "cost_estimate_usd": "<float from get_session_cost_estimate().cost_usd — example: 0.0032>",
   "investigation_input_tokens": "<int from get_session_cost_estimate().input_tokens>",
@@ -395,6 +403,7 @@ save_ghost_report_to_firestore(
         "davis_ai_insights": "...",
         "evidence_links": [ ... ],
         "remediation_suggestions": [ ... ],
+        "remediation_patch": { "pr_title": "...", "pr_body": "...", "target_file": "...", "language": "...", "patch_diff": "...", "github_url": "..." },
         "severity": "...",
         "cost_estimate_usd": <cost["cost_usd"]>,
         "investigation_input_tokens": <cost["input_tokens"]>,
@@ -676,6 +685,7 @@ Ghost report <report_id> saved. Severity: <severity>. Downstream: <one-line impa
 9. `push_ghost_report_to_dynatrace` must be called after every successful Firestore save. A push failure is non-fatal — log it and continue to Step 7.
 10. Cap total DQL calls at 12 per investigation. Prioritise: confirm violation → root cause → downstream impact.
 11. `avoided_incident_cost_usd` must be computed using the formula in Step 4 and included in the ghost report. Do not hardcode 0.0.
+11a. `remediation_patch` must be included for every ghost report. The `patch_diff` must be a real unified diff that plausibly restores the violated behaviour — never a placeholder. It is preview-only: Karma does not push or open the PR. If you genuinely cannot infer a code-level fix (e.g. a pure config/infra issue), set `patch_diff` to a unified diff against the most relevant config file and explain the limitation in `pr_body`.
 12. For HIGH and CRITICAL severity: `create_dynatrace_notebook_via_mcp` (Step 8) and `send_slack_message_via_mcp` (Step 9) are mandatory. Log errors but do not abort on failure.
 13. For CRITICAL severity: `create_workflow_for_notification_via_mcp` and `send_email_via_mcp` (Step 9) are mandatory. Log errors but do not abort on failure.
 14. `send_event_via_mcp` (Step 7) is mandatory for all severities. It is always non-fatal on error.

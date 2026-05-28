@@ -10,8 +10,9 @@ import {
   authErrorMessage,
 } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
-import { Ghost, Loader2, Eye, EyeOff } from "lucide-react";
+import { Ghost, Loader2, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import GuestDemoButton from "@/components/GuestDemoButton";
 
 type Mode = "signin" | "signup";
 
@@ -284,6 +285,19 @@ export default function LoginPage() {
               {mode === "signin" ? "Sign up" : "Sign in"}
             </button>
           </p>
+
+          {/* ── Guest / judge access ── */}
+          <div className="border-t border-border/50 pt-4">
+            <GuestDemoButton
+              onError={setError}
+              className="w-full flex items-center justify-center gap-2 rounded-xl border border-primary/30 bg-primary/8 px-4 py-2.5 text-sm font-medium text-primary transition-all duration-200 hover:bg-primary/12 disabled:pointer-events-none disabled:opacity-55 active:scale-[0.98]"
+            >
+              Explore the live demo — no sign-up <ArrowRight className="h-4 w-4 shrink-0" />
+            </GuestDemoButton>
+            <p className="mt-2 text-center text-[11px] text-slate-500">
+              Loads the svc-payments ghost scenario with real Dynatrace telemetry.
+            </p>
+          </div>
         </div>
 
         <p className="mt-6 text-center text-[11px] text-slate-500">
