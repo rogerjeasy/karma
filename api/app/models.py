@@ -63,6 +63,16 @@ class ContractResponse(BaseModel):
     detected_at: datetime
 
 
+class RemediationPatch(BaseModel):
+    """Agent-generated code fix for the violated contract (preview-only)."""
+    pr_title: str
+    pr_body: str
+    target_file: str
+    language: str = ""
+    patch_diff: str
+    github_url: str | None = None
+
+
 class GhostReportResponse(BaseModel):
     report_id: str
     violation_id: str
@@ -76,6 +86,8 @@ class GhostReportResponse(BaseModel):
     severity: Literal["low", "medium", "high", "critical"]
     evidence_links: list[str]
     remediation_suggestions: list[str]
+    # Structured, copyable code fix (unified diff + PR body). None if not generated.
+    remediation_patch: RemediationPatch | None = None
     cost_estimate_usd: float | None = None
     investigation_input_tokens: int | None = None
     investigation_output_tokens: int | None = None
@@ -92,6 +104,20 @@ class GhostReportResponse(BaseModel):
     davis_problem_id: str | None = None        # from dynatrace_evidence.related_davis_problem_id
     new_service_entity_id: str | None = None   # Dynatrace entity ID of replacement service
     created_at: datetime
+
+
+class ChatTurn(BaseModel):
+    role: Literal["user", "model"]
+    text: str = Field(max_length=4000)
+
+
+class GhostAskRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    history: list[ChatTurn] = Field(default_factory=list, max_length=12)
+
+
+class GhostAskResponse(BaseModel):
+    answer: str
 
 
 class CategoryCompliance(BaseModel):

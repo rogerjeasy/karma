@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     # projects/<id>/locations/us-central1/reasoningEngines/<id>
     agent_engine_resource_name: str = ""
 
+    # Model for the lightweight 'Ask Karma' chat (direct Gemini generateContent,
+    # not the Agent Engine pipeline). Flash keeps interactive Q&A cheap and fast.
+    chat_model: str = "gemini-2.5-flash"
+
     # ── Firebase Auth ─────────────────────────────────────────────────────────
     # Project that issued the client-side ID tokens we verify server-side.
     # Separate from gcp_project_id (which is the GCP infra project).
