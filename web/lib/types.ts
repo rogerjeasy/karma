@@ -193,6 +193,20 @@ export interface InvestigationEngineData {
   users: UserInvestigationStats[];
 }
 
+/**
+ * A concrete, agent-generated code fix for the violated contract — rendered as a
+ * "Suggested Fix" with a unified diff and a copyable PR description. Preview-only:
+ * Karma never pushes; the engineer opens the PR.
+ */
+export interface RemediationPatch {
+  pr_title: string;
+  pr_body: string;
+  target_file: string;
+  language: string;
+  patch_diff: string;
+  github_url?: string | null;
+}
+
 export interface GhostReport {
   report_id: string;
   violation_id: string;
@@ -206,6 +220,7 @@ export interface GhostReport {
   severity: ViolationSeverity;
   evidence_links: string[];
   remediation_suggestions: string[];
+  remediation_patch?: RemediationPatch | null;
   cost_estimate_usd?: number | null;
   investigation_input_tokens?: number | null;
   investigation_output_tokens?: number | null;

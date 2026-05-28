@@ -7,6 +7,7 @@ import {
   getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  signInAnonymously,
   sendEmailVerification,
   signOut,
   onAuthStateChanged,
@@ -65,6 +66,20 @@ export async function checkGoogleRedirect(): Promise<User | null> {
   const auth = getFirebaseAuth();
   const result: UserCredential | null = await getRedirectResult(auth);
   return result?.user ?? null;
+}
+
+// ── Guest / anonymous sign-in (judge & demo access) ──────────────────────────
+
+/**
+ * Sign in anonymously so a visitor can explore the live demo without an account.
+ * Produces a real Firebase ID token that the backend verifies like any other,
+ * so the guest gets a normal (non-admin) workspace. Requires the Anonymous
+ * provider to be enabled in Firebase Console → Authentication → Sign-in method.
+ */
+export async function signInAsGuest(): Promise<User> {
+  const auth = getFirebaseAuth();
+  const result = await signInAnonymously(auth);
+  return result.user;
 }
 
 // ── Email / Password ──────────────────────────────────────────────────────────
@@ -144,6 +159,10 @@ export function authErrorMessage(err: unknown): string {
       return "Too many attempts. Please wait a moment and try again.";
     case "auth/network-request-failed":
       return "Network error. Check your connection and try again.";
+    case "auth/operation-not-allowed":
+      return "Guest access isn't enabled yet. Enable the Anonymous provider in Firebase Console → Authentication → Sign-in method.";
+    case "auth/admin-restricted-operation":
+      return "Guest access is restricted. Enable the Anonymous provider in Firebase Console → Authentication → Sign-in method.";
     default:
       return `Sign-in failed${code ? ` (${code})` : ""}. Please try again.`;
   }
