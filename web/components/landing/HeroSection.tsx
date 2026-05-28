@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Ghost, ArrowRight, Sparkles, CheckCircle2 } from "lucide-react";
 import TerminalMockup from "./TerminalMockup";
+import GuestDemoButton from "@/components/GuestDemoButton";
 
 export default function HeroSection() {
   return (
@@ -37,10 +38,10 @@ export default function HeroSection() {
                 <Ghost className="h-5 w-5 shrink-0" />
                 Start detecting ghosts
               </Link>
-              <Link href="/dashboard"
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card/60 px-6 py-3.5 text-[14px] sm:text-[15px] font-medium text-foreground hover:bg-card transition-all w-full xs:w-auto">
-                Live dashboard <ArrowRight className="h-4 w-4 text-slate-400 shrink-0" />
-              </Link>
+              <GuestDemoButton
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card/60 px-6 py-3.5 text-[14px] sm:text-[15px] font-medium text-foreground hover:bg-card transition-all w-full xs:w-auto disabled:pointer-events-none disabled:opacity-60">
+                View live demo <ArrowRight className="h-4 w-4 text-slate-400 shrink-0" />
+              </GuestDemoButton>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               {["Zero config setup", "No false positives", "Real-time alerts"].map((s) => (

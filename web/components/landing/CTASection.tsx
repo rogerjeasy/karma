@@ -4,6 +4,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Ghost, ArrowRight } from "lucide-react";
 import { useInView } from "./hooks";
+import GuestDemoButton from "@/components/GuestDemoButton";
 
 export default function CTASection() {
   const { ref, inView } = useInView();
@@ -30,10 +31,10 @@ export default function CTASection() {
             Start for free
             <ArrowRight className="h-4 w-4" />
           </Link>
-          <Link href="/dashboard"
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card/60 px-7 sm:px-9 py-3.5 sm:py-4 text-[14px] sm:text-[15px] font-medium text-foreground hover:bg-card transition-all w-full sm:w-auto">
-            Explore dashboard
-          </Link>
+          <GuestDemoButton
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card/60 px-7 sm:px-9 py-3.5 sm:py-4 text-[14px] sm:text-[15px] font-medium text-foreground hover:bg-card transition-all w-full sm:w-auto disabled:pointer-events-none disabled:opacity-60">
+            Explore live demo
+          </GuestDemoButton>
         </div>
         <p className="text-xs text-slate-400">Google Cloud Rapid Agent Hackathon · Dynatrace Track · 2026</p>
       </div>
