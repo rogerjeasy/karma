@@ -300,6 +300,57 @@ async def seed_demo(
                 "as an early-warning indicator."
             ),
         ],
+        "remediation_patch": {
+            "pr_title": "fix(payments-v3): restore Redis cache-warming loop dropped in migration",
+            "pr_body": (
+                "## What\n\n"
+                "Re-introduces the background task that writes the "
+                "`recent_charges:summary` Redis key every 30s — a side-effect that "
+                "`svc-payments-v2` performed implicitly and `svc-reporting` depends on.\n\n"
+                "## Why\n\n"
+                "Karma's Forensic agent detected that `recent_charges:summary` has not "
+                "been written since the v3 cutover. `svc-reporting` falls back to a "
+                "synchronous DB call on every request, raising p95 latency 58ms → 598ms "
+                "and dropping throughput 7.8%. No test covered this contract.\n\n"
+                "## How this was found\n\n"
+                "Implicit `side_effect/cache_warming` contract learned from a 14-day "
+                "telemetry window on v2 (confidence 0.97), then violated on v3. "
+                "Davis AI correlated the downstream regression (problem P-1234567).\n\n"
+                "## Verification\n\n"
+                "After deploy, confirm `redis.SET recent_charges:summary` spans reappear "
+                "(≈32/min) and `svc-reporting` p95 returns to baseline."
+            ),
+            "target_file": "synthetic-env/svc-payments-v3/main.py",
+            "language": "python",
+            "patch_diff": (
+                "--- a/synthetic-env/svc-payments-v3/main.py\n"
+                "+++ b/synthetic-env/svc-payments-v3/main.py\n"
+                "@@ -38,6 +38,21 @@ app = FastAPI(title=\"svc-payments-v3\")\n"
+                " redis_client = redis.Redis(host=REDIS_HOST, port=6379, decode_responses=True)\n"
+                " \n"
+                "+\n"
+                "+async def _cache_warming_loop() -> None:\n"
+                "+    \"\"\"Refresh the recent-charges summary key every 30s.\n"
+                "+\n"
+                "+    Ported from svc-payments-v2. svc-reporting reads this key directly\n"
+                "+    and degrades to a synchronous DB call when it is absent.\n"
+                "+    \"\"\"\n"
+                "+    while True:\n"
+                "+        summary = await _compute_recent_charges_summary()\n"
+                "+        redis_client.set(\"recent_charges:summary\", "
+                "json.dumps(summary), ex=90)\n"
+                "+        await asyncio.sleep(30)\n"
+                "+\n"
+                "+\n"
+                "+@app.on_event(\"startup\")\n"
+                "+async def _start_cache_warming() -> None:\n"
+                "+    asyncio.create_task(_cache_warming_loop())\n"
+                " \n"
+                " @app.post(\"/charge\")\n"
+                " async def charge(req: ChargeRequest) -> ChargeResponse:\n"
+            ),
+            "github_url": "https://github.com/rogerjeasy/karma/blob/main/synthetic-env/svc-payments-v3/main.py",
+        },
         "cost_estimate_usd": 0.0042,
         "investigation_input_tokens": 8240,
         "investigation_output_tokens": 1890,
