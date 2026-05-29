@@ -294,6 +294,7 @@ export function ServiceCard({
               {(service.phase === "registered" ||
                 service.phase === "error" ||
                 service.phase === "ready" ||
+                service.phase === "haunting" ||
                 service.phase === "completed") && (
                 <div className="px-5 py-3 bg-muted/10 flex flex-col gap-2">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -354,6 +355,23 @@ export function ServiceCard({
                           <Ghost className="h-3 w-3" />
                         )}
                         Resume Haunting
+                      </Button>
+                    )}
+                    {(service.phase === "haunting" || service.phase === "completed") && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1.5"
+                        onClick={triggerLearn}
+                        disabled={actionBusy}
+                        title="Re-run the Learner on this service's recent telemetry. Moves it out of haunting, back through learning → ready (re-activate haunting afterward)."
+                      >
+                        {actionBusy ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Zap className="h-3 w-3" />
+                        )}
+                        Re-learn
                       </Button>
                     )}
                   </div>

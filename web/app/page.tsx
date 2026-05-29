@@ -5,6 +5,7 @@ import ProblemSection from "@/components/landing/ProblemSection";
 import HowItWorks from "@/components/landing/HowItWorks";
 import DashboardShowcase from "@/components/landing/DashboardShowcase";
 import GhostSection from "@/components/landing/GhostSection";
+import LiveProofSection from "@/components/landing/LiveProofSection";
 import FeaturesGrid from "@/components/landing/FeaturesGrid";
 import TechStack from "@/components/landing/TechStack";
 import CTASection from "@/components/landing/CTASection";
@@ -21,6 +22,7 @@ export default function HomePage() {
         <HowItWorks />
         <DashboardShowcase />
         <GhostSection />
+        <LiveProofSection />
         <FeaturesGrid />
         <TechStack />
         <CTASection />

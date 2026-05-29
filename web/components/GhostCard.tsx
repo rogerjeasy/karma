@@ -5,11 +5,12 @@ import {
   ExternalLink, ArrowRight, Clock, Copy, Check,
   Brain, Coins, Cpu, AlertOctagon, ServerCrash,
   BookOpen, Zap, FileSearch, TrendingUp, Bell, NotebookText,
-  GitPullRequest, FileCode2,
+  GitPullRequest, FileCode2, Loader2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { GhostReport, RemediationPatch, ViolationSeverity } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
+import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import GhostChat from "@/components/GhostChat";
 
@@ -169,14 +170,41 @@ function DiffBlock({ diff }: { diff: string }) {
   );
 }
 
-function SuggestedFix({ patch }: { patch: RemediationPatch }) {
+function SuggestedFix({
+  patch,
+  reportId,
+  existingPrUrl,
+}: {
+  patch: RemediationPatch;
+  reportId: string;
+  existingPrUrl?: string | null;
+}) {
   const [copiedPatch, setCopiedPatch] = useState(false);
   const [copiedBody, setCopiedBody] = useState(false);
+  const [prUrl, setPrUrl] = useState<string | null>(existingPrUrl ?? null);
+  const [opening, setOpening] = useState(false);
+  const [prError, setPrError] = useState<string | null>(null);
 
   function copy(text: string, mark: (v: boolean) => void) {
     navigator.clipboard.writeText(text);
     mark(true);
     setTimeout(() => mark(false), 1500);
+  }
+
+  async function openPr() {
+    if (opening || prUrl) return;
+    setOpening(true);
+    setPrError(null);
+    try {
+      const res = await apiFetch<{ pr_url: string }>(`/ghosts/${reportId}/open-pr`, {
+        method: "POST",
+      });
+      setPrUrl(res.pr_url);
+    } catch (err: unknown) {
+      setPrError(err instanceof Error ? err.message : "Couldn't open the pull request.");
+    } finally {
+      setOpening(false);
+    }
   }
 
   return (
@@ -197,6 +225,27 @@ function SuggestedFix({ patch }: { patch: RemediationPatch }) {
       {patch.patch_diff && <DiffBlock diff={patch.patch_diff} />}
 
       <div className="flex flex-wrap items-center gap-1.5">
+        {prUrl ? (
+          <a
+            href={prUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-300 transition-all hover:border-emerald-400/50 hover:bg-emerald-500/15"
+          >
+            <GitPullRequest className="h-3 w-3" />
+            View draft PR
+            <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+          </a>
+        ) : (
+          <button
+            onClick={openPr}
+            disabled={opening}
+            className="inline-flex items-center gap-1.5 rounded-md bg-sky-500 px-2.5 py-1 text-[11px] font-semibold text-white transition-all hover:bg-sky-400 disabled:opacity-60"
+          >
+            {opening ? <Loader2 className="h-3 w-3 animate-spin" /> : <GitPullRequest className="h-3 w-3" />}
+            {opening ? "Opening draft PR…" : "Open draft PR"}
+          </button>
+        )}
         <button
           onClick={() => copy(patch.patch_diff, setCopiedPatch)}
           className="inline-flex items-center gap-1.5 rounded-md border border-sky-500/25 px-2 py-1 text-[11px] font-medium text-sky-400 transition-all hover:border-sky-400/40 hover:bg-sky-500/10"
@@ -216,14 +265,16 @@ function SuggestedFix({ patch }: { patch: RemediationPatch }) {
             href={patch.github_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-md border border-sky-500/25 px-2 py-1 text-[11px] font-medium text-sky-400 transition-all hover:border-sky-400/40 hover:bg-sky-500/10"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border/60 px-2 py-1 text-[11px] font-medium text-slate-300 transition-all hover:border-border hover:bg-accent"
           >
-            <GitPullRequest className="h-3 w-3" />
-            Open as PR on GitHub
+            <FileCode2 className="h-3 w-3" />
+            View target file
             <ExternalLink className="h-2.5 w-2.5 opacity-60" />
           </a>
         )}
       </div>
+
+      {prError && <p className="text-[11px] text-red-400 leading-snug">{prError}</p>}
     </div>
   );
 }
@@ -310,7 +361,13 @@ export function GhostCard({ report }: GhostCardProps) {
         )}
 
         {/* ── Suggested fix (agent-generated patch) ── */}
-        {report.remediation_patch && <SuggestedFix patch={report.remediation_patch} />}
+        {report.remediation_patch && (
+          <SuggestedFix
+            patch={report.remediation_patch}
+            reportId={report.report_id}
+            existingPrUrl={report.remediation_pr_url}
+          />
+        )}
 
         {/* ── Evidence DQL links (raw query copies) ── */}
         {report.evidence_links.length > 0 && (

@@ -207,6 +207,37 @@ export interface RemediationPatch {
   github_url?: string | null;
 }
 
+// ── Live Proof (believability: contract learned from a real service) ──────────
+
+export interface LiveProofContract {
+  category: string;
+  subcategory: string;
+  description: string;
+  confidence: number;
+  validated: boolean;
+  evidence_dql?: string | null;
+}
+
+export interface LiveProof {
+  available: boolean;
+  service_name?: string | null;
+  dynatrace_entity_id?: string | null;
+  dt_env?: string | null;
+  learned_at?: string | null;
+  contract_count: number;
+  contracts: LiveProofContract[];
+}
+
+// ── Ask Karma console (NL → Davis CoPilot → DQL → Grail → Gemini) ─────────────
+
+export interface ConsoleAnswer {
+  answer: string;
+  dql?: string | null;
+  dql_source: "davis_copilot" | "contracts";
+  row_count: number;
+  davis_available: boolean;
+}
+
 export interface GhostReport {
   report_id: string;
   violation_id: string;
@@ -221,6 +252,8 @@ export interface GhostReport {
   evidence_links: string[];
   remediation_suggestions: string[];
   remediation_patch?: RemediationPatch | null;
+  // Draft PR opened from the remediation patch, once a user opens one.
+  remediation_pr_url?: string | null;
   cost_estimate_usd?: number | null;
   investigation_input_tokens?: number | null;
   investigation_output_tokens?: number | null;

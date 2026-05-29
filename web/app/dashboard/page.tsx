@@ -19,6 +19,7 @@ import { apiFetch } from "@/lib/api";
 import type { ContractCategory, ContractResponse, GhostReport, PlatformStats, ViolationSeverity, WatcherRun, AiCostUpdateEvent } from "@/lib/types";
 import { WatcherLiveLog } from "@/components/WatcherLiveLog";
 import { DemoRunPanel } from "@/components/DemoRunPanel";
+import AskKarmaConsole from "@/components/AskKarmaConsole";
 
 
 interface Stats {
@@ -226,6 +227,9 @@ export default function DashboardPage() {
           </Link>
         ))}
       </div>
+
+      {/* ── Ask Karma console — NL → Davis CoPilot → DQL → live telemetry ── */}
+      <AskKarmaConsole />
 
       {/* ── ROI rollup — headline avoided-cost stat ── */}
       {hasRoi && (
