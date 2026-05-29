@@ -78,6 +78,23 @@ async def create_system_service(
         "updated_at": now,
     }
     await firestore_client.save_service_doc(service_id, data)
+
+    # Auto-start the lifecycle: registering a system service immediately kicks
+    # off learning, which (on success) auto-advances ready → haunting with no
+    # manual clicking. Persist the "learning" phase before returning so the UI
+    # reflects the transition right away.
+    await firestore_client.update_service_phase(
+        service_id, "learning", extra={"error_message": None}
+    )
+    data["phase"] = "learning"
+    asyncio.create_task(
+        _run_system_learning(
+            service_id=service_id,
+            service_name=body.service_name,
+            dynatrace_entity_id=body.dynatrace_entity_id,
+            replacement_service_id=body.replacement_service_id,
+        )
+    )
     return _to_system_response(data)
 
 
@@ -227,6 +244,7 @@ async def trigger_system_service_learning(
             service_id=service_id,
             service_name=svc["service_name"],
             dynatrace_entity_id=svc["dynatrace_entity_id"],
+            replacement_service_id=svc.get("replacement_service_id"),
         )
     )
     return {"status": "accepted", "service_id": service_id}
@@ -641,6 +659,7 @@ async def _run_system_learning(
     service_id: str,
     service_name: str,
     dynatrace_entity_id: str,
+    replacement_service_id: str | None = None,
 ) -> None:
     try:
         result = await agent_client.trigger_learning(
@@ -654,12 +673,44 @@ async def _run_system_learning(
             await firestore_client.update_service_phase(
                 service_id, "error", extra={"error_message": msg}
             )
-        else:
-            await firestore_client.update_service_phase(service_id, "ready")
+            return
+
+        # Learning succeeded — mark ready, then auto-advance to haunting so the
+        # Watcher starts on the next scheduler tick without a manual cutover.
+        await firestore_client.update_service_phase(service_id, "ready")
+        await _auto_start_haunting(
+            service_id=service_id,
+            dynatrace_entity_id=dynatrace_entity_id,
+            replacement_service_id=replacement_service_id,
+        )
     except Exception as exc:
         await firestore_client.update_service_phase(
             service_id, "error", extra={"error_message": str(exc)}
         )
+
+
+async def _auto_start_haunting(
+    service_id: str,
+    dynatrace_entity_id: str,
+    replacement_service_id: str | None,
+) -> None:
+    """Activate the Watcher for a system service right after learning completes.
+
+    System services self-monitor, so when no explicit replacement entity was
+    given we haunt the same entity. Clears the clean-run counter so the watcher
+    tick picks the service up immediately.
+    """
+    cutover_time = datetime.now(dt.UTC)
+    replacement = replacement_service_id or dynatrace_entity_id
+    await firestore_client.update_service_phase(
+        service_id,
+        phase="haunting",
+        extra={
+            "replacement_service_id": replacement,
+            "cutover_time": cutover_time.isoformat(),
+            "clean_watcher_runs": 0,
+        },
+    )
 
 
 def _parse_admin_dt(value: Any) -> datetime:
