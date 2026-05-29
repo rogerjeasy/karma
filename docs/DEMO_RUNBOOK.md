@@ -307,3 +307,41 @@ If the live environment is unavailable, restore from the golden run snapshot:
 ```
 
 This loads a pre-captured Firestore state that reflects a complete successful demo run. Alternatively, use the Admin Panel → Demo Quick-Start → Seed Demo Data for an instant seeded state.
+
+---
+
+## Believability: Learn a Contract on a REAL Service (Dogfood)
+
+The synthetic environment proves the *mechanism*. To prove Karma isn't hard-wired to
+a scripted scenario, point the **same Learner** at one of Karma's own deployed
+services — `karma-api` — which emits real OpenTelemetry to the same Dynatrace tenant.
+Karma then discovers a contract from genuine production telemetry.
+
+**1. Register Karma's own API as a self-monitored (system) service:**
+
+```bash
+# Resolves the real Dynatrace entity ID by name and registers it (idempotent).
+# Requires DT_ENV + DT_QUERY_TOKEN in .env and ADC (gcloud auth application-default login).
+python3 scripts/dogfood_register.py \
+  --service-name "Karma API" \
+  --entity-name  "karma-api" \
+  --url          "https://karma-api-ucvx5uwt5q-uc.a.run.app"
+
+# If auto-resolution can't find it, pass the entity ID explicitly
+# (Dynatrace -> Services -> karma-api -> the SERVICE-... value in the URL):
+#   --entity-id "SERVICE-XXXXXXXXXXXXXXXX"
+```
+
+**2. Trigger the Learner** (one click in **Admin -> Infrastructure -> Karma API -> Learn**,
+or add `--api-url <API_URL> --admin-token <firebase-id-token>` to the command above to
+trigger it automatically).
+
+**3. Verify the proof is public.** Once contracts are saved, they appear on the
+**public landing page** under *"Live Proof - learned from Karma's own production API"*
+and via `GET /proof/live` - no login required, so a judge sees a contract discovered
+from real telemetry, side-by-side with the demo. Each contract shows the real DQL used
+as evidence; run it yourself in a Dynatrace Notebook to confirm the data is live.
+
+> The learning window defaults to 14 days. If `karma-api` is newly deployed and has
+> little history, lower the window or generate traffic first; the Learner needs enough
+> real spans to find a high-confidence contract.

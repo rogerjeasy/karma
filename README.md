@@ -143,7 +143,9 @@ Replacement service ──OTel traces──▶ Dynatrace Grail ──▶ Karma W
 
 ---
 
-## Four-Agent Architecture (Google ADK v1.0)
+## Four-Agent Architecture (Vertex AI Agent Builder)
+
+Karma is built on **Google Cloud's Vertex AI Agent Builder**: the four agents are authored with the **Agent Development Kit (ADK v1.0)** and run on **Vertex AI Agent Engine**, Agent Builder's fully managed agent runtime. Every model call is **Gemini 2.5** (Pro / Flash) on Vertex AI — no non-Google models are used anywhere in the system.
 
 | Agent | Role | Model | Runs When |
 |-------|------|-------|-----------|
@@ -224,6 +226,9 @@ The Learner analyzes up to 14 days of Dynatrace Grail telemetry (spans, logs, me
 ### Dynatrace SLO Auto-Creation
 For latency, throughput, and error-semantics contracts, the Learner automatically registers the discovered contract as an official Dynatrace SLO with burn-rate alerting enabled. Karma doesn't just discover contracts — it enforces them.
 
+### Agentic Remediation — Patch to Draft PR
+For every ghost report the Forensic agent (Gemini 2.5 Pro) generates a concrete unified-diff patch that restores the violated behavior, plus a full PR description (What / Why / How it was found / Verification). One click on the dashboard pushes that patch to GitHub as a **draft pull request** on its own branch — closing the loop from detection → root cause → reviewable fix. PR creation is opt-in via a separate write-scoped token, always opens a *draft* for human review, and never merges.
+
 ### Bidirectional Dynatrace Integration
 Karma both reads from and writes back to Dynatrace:
 - **Reads:** Grail DQL (spans, logs, metrics), Davis AI analyzers via MCP, Smartscape entity resolution, changepoint detection
@@ -250,7 +255,9 @@ After `N` consecutive clean Watcher runs (default: 3), a service transitions aut
 The Next.js dashboard receives ghost reports, watcher run updates, and AI cost events via Server-Sent Events — sub-second latency from agent output to browser animation.
 
 ### Full Self-Observability
-Every agent run emits OTel spans to Dynatrace. BizEvents capture every discovered contract, every violation, and every ghost report. The admin panel's **Coding Agents** tab shows a side-by-side cost comparison: Karma ADK agents (Gemini 2.5 Pro) vs Claude Code dev sessions — both queryable via live DQL.
+Every agent run emits OTel spans to Dynatrace. BizEvents capture every discovered contract, every violation, and every ghost report. The admin panel's **Coding Agents** tab shows a side-by-side cost comparison: Karma's Gemini 2.5 production agents vs the developer's Claude Code coding sessions — both queryable via live DQL.
+
+> **To be unambiguous:** Karma's application runs entirely on **Gemini 2.5 via Vertex AI** — no Anthropic or other non-Google model is used in the product. Claude Code appears *only* in the Coding Agents tab as an example of Dynatrace's [AI Coding Agent Monitoring](https://www.dynatrace.com/news/blog/dynatrace-expands-ai-coding-agent-monitoring/) — i.e. Karma observing the *developer's tooling* through Dynatrace, exactly as Dynatrace intends. It never participates in Karma's agent reasoning.
 
 ---
 
@@ -346,8 +353,9 @@ registered ──Learner──▶ learning ──contracts saved──▶ ready 
 
 | Layer | Technology |
 |-------|------------|
-| **Agent framework** | Google ADK v1.0 (Python) |
-| **Agent runtime** | Vertex AI Agent Engine — long-running `AdkApp` |
+| **Agent platform** | Vertex AI Agent Builder (Google Cloud) |
+| **Agent framework** | Agent Development Kit (ADK v1.0, Python) — part of Vertex AI Agent Builder |
+| **Agent runtime** | Vertex AI Agent Engine — Agent Builder's managed runtime (long-running `AdkApp`) |
 | **AI models** | Gemini 2.5 Pro (Learner, Forensic) · Gemini 2.5 Flash (Coordinator, Watcher) |
 | **Agent memory** | Vertex AI Memory Bank (`VertexAiMemoryBankService`) |
 | **Partner integration** | Dynatrace MCP Server (hosted, Bearer token) |
@@ -531,7 +539,8 @@ karma/
 | `MEMORY_BANK_ID` | agents | Vertex AI Memory Bank resource ID |
 | `AGENT_ENGINE_RESOURCE_NAME` | api | Full Agent Engine resource name |
 | `FIRESTORE_DATABASE` | agents, api | Firestore database name |
-| `GITHUB_TOKEN` | api | Fine-grained PAT (contents:read + pull-requests:read) |
+| `GITHUB_TOKEN` | api | Fine-grained PAT (contents:read + pull-requests:read) — deployment metrics |
+| `GITHUB_WRITE_TOKEN` | api | Fine-grained PAT (contents:write + pull-requests:write) — opens remediation draft PRs; blank = disabled |
 
 Required DT_OTEL_TOKEN scopes: `openTelemetryTrace.ingest`, `logs.ingest`, `metrics.ingest`, `events.ingest`, `bizevents.ingest`, `slo.write`
 
@@ -544,7 +553,7 @@ Required DT_OTEL_TOKEN scopes: `openTelemetryTrace.ingest`, `logs.ingest`, `metr
 - Admin routes require `admin` role in `users/{uid}.roles` — checked server-side, never client-side
 - Dynatrace tokens are kept strictly scoped: Platform Token for MCP only, separate Classic tokens for OTel ingest and Grail read
 - No user data stored in Memory Bank — only service telemetry patterns
-- GitHub integration uses a fine-grained PAT with `contents:read` + `pull-requests:read` only
+- GitHub read integration (deployment metrics) uses a fine-grained PAT with `contents:read` + `pull-requests:read` only; opening remediation PRs uses a separate, optional write-scoped PAT (`GITHUB_WRITE_TOKEN`) — least privilege, and PR creation is disabled when it is unset
 - Cloud Run services that don't need public access are deployed as internal-only
 
 ---
@@ -553,9 +562,15 @@ Required DT_OTEL_TOKEN scopes: `openTelemetryTrace.ingest`, `logs.ingest`, `metr
 
 Built for the [Google Cloud Rapid Agent Hackathon — Dynatrace Track](https://rapid-agent.devpost.com), submission deadline June 11, 2026.
 
+**Required-stack compliance:**
+- **Powered by Gemini** — every model call in the application is Gemini 2.5 Pro or Gemini 2.5 Flash on Vertex AI.
+- **Built with Google Cloud Agent Builder** — the agents use the Agent Development Kit (ADK v1.0) and run on Vertex AI Agent Engine, the managed runtime within Vertex AI Agent Builder.
+- **Integrates the partner's MCP server** — the Dynatrace MCP Server (hosted gateway) is called for Davis AI root-cause, Smartscape entity resolution, changepoint/anomaly detection, Notebooks, Workflows, SLOs, and notifications.
+- **Platform** — runs on the web.
+
 The `synthetic-env/` directory is a purpose-built three-service demo environment. It is not production traffic. Every claim in a ghost report is backed by real Dynatrace telemetry from that environment — the Redis write truly happens, the cache truly warms, the downstream service truly degrades when it stops.
 
-**No OpenAI, Anthropic, or non-Google AI services are used in the application.** Gemini family only.
+**No OpenAI, Anthropic, or other non-Google AI services are used in the application — Gemini family only.** Claude Code appears solely in the admin "Coding Agents" tab, where Karma *observes* the developer's coding tool through Dynatrace's AI Coding Agent Monitoring. It is a telemetry source, never part of Karma's agent reasoning.
 
 ---
 
