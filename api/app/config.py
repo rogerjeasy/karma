@@ -68,8 +68,20 @@ class Settings(BaseSettings):
     dt_otel_token: str = ""
     # DT API token with storage:logs:read + storage:events:read scopes (Grail DQL).
     dt_query_token: str = ""
+    # DT Platform Token (Bearer) for the hosted Dynatrace MCP gateway — powers the
+    # "Ask Karma" console's Davis CoPilot natural-language→DQL translation. Same
+    # token the agents use (DT_API_TOKEN). Leave blank to disable the Davis CoPilot
+    # path: the console then degrades to a contracts-grounded Gemini answer.
+    dt_api_token: str = ""
+    # MCP gateway tool name for Davis CoPilot NL→DQL. Overridable because the hosted
+    # gateway uses kebab-case tool names that may differ from the OSS server.
+    dt_copilot_nl2dql_tool: str = "generate-dql-from-natural-language"
 
-    @field_validator("dt_query_token", "dt_otel_token", "dt_env", "api_secret_key", mode="after")
+    @field_validator(
+        "dt_query_token", "dt_otel_token", "dt_env", "api_secret_key",
+        "dt_api_token", "github_token", "github_write_token",
+        mode="after",
+    )
     @classmethod
     def _strip_whitespace(cls, v: str) -> str:
         # Cloud Run secrets are sometimes stored with a trailing \r\n which causes
@@ -84,12 +96,33 @@ class Settings(BaseSettings):
     # Default "owner/repo" used when a service has no per-service github_repo.
     # Example: "rogerjeasy/karma"
     github_repo: str = ""
+    # Fine-grained PAT with Contents:write + Pull requests:write — used by the
+    # "Open draft PR" action to push the Forensic agent's remediation patch as a
+    # draft pull request. Kept separate from github_token (read-only) for least
+    # privilege. Leave blank to disable PR creation.
+    github_write_token: str = ""
+    # Branch that remediation PRs target.
+    github_pr_base_branch: str = "main"
 
     @property
     def dt_otel_endpoint(self) -> str:
         if self.dt_env:
             return f"https://{self.dt_env}.live.dynatrace.com/api/v2/otlp"
         return ""
+
+    @property
+    def dt_mcp_endpoint(self) -> str:
+        """Hosted Dynatrace MCP gateway endpoint (MCP Streamable HTTP)."""
+        if self.dt_env:
+            return (
+                f"https://{self.dt_env}.apps.dynatrace.com/platform-reserved"
+                "/mcp-gateway/v0.1/servers/dynatrace-mcp/mcp"
+            )
+        return ""
+
+    @property
+    def davis_copilot_enabled(self) -> bool:
+        return bool(self.dt_env and self.dt_api_token)
 
     @field_validator("gcp_project_id", mode="after")
     @classmethod

@@ -1,16 +1,22 @@
-"""GitHub API client for fetching real engineering metrics at deployment time.
+"""GitHub API client.
 
-Called by the cutover route to attach commit count, PR count, and line-change
-stats to the karma.deployment OTel span. All data is real — no simulation.
+Two responsibilities:
+  1. Read engineering metrics (commits, PRs, lines changed) at deployment time —
+     attached to the karma.deployment OTel span. Uses GITHUB_TOKEN (read-only).
+  2. Open a draft remediation pull request from a Forensic-agent patch — closes
+     the detect → diagnose → fix loop. Uses GITHUB_WRITE_TOKEN (write-scoped).
+
+All metrics are real — no simulation.
 
 Requires:
-  GITHUB_TOKEN   — a GitHub fine-grained PAT with `Contents: read` and
-                   `Pull requests: read` permissions on the target repo.
-  github_repo    — "owner/repo" string, either per-service or from GITHUB_REPO
-                   config setting.
+  GITHUB_TOKEN        — fine-grained PAT with `Contents: read` + `Pull requests: read`.
+  GITHUB_WRITE_TOKEN  — fine-grained PAT with `Contents: write` + `Pull requests: write`
+                        (only needed for open_remediation_pr).
+  github_repo         — "owner/repo" string, per-service or from GITHUB_REPO config.
 """
 from __future__ import annotations
 
+import base64
 import logging
 from datetime import datetime
 from typing import Any
@@ -159,3 +165,185 @@ async def _fetch_line_stats(
     except Exception as exc:
         logger.warning("github_compare_fetch_failed repo=%s: %s", repo, exc)
         return 0, 0
+
+
+# ── Remediation PR (write) ──────────────────────────────────────────────────────
+
+
+async def open_remediation_pr(
+    *,
+    repo: str,
+    base_branch: str,
+    token: str,
+    report_id: str,
+    pr_title: str,
+    pr_body: str,
+    patch_diff: str,
+    target_file: str,
+) -> dict[str, Any]:
+    """Open a DRAFT pull request carrying the Forensic agent's remediation patch.
+
+    Creates a deterministically-named branch off ``base_branch``, commits the unified
+    diff as ``karma-remediations/<report>.diff``, and opens a draft PR with the agent's
+    title and body. The committed file never touches real code paths, so the action is
+    safe to run repeatedly and against the live demo.
+
+    Idempotent per report: if the branch / PR already exist, the existing PR is returned
+    instead of erroring.
+
+    Returns ``{"pr_url", "pr_number", "branch", "created"}``.
+    Raises ``RuntimeError`` (with a human-readable message) on any GitHub API failure.
+    """
+    owner = repo.split("/")[0]
+    short = report_id[:8] or "report"
+    branch = f"karma/remediation-{short}"
+    path = f"karma-remediations/{short}.diff"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    body = _build_pr_body(pr_body, report_id, path, target_file)
+
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        # 1. Resolve the base branch SHA.
+        ref = await client.get(
+            f"{_GH_API}/repos/{repo}/git/ref/heads/{base_branch}", headers=headers
+        )
+        if ref.status_code == 404:
+            raise RuntimeError(f"Base branch '{base_branch}' not found in {repo}.")
+        if ref.status_code != 200:
+            raise RuntimeError(_gh_err("read base branch", ref))
+        base_sha = ref.json()["object"]["sha"]
+
+        # 2. Create the remediation branch (idempotent).
+        create_ref = await client.post(
+            f"{_GH_API}/repos/{repo}/git/refs",
+            headers=headers,
+            json={"ref": f"refs/heads/{branch}", "sha": base_sha},
+        )
+        if create_ref.status_code in (200, 201):
+            await _put_patch_file(client, headers, repo, path, branch, pr_title, patch_diff)
+        elif create_ref.status_code == 422:
+            # Branch already exists — a PR may already be open for it.
+            existing = await _find_pr_for_branch(client, headers, repo, owner, branch)
+            if existing:
+                return existing
+        else:
+            raise RuntimeError(_gh_err("create branch", create_ref))
+
+        # 3. Open the draft PR.
+        return await _create_pull(client, headers, repo, owner, branch, base_branch, pr_title, body)
+
+
+async def _put_patch_file(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    repo: str,
+    path: str,
+    branch: str,
+    pr_title: str,
+    patch_diff: str,
+) -> None:
+    """Commit the unified diff as a file on the remediation branch."""
+    content_b64 = base64.b64encode(patch_diff.encode("utf-8")).decode("ascii")
+    message = pr_title if len(pr_title) <= 72 else pr_title[:69] + "..."
+    resp = await client.put(
+        f"{_GH_API}/repos/{repo}/contents/{path}",
+        headers=headers,
+        json={"message": message, "content": content_b64, "branch": branch},
+    )
+    if resp.status_code not in (200, 201):
+        raise RuntimeError(_gh_err("commit patch file", resp))
+
+
+async def _create_pull(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    repo: str,
+    owner: str,
+    branch: str,
+    base_branch: str,
+    title: str,
+    body: str,
+) -> dict[str, Any]:
+    """Open a draft PR; fall back to non-draft if the repo disallows drafts."""
+    payload: dict[str, Any] = {
+        "title": title,
+        "head": branch,
+        "base": base_branch,
+        "body": body,
+        "draft": True,
+    }
+    resp = await client.post(f"{_GH_API}/repos/{repo}/pulls", headers=headers, json=payload)
+
+    if resp.status_code == 422 and "draft" in resp.text.lower():
+        payload["draft"] = False
+        resp = await client.post(f"{_GH_API}/repos/{repo}/pulls", headers=headers, json=payload)
+
+    if resp.status_code == 422:
+        # Most likely a PR already exists for this head branch.
+        existing = await _find_pr_for_branch(client, headers, repo, owner, branch)
+        if existing:
+            return existing
+        raise RuntimeError(_gh_err("create pull request", resp))
+
+    if resp.status_code not in (200, 201):
+        raise RuntimeError(_gh_err("create pull request", resp))
+
+    pr = resp.json()
+    return {
+        "pr_url": pr["html_url"],
+        "pr_number": pr["number"],
+        "branch": branch,
+        "created": True,
+    }
+
+
+async def _find_pr_for_branch(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    repo: str,
+    owner: str,
+    branch: str,
+) -> dict[str, Any] | None:
+    """Return the most recent PR whose head is ``branch``, or None."""
+    resp = await client.get(
+        f"{_GH_API}/repos/{repo}/pulls",
+        headers=headers,
+        params={"head": f"{owner}:{branch}", "state": "all", "per_page": 1},
+    )
+    if resp.status_code != 200:
+        return None
+    items = resp.json()
+    if not items:
+        return None
+    pr = items[0]
+    return {
+        "pr_url": pr["html_url"],
+        "pr_number": pr["number"],
+        "branch": branch,
+        "created": False,
+    }
+
+
+def _build_pr_body(agent_body: str, report_id: str, path: str, target_file: str) -> str:
+    """Append Karma provenance + apply instructions to the agent's PR body."""
+    footer = (
+        "\n\n---\n"
+        f"*Opened automatically by Karma's Forensic agent from ghost report "
+        f"`{report_id}`. This is a **draft** — review before merging.*\n\n"
+        f"The proposed change targets `{target_file}`. The unified diff is committed "
+        f"at `{path}`; apply it locally with:\n\n"
+        f"```bash\ngit apply {path}\n```\n"
+    )
+    return (agent_body or "").strip() + footer
+
+
+def _gh_err(action: str, resp: httpx.Response) -> str:
+    """Build a concise, human-readable error message from a failed GitHub response."""
+    try:
+        message = resp.json().get("message", "") or resp.text[:200]
+    except Exception:
+        message = resp.text[:200]
+    return f"GitHub API error while trying to {action} (HTTP {resp.status_code}): {message}"

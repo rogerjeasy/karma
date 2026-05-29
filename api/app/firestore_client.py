@@ -218,6 +218,11 @@ async def save_ghost_report(report_id: str, data: dict[str, Any]) -> None:
     asyncio.create_task(webhooks.notify_ghost_report(data))
 
 
+async def update_ghost_report(report_id: str, payload: dict[str, Any]) -> None:
+    db = get_db()
+    await db.collection("ghost_reports").document(report_id).update(payload)
+
+
 async def list_ghost_reports(
     user_id: str,
     service_id: str | None = None,

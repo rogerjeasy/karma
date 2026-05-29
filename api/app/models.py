@@ -88,6 +88,8 @@ class GhostReportResponse(BaseModel):
     remediation_suggestions: list[str]
     # Structured, copyable code fix (unified diff + PR body). None if not generated.
     remediation_patch: RemediationPatch | None = None
+    # URL of the draft PR opened from the remediation patch, once a user opens one.
+    remediation_pr_url: str | None = None
     cost_estimate_usd: float | None = None
     investigation_input_tokens: int | None = None
     investigation_output_tokens: int | None = None
@@ -118,6 +120,63 @@ class GhostAskRequest(BaseModel):
 
 class GhostAskResponse(BaseModel):
     answer: str
+
+
+class ConsoleAskRequest(BaseModel):
+    """A natural-language question for the global 'Ask Karma' console."""
+    question: str = Field(min_length=1, max_length=2000)
+    # Optional: scope the answer to one service the user owns (adds its contracts as
+    # grounding and lets the fallback path cite that service's ghost reports).
+    service_id: str | None = None
+    history: list[ChatTurn] = Field(default_factory=list, max_length=12)
+
+
+class ConsoleAskResponse(BaseModel):
+    """Answer from the 'Ask Karma' console.
+
+    ``dql_source`` tells the UI how the answer was produced:
+      - ``davis_copilot`` — Davis CoPilot wrote the DQL, executed live on Grail
+      - ``contracts``     — Davis CoPilot unavailable; grounded in stored contracts/ghosts
+    """
+    answer: str
+    dql: str | None = None
+    dql_source: Literal["davis_copilot", "contracts"] = "contracts"
+    row_count: int = 0
+    davis_available: bool = False
+
+
+class OpenPrResponse(BaseModel):
+    """Result of opening (or finding) a draft remediation PR for a ghost report."""
+    pr_url: str
+    pr_number: int
+    branch: str
+    repo: str
+    created: bool   # True if newly opened this call, False if it already existed
+
+
+class LiveProofContract(BaseModel):
+    """A single contract Karma learned from a real (non-synthetic) service."""
+    category: str
+    subcategory: str
+    description: str
+    confidence: float
+    validated: bool
+    evidence_dql: str | None = None
+
+
+class LiveProofResponse(BaseModel):
+    """Public believability payload: a contract learned from a REAL service.
+
+    Proves the Learner works on live production telemetry, not just the scripted
+    synthetic demo. ``available`` is False until a real service has been learned.
+    """
+    available: bool
+    service_name: str | None = None
+    dynatrace_entity_id: str | None = None
+    dt_env: str | None = None
+    learned_at: datetime | None = None
+    contract_count: int = 0
+    contracts: list[LiveProofContract] = Field(default_factory=list)
 
 
 class CategoryCompliance(BaseModel):

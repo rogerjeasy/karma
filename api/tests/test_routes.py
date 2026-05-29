@@ -52,6 +52,17 @@ MOCK_GHOST = {
     "created_at": PAST_DATE,
 }
 
+MOCK_GHOST_WITH_PATCH = {
+    **MOCK_GHOST,
+    "remediation_patch": {
+        "pr_title": "fix(payments-v3): restore Redis cache-warming loop",
+        "pr_body": "## What\nRestore the cache-warming loop.",
+        "target_file": "synthetic-env/svc-payments-v3/main.py",
+        "language": "python",
+        "patch_diff": "--- a/main.py\n+++ b/main.py\n@@ -1 +1,2 @@\n+loop()\n",
+    },
+}
+
 
 @pytest.fixture
 async def client():
@@ -274,6 +285,75 @@ class TestGhosts:
             response = await client.get("/ghosts/nonexistent")
         assert response.status_code == 404
 
+    async def test_open_pr_creates_draft_pr(self, client: AsyncClient) -> None:
+        from app.config import settings
+        pr_result = {
+            "pr_url": "https://github.com/rogerjeasy/karma/pull/42",
+            "pr_number": 42,
+            "branch": "karma/remediation-ghost-1",
+            "created": True,
+        }
+        with (
+            patch("app.firestore_client.get_ghost_report", new_callable=AsyncMock, return_value=MOCK_GHOST_WITH_PATCH),
+            patch("app.firestore_client.get_service", new_callable=AsyncMock, return_value=MOCK_SERVICE),
+            patch("app.firestore_client.update_ghost_report", new_callable=AsyncMock) as mock_update,
+            patch("app.github_client.open_remediation_pr", new_callable=AsyncMock, return_value=pr_result) as mock_open,
+            patch.object(settings, "github_write_token", "ghp_test"),
+            patch.object(settings, "github_repo", "rogerjeasy/karma"),
+            patch("app.main.stream.start_firestore_listener"),
+        ):
+            response = await client.post("/ghosts/ghost-1/open-pr")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["pr_url"] == "https://github.com/rogerjeasy/karma/pull/42"
+        assert data["pr_number"] == 42
+        assert data["created"] is True
+        mock_open.assert_called_once()
+        mock_update.assert_called_once()
+
+    async def test_open_pr_400_when_no_patch(self, client: AsyncClient) -> None:
+        with (
+            patch("app.firestore_client.get_ghost_report", new_callable=AsyncMock, return_value=MOCK_GHOST),
+            patch("app.firestore_client.get_service", new_callable=AsyncMock, return_value=MOCK_SERVICE),
+            patch("app.main.stream.start_firestore_listener"),
+        ):
+            response = await client.post("/ghosts/ghost-1/open-pr")
+        assert response.status_code == 400
+
+    async def test_open_pr_503_when_not_configured(self, client: AsyncClient) -> None:
+        from app.config import settings
+        with (
+            patch("app.firestore_client.get_ghost_report", new_callable=AsyncMock, return_value=MOCK_GHOST_WITH_PATCH),
+            patch("app.firestore_client.get_service", new_callable=AsyncMock, return_value=MOCK_SERVICE),
+            patch.object(settings, "github_write_token", ""),
+            patch("app.main.stream.start_firestore_listener"),
+        ):
+            response = await client.post("/ghosts/ghost-1/open-pr")
+        assert response.status_code == 503
+
+    async def test_open_pr_returns_existing_without_calling_github(self, client: AsyncClient) -> None:
+        ghost = {
+            **MOCK_GHOST_WITH_PATCH,
+            "remediation_pr": {
+                "pr_url": "https://github.com/rogerjeasy/karma/pull/7",
+                "pr_number": 7,
+                "branch": "karma/remediation-ghost-1",
+                "repo": "rogerjeasy/karma",
+            },
+        }
+        with (
+            patch("app.firestore_client.get_ghost_report", new_callable=AsyncMock, return_value=ghost),
+            patch("app.firestore_client.get_service", new_callable=AsyncMock, return_value=MOCK_SERVICE),
+            patch("app.github_client.open_remediation_pr", new_callable=AsyncMock) as mock_open,
+            patch("app.main.stream.start_firestore_listener"),
+        ):
+            response = await client.post("/ghosts/ghost-1/open-pr")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["pr_number"] == 7
+        assert data["created"] is False
+        mock_open.assert_not_called()
+
 
 class TestCutover:
     async def test_cutover_404_for_unknown_service(self, client: AsyncClient) -> None:
@@ -355,6 +435,59 @@ class TestCutover:
         assert response.json()["status"] == "no_active_watchers"
 
 
+class TestLiveProof:
+    SYS_SVC = {
+        "service_id": "sys-1",
+        "service_name": "Karma API",
+        "dynatrace_entity_id": "SERVICE-REAL-API",
+        "is_system": True,
+        "showcase": True,
+    }
+    REAL_CONTRACT = {
+        "contract_id": "rc-1",
+        "category": "latency",
+        "subcategory": "p95_latency",
+        "description": "p95 ≤ 180ms on /ghosts",
+        "confidence": 0.9,
+        "validated": True,
+        "evidence": [{"type": "dql_query", "dql": "fetch spans | filter ..."}],
+        "detected_at": PAST_DATE,
+    }
+
+    async def test_live_proof_available(self, client: AsyncClient) -> None:
+        with (
+            patch("app.firestore_client.list_system_services", new_callable=AsyncMock, return_value=[self.SYS_SVC]),
+            patch("app.firestore_client.list_contracts_for_service", new_callable=AsyncMock, return_value=[self.REAL_CONTRACT]),
+            patch("app.main.stream.start_firestore_listener"),
+        ):
+            response = await client.get("/proof/live")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["available"] is True
+        assert data["service_name"] == "Karma API"
+        assert data["contract_count"] == 1
+        assert data["contracts"][0]["evidence_dql"].startswith("fetch spans")
+
+    async def test_live_proof_unavailable_when_no_system_services(self, client: AsyncClient) -> None:
+        with (
+            patch("app.firestore_client.list_system_services", new_callable=AsyncMock, return_value=[]),
+            patch("app.main.stream.start_firestore_listener"),
+        ):
+            response = await client.get("/proof/live")
+        assert response.status_code == 200
+        assert response.json()["available"] is False
+
+    async def test_live_proof_unavailable_when_no_contracts(self, client: AsyncClient) -> None:
+        with (
+            patch("app.firestore_client.list_system_services", new_callable=AsyncMock, return_value=[self.SYS_SVC]),
+            patch("app.firestore_client.list_contracts_for_service", new_callable=AsyncMock, return_value=[]),
+            patch("app.main.stream.start_firestore_listener"),
+        ):
+            response = await client.get("/proof/live")
+        assert response.status_code == 200
+        assert response.json()["available"] is False
+
+
 class TestUsers:
     async def test_sync_user_returns_200(self, client: AsyncClient) -> None:
         mock_profile = {
@@ -379,3 +512,64 @@ class TestUsers:
         assert data["uid"] == "test-uid"
         assert data["email"] == "test@example.com"
         assert data["roles"] == ["user"]
+
+
+class TestConsole:
+    """The global 'Ask Karma' console: Davis CoPilot → DQL → Grail, with fallback."""
+
+    async def test_davis_copilot_path_executes_dql(self, client: AsyncClient) -> None:
+        dql = "fetch spans | filter span.name == \"POST /charge\" | summarize p95 = percentile(duration, 95)"
+        with (
+            patch("app.routes.console.dt_copilot.nl_to_dql", new_callable=AsyncMock, return_value=dql),
+            patch("app.routes.console.query_grail", new_callable=AsyncMock, return_value=[{"p95": 120}]),
+            patch("app.routes.console.ask_gemini", new_callable=AsyncMock, return_value="p95 is 120ms."),
+            patch("app.main.stream.start_firestore_listener"),
+        ):
+            response = await client.post("/console/ask", json={"question": "what's the p95?"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["dql_source"] == "davis_copilot"
+        assert data["davis_available"] is True
+        assert data["dql"] == dql
+        assert data["row_count"] == 1
+        assert data["answer"] == "p95 is 120ms."
+
+    async def test_falls_back_to_contracts_when_copilot_unavailable(self, client: AsyncClient) -> None:
+        with (
+            patch("app.routes.console.dt_copilot.nl_to_dql", new_callable=AsyncMock, return_value=None),
+            patch("app.firestore_client.list_ghost_reports", new_callable=AsyncMock, return_value=[MOCK_GHOST]),
+            patch("app.routes.console.ask_gemini", new_callable=AsyncMock, return_value="From contracts: cache warming stopped."),
+            patch("app.main.stream.start_firestore_listener"),
+        ):
+            response = await client.post("/console/ask", json={"question": "what broke?"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["dql_source"] == "contracts"
+        assert data["dql"] is None
+        assert data["row_count"] == 0
+
+    async def test_unsafe_dql_is_not_executed(self, client: AsyncClient) -> None:
+        # A non-read DQL must not reach Grail — the console falls back instead.
+        grail = AsyncMock()
+        with (
+            patch("app.routes.console.dt_copilot.nl_to_dql", new_callable=AsyncMock, return_value="delete data foo"),
+            patch("app.routes.console.query_grail", grail),
+            patch("app.firestore_client.list_ghost_reports", new_callable=AsyncMock, return_value=[]),
+            patch("app.routes.console.ask_gemini", new_callable=AsyncMock, return_value="ok"),
+            patch("app.main.stream.start_firestore_listener"),
+        ):
+            response = await client.post("/console/ask", json={"question": "drop everything"})
+        assert response.status_code == 200
+        assert response.json()["dql_source"] == "contracts"
+        grail.assert_not_called()
+
+    async def test_scoped_service_must_be_owned(self, client: AsyncClient) -> None:
+        other = {**MOCK_SERVICE, "user_id": "someone-else"}
+        with (
+            patch("app.firestore_client.get_service", new_callable=AsyncMock, return_value=other),
+            patch("app.main.stream.start_firestore_listener"),
+        ):
+            response = await client.post(
+                "/console/ask", json={"question": "hi", "service_id": "test-id"}
+            )
+        assert response.status_code == 404

@@ -4,18 +4,22 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app import firestore_client
+from app import firestore_client, github_client
 from app.auth import get_current_user
 from app.chat_client import ask_gemini
+from app.config import settings
 from app.models import (
     GhostAskRequest,
     GhostAskResponse,
     GhostReportResponse,
+    OpenPrResponse,
     RemediationPatch,
 )
 
+logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/ghosts", tags=["ghosts"])
 
 
@@ -127,6 +131,103 @@ async def ask_about_ghost(
     return GhostAskResponse(answer=answer)
 
 
+@router.post("/{report_id}/open-pr", response_model=OpenPrResponse)
+async def open_remediation_pr(
+    report_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> OpenPrResponse:
+    """Open a draft pull request from this ghost report's remediation patch.
+
+    Closes the detect → diagnose → fix loop: the Forensic agent already generated
+    the patch; this pushes it to GitHub as a draft PR for a human to review. Safe and
+    idempotent — re-invoking returns the PR that was already opened for this report.
+    """
+    doc = await firestore_client.get_ghost_report(report_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Ghost report not found")
+
+    svc: dict[str, Any] | None = None
+    karma_service_id = doc.get("karma_service_id", "")
+    if karma_service_id:
+        svc = await firestore_client.get_service(karma_service_id)
+        if svc is None or svc.get("user_id") != user["uid"]:
+            raise HTTPException(status_code=404, detail="Ghost report not found")
+
+    # Already opened for this report — return it without calling GitHub again.
+    existing = doc.get("remediation_pr") or {}
+    if existing.get("pr_url"):
+        return OpenPrResponse(
+            pr_url=existing["pr_url"],
+            pr_number=int(existing.get("pr_number") or 0),
+            branch=existing.get("branch", ""),
+            repo=existing.get("repo", ""),
+            created=False,
+        )
+
+    patch = _parse_remediation_patch(doc.get("remediation_patch"))
+    if patch is None:
+        raise HTTPException(
+            status_code=400,
+            detail="This ghost report has no remediation patch to open as a PR.",
+        )
+
+    if not settings.github_write_token:
+        raise HTTPException(
+            status_code=503,
+            detail="PR creation is not configured on this server (no GitHub write token).",
+        )
+
+    repo = (svc.get("github_repo") if svc else None) or settings.github_repo
+    if not repo:
+        raise HTTPException(
+            status_code=503,
+            detail="No GitHub repository is configured for this service.",
+        )
+
+    try:
+        result = await github_client.open_remediation_pr(
+            repo=repo,
+            base_branch=settings.github_pr_base_branch,
+            token=settings.github_write_token,
+            report_id=report_id,
+            pr_title=patch.pr_title,
+            pr_body=patch.pr_body,
+            patch_diff=patch.patch_diff,
+            target_file=patch.target_file,
+        )
+    except Exception as exc:
+        logger.warning("open_remediation_pr_failed", report_id=report_id, repo=repo, error=str(exc))
+        raise HTTPException(
+            status_code=502, detail=f"Could not open the pull request: {exc}"
+        ) from exc
+
+    await firestore_client.update_ghost_report(
+        report_id,
+        {
+            "remediation_pr": {
+                "pr_url": result["pr_url"],
+                "pr_number": result["pr_number"],
+                "branch": result["branch"],
+                "repo": repo,
+            }
+        },
+    )
+    logger.info(
+        "remediation_pr_opened",
+        report_id=report_id,
+        repo=repo,
+        pr_number=result["pr_number"],
+        created=result["created"],
+    )
+    return OpenPrResponse(
+        pr_url=result["pr_url"],
+        pr_number=result["pr_number"],
+        branch=result["branch"],
+        repo=repo,
+        created=result["created"],
+    )
+
+
 def _parse_remediation_patch(raw: Any) -> RemediationPatch | None:
     """Coerce a stored remediation_patch dict into the response model.
 
@@ -153,6 +254,7 @@ def _doc_to_response(doc: dict[str, Any]) -> GhostReportResponse:
     dt_evidence: dict[str, Any] = doc.get("dynatrace_evidence") or {}
     return GhostReportResponse(
         remediation_patch=_parse_remediation_patch(doc.get("remediation_patch")),
+        remediation_pr_url=(doc.get("remediation_pr") or {}).get("pr_url"),
         report_id=doc["report_id"],
         violation_id=doc["violation_id"],
         contract_id=doc.get("contract", {}).get("contract_id", ""),

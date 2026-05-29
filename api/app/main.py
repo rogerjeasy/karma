@@ -19,10 +19,12 @@ from app.models import HealthResponse
 from app.otel import setup_otel
 from app.routes import (
     admin,
+    console,
     contracts,
     cutover,
     demo,
     ghosts,
+    proof,
     pubsub,
     readiness,
     services,
@@ -104,6 +106,8 @@ def create_app() -> FastAPI:
     application.include_router(stream.router)
     application.include_router(pubsub.router)
     application.include_router(demo.router)
+    application.include_router(proof.router)
+    application.include_router(console.router)
 
     @application.get("/health", response_model=HealthResponse, tags=["meta"])
     async def health() -> HealthResponse:
