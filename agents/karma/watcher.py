@@ -174,7 +174,10 @@ def create_watcher_agent() -> Agent:
             "violation predicates, loads contracts from Memory Bank when needed, "
             "and publishes violations to Pub/Sub for async Forensic processing."
         ),
-        instruction=_WATCHER_INSTRUCTION,
+        # Callable instruction → ADK InstructionProvider, which bypasses session-state
+        # {templating}. Without this, literal { } in the prompt's code examples (e.g.
+        # {check_window_minutes}) are parsed as state vars and raise KeyError before the first LLM call.
+        instruction=lambda _ctx: _WATCHER_INSTRUCTION,
         tools=[
             load_contracts_from_memory_bank,
             execute_dql,

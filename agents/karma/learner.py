@@ -44,7 +44,10 @@ def create_learner_agent() -> Agent:
             "telemetry. Covers latency, error semantics, throughput, side effects, "
             "timing, dependency, resource, and sequencing contracts."
         ),
-        instruction=system_prompt,
+        # Callable instruction → ADK InstructionProvider, which bypasses session-state
+        # {templating}. Without this, literal { } in the prompt's DQL examples are parsed
+        # as state vars and raise KeyError, killing the agent before its first LLM call.
+        instruction=lambda _ctx: system_prompt,
         tools=[
             # Direct Dynatrace API — raw Grail queries
             execute_dql,

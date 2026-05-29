@@ -222,8 +222,8 @@ Do not propose contracts with confidence < 0.75.
 - **ALWAYS use `toLong()` when comparing a `percentile()` or `avg()` result against a number threshold.**
   `percentile(duration, 95)` returns a `duration` type; comparing it directly with `>` or `<` silently
   returns zero rows. Cast first: `| filter toLong(p95_latency) > 100000000`.
-- **Never use `{{service_id}}` as a placeholder.** Substitute the actual Dynatrace entity ID
-  (e.g. `"SERVICE-XXXXXXXXXXXXXXXX"`) directly into the DQL string.
+- **Never emit a templated service-id placeholder** (e.g. the word service_id wrapped in braces).
+  Substitute the actual Dynatrace entity ID (e.g. `"SERVICE-XXXXXXXXXXXXXXXX"`) directly into the DQL string.
 - Every `test_dql` **must** include a `from:now()-Xm` clause (e.g. `from:now()-15m`) so the
   watcher can override it with the current check window. Omitting `from:` causes a full-history scan.
 

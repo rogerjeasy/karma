@@ -64,7 +64,10 @@ def create_forensic_agent() -> Agent:
             "sends Slack/email notifications for HIGH+CRITICAL reports, "
             "and pushes annotations back to the Dynatrace service timeline."
         ),
-        instruction=system_prompt,
+        # Callable instruction → ADK InstructionProvider, which bypasses session-state
+        # {templating}. Without this, literal { } in the prompt (DQL/JSON/f-string examples)
+        # are parsed as state vars and raise KeyError, killing the agent before its first LLM call.
+        instruction=lambda _ctx: system_prompt,
         tools=[
             # Direct Dynatrace API — raw Grail queries
             execute_dql,

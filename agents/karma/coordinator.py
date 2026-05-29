@@ -65,7 +65,9 @@ def create_coordinator_agent() -> Agent:
             "Karma's root agent. Routes learning, watching, and forensic tasks "
             "to the appropriate specialized sub-agent."
         ),
-        instruction=_COORDINATOR_INSTRUCTION,
+        # Callable instruction → ADK InstructionProvider, which bypasses session-state
+        # {templating} so literal { } in the prompt's JSON examples are never parsed as state vars.
+        instruction=lambda _ctx: _COORDINATOR_INSTRUCTION,
         sub_agents=[learner, watcher, forensic],
         **make_telemetry_callbacks("karma_coordinator", settings.model_flash),
     )
