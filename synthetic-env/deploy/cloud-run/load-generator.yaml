@@ -11,12 +11,21 @@ spec:
             - image: us-central1-docker.pkg.dev/skillbridge-76a4c/karma-images/load-generator:latest
               resources:
                 limits:
-                  memory: 256Mi
+                  # k6 accumulates metric data in memory over long runs; 256Mi OOMs
+                  # well before the 24h duration. 1Gi comfortably exceeds the 12h
+                  # scheduler restart interval.
+                  memory: 1Gi
                   cpu: "1"
               env:
+                # PAYMENTS_URL drives the ACTIVE replacement (v3) post-cutover.
+                # v2 is intentionally left idle so the Redis cache goes cold and the
+                # downstream regression in svc-reporting stays visible.
                 - name: PAYMENTS_URL
-                  value: "https://karma-svc-payments-v2-<hash>-uc.a.run.app"
+                  value: "https://karma-svc-payments-v3-<hash>-uc.a.run.app"
                 - name: REPORTING_URL
                   value: "https://karma-svc-reporting-<hash>-uc.a.run.app"
+                # Bound k6 memory growth over long runs (don't retain response bodies)
+                - name: K6_DISCARD_RESPONSE_BODIES
+                  value: "true"
           maxRetries: 0
           timeoutSeconds: "86400"
