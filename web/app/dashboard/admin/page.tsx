@@ -42,7 +42,7 @@ export default function AdminPage() {
   const {
     services, stats, observability,
     serviceDetails, loading: loadingData, loadingObs,
-    refresh, addService, removeService,
+    refresh, refreshServices, addService, removeService,
   } = useAdminData();
 
   const [tab, setTab]     = useState<Tab>("infrastructure");
@@ -52,6 +52,16 @@ export default function AdminPage() {
   useEffect(() => {
     if (!profileLoading && !isAdmin) router.replace("/dashboard");
   }, [isAdmin, profileLoading, router]);
+
+  // While any service is mid-lifecycle (registered → learning → ready), poll so
+  // the auto-advance to haunting shows up live without a manual refresh.
+  useEffect(() => {
+    const TRANSITIONAL = new Set(["registered", "learning", "ready"]);
+    const anyTransitional = services.some((s) => TRANSITIONAL.has(s.phase));
+    if (!anyTransitional) return;
+    const id = setInterval(() => { refreshServices(); }, 4000);
+    return () => clearInterval(id);
+  }, [services, refreshServices]);
 
   function toggleExpanded(serviceId: string) {
     setExpandedServices((prev) => {

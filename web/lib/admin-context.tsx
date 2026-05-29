@@ -27,7 +27,8 @@ interface AdminContextValue {
   loading: boolean;
   loadingObs: boolean;
   refresh: () => void;
-  loadServiceDetails: (svcs: SystemService[]) => Promise<void>;
+  refreshServices: () => Promise<void>;
+  loadServiceDetails: (svcs: SystemService[], quiet?: boolean) => Promise<void>;
   addService: (svc: SystemService) => void;
   removeService: (serviceId: string) => void;
 }
@@ -45,12 +46,16 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
   const [loadingObs, setLoadingObs]         = useState(false);
   const [fetched, setFetched]               = useState(false);
 
-  const loadServiceDetails = useCallback(async (svcList: SystemService[]) => {
-    const init: Record<string, ServiceDetail> = {};
-    for (const svc of svcList) {
-      init[svc.service_id] = { contracts: [], ghosts: [], watcherRuns: [], loading: true };
+  const loadServiceDetails = useCallback(async (svcList: SystemService[], quiet = false) => {
+    // In quiet mode (background polling) we skip the loading flags so cards
+    // don't flash spinners on every poll tick.
+    if (!quiet) {
+      const init: Record<string, ServiceDetail> = {};
+      for (const svc of svcList) {
+        init[svc.service_id] = { contracts: [], ghosts: [], watcherRuns: [], loading: true };
+      }
+      setServiceDetails((prev) => ({ ...prev, ...init }));
     }
-    setServiceDetails((prev) => ({ ...prev, ...init }));
 
     await Promise.all(
       svcList.map(async (svc) => {
@@ -106,6 +111,21 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
     setServiceDetails({});
   }, []);
 
+  // Lightweight background refresh: re-fetch the services list + stats and
+  // quietly reload details, without clearing state or flashing spinners. Used
+  // to poll phase transitions (learning → ready → haunting) live.
+  const refreshServices = useCallback(async () => {
+    const [svcs, st] = await Promise.all([
+      apiFetch<SystemService[]>("/admin/system-services").catch(() => null),
+      apiFetch<AdminStats>("/admin/stats").catch(() => null),
+    ]);
+    if (Array.isArray(svcs)) {
+      setServices(svcs);
+      loadServiceDetails(svcs, true);
+    }
+    if (st) setStats(st);
+  }, [loadServiceDetails]);
+
   const addService = useCallback((svc: SystemService) => {
     setServices((prev) => [svc, ...prev]);
     loadServiceDetails([svc]);
@@ -124,7 +144,7 @@ export function AdminDataProvider({ children }: { children: React.ReactNode }) {
     <AdminContext.Provider value={{
       services, stats, observability, serviceDetails,
       loading, loadingObs,
-      refresh, loadServiceDetails, addService, removeService,
+      refresh, refreshServices, loadServiceDetails, addService, removeService,
     }}>
       {children}
     </AdminContext.Provider>

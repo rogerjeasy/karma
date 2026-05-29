@@ -72,8 +72,9 @@ export function AddServiceDialog({
         <DialogHeader>
           <DialogTitle>Register System Service</DialogTitle>
           <DialogDescription>
-            Add a Karma infrastructure service for self-monitoring. The Dynatrace entity ID
-            appears in the Services screen (SERVICE-…) once OTel traces are flowing.
+            Add a Karma infrastructure service for self-monitoring. Registering automatically
+            starts learning and, once ready, begins haunting — no manual steps. The Dynatrace
+            entity ID appears in the Services screen (SERVICE-…) once OTel traces are flowing.
           </DialogDescription>
         </DialogHeader>
 

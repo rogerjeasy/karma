@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
-  Activity,
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
@@ -60,7 +59,6 @@ export function ServiceCard({
 
   const [actionBusy,  setActionBusy]  = useState(false);
   const [actionMsg,   setActionMsg]   = useState<{ text: string; ok: boolean } | null>(null);
-  const [replId,      setReplId]      = useState(service.dynatrace_entity_id);
   const [deleteOpen,  setDeleteOpen]  = useState(false);
   const [deleteBusy,  setDeleteBusy]  = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -74,24 +72,6 @@ export function ServiceCard({
       onRefresh?.();
     } catch (e: unknown) {
       setActionMsg({ text: (e as Error).message ?? "Failed to start learning", ok: false });
-    } finally {
-      setActionBusy(false);
-    }
-  }
-
-  async function triggerCutover() {
-    if (!replId.trim()) return;
-    setActionBusy(true);
-    setActionMsg(null);
-    try {
-      await apiFetch(`/admin/system-services/${service.service_id}/cutover`, {
-        method: "POST",
-        body: JSON.stringify({ replacement_service_id: replId.trim() }),
-      });
-      setActionMsg({ text: "Haunting activated — watcher will run on next cycle.", ok: true });
-      onRefresh?.();
-    } catch (e: unknown) {
-      setActionMsg({ text: (e as Error).message ?? "Failed to activate haunting", ok: false });
     } finally {
       setActionBusy(false);
     }
@@ -292,6 +272,7 @@ export function ServiceCard({
             <div className="divide-y divide-border/40">
               {/* Actions */}
               {(service.phase === "registered" ||
+                service.phase === "learning" ||
                 service.phase === "error" ||
                 service.phase === "ready" ||
                 service.phase === "haunting" ||
@@ -301,6 +282,14 @@ export function ServiceCard({
                     Actions
                   </p>
                   <div className="flex flex-wrap items-start gap-3">
+                    {(service.phase === "learning" || service.phase === "ready") && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                        {service.phase === "learning"
+                          ? "Learning in progress — auto-advances to haunting when ready…"
+                          : "Learning complete — activating haunting…"}
+                      </div>
+                    )}
                     {(service.phase === "registered" || service.phase === "error") && (
                       <Button
                         size="sm"
@@ -316,30 +305,6 @@ export function ServiceCard({
                         )}
                         Start Learning
                       </Button>
-                    )}
-                    {service.phase === "ready" && (
-                      <div className="flex items-center gap-2">
-                        <input
-                          className="h-7 rounded border border-border bg-background px-2 text-xs font-mono text-foreground w-56"
-                          placeholder="Replacement entity ID (SERVICE-…)"
-                          value={replId}
-                          onChange={(e) => setReplId(e.target.value)}
-                        />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs gap-1.5"
-                          onClick={triggerCutover}
-                          disabled={actionBusy || !replId.trim()}
-                        >
-                          {actionBusy ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Activity className="h-3 w-3" />
-                          )}
-                          Activate Haunting
-                        </Button>
-                      </div>
                     )}
                     {service.phase === "completed" && (
                       <Button
@@ -364,7 +329,7 @@ export function ServiceCard({
                         className="h-7 text-xs gap-1.5"
                         onClick={triggerLearn}
                         disabled={actionBusy}
-                        title="Re-run the Learner on this service's recent telemetry. Moves it out of haunting, back through learning → ready (re-activate haunting afterward)."
+                        title="Re-run the Learner on this service's recent telemetry. Moves it out of haunting, back through learning → ready, then automatically resumes haunting."
                       >
                         {actionBusy ? (
                           <Loader2 className="h-3 w-3 animate-spin" />
