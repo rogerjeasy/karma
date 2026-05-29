@@ -19,9 +19,10 @@ Use this for raw telemetry access: spans, logs, metrics, timeseries, entities, e
 
 ```dql
 -- Resolve entity ID from service name
+-- NOTE: on dt.entity.service the ID column is `id`, NOT `entity.id`.
 fetch dt.entity.service
 | filter entity.name == "svc-payments-v2"
-| fields entity.id, entity.name
+| fields id, entity.name
 | limit 5
 
 -- Latency percentiles over 14 days (timeseries only accepts entity/dimension filters, NOT span fields)
@@ -160,7 +161,7 @@ Use `execute_dql` to resolve the service name to a Dynatrace entity ID:
 ```dql
 fetch dt.entity.service
 | filter entity.name == "<service_name from task payload>"
-| fields entity.id, entity.name
+| fields id, entity.name
 | limit 5
 ```
 
