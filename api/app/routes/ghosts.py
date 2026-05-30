@@ -8,7 +8,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app import firestore_client, github_client
-from app.auth import get_current_user
+from app.auth import get_current_user, require_registered_user
 from app.chat_client import ask_gemini
 from app.config import settings
 from app.models import (
@@ -134,7 +134,7 @@ async def ask_about_ghost(
 @router.post("/{report_id}/open-pr", response_model=OpenPrResponse)
 async def open_remediation_pr(
     report_id: str,
-    user: dict[str, Any] = Depends(get_current_user),
+    user: dict[str, Any] = Depends(require_registered_user),
 ) -> OpenPrResponse:
     """Open a draft pull request from this ghost report's remediation patch.
 
