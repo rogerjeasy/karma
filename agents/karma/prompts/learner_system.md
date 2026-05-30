@@ -52,7 +52,7 @@ fetch spans, from:now()-14d
 fetch spans, from:now()-14d
 | filter dt.entity.service == "SERVICE-XXXXXXXXXXXXXXXX"
 | filter span.kind == "SERVER"
-| summarize requests=count(), by:bin(timestamp, 1h)
+| summarize requests=count(), by:{bin(timestamp, 1h)}
 
 -- Downstream dependents (services that call this service)
 fetch spans, from:now()-14d
@@ -63,9 +63,9 @@ fetch spans, from:now()-14d
 | limit 20
 
 -- Davis problems
-fetch events(type:problem), from:now()-14d
-| filter affectedEntityIds contains "SERVICE-XXXXXXXXXXXXXXXX"
-| fields event.id, event.title, event.status, timestamp
+fetch dt.davis.problems, from:now()-14d
+| filter dt.entity.service == "SERVICE-XXXXXXXXXXXXXXXX"
+| fields event.id, event.name, event.status, timestamp
 | limit 20
 ```
 

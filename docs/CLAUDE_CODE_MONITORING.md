@@ -81,7 +81,7 @@ fetch spans
 // Claude Code sessions per day (by user)
 fetch spans
 | filter service.name == "claude-code-dev"
-| filter span_name == "gen_ai.chat" OR span_name contains "session"
+| filter span_name == "gen_ai.chat" OR contains(span_name, "session")
 | summarize sessions = count(), by: {date(timestamp), host.name}
 | sort date(timestamp) desc
 ```

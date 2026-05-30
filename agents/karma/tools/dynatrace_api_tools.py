@@ -50,13 +50,13 @@ def execute_dql(query: str) -> dict[str, Any]:
             Per-endpoint latency (use fetch spans when filtering by span.name or other span attributes):
               fetch spans, from:now()-14d
               | filter dt.entity.service == "SERVICE-XXX" and span.name == "POST /charge"
-              | summarize p50=percentile(duration,50), p95=percentile(duration,95), by:bin(timestamp,1h)
+              | summarize p50=percentile(duration,50), p95=percentile(duration,95), by:{bin(timestamp,1h)}
 
             Throughput (use fetch+summarize — count() in timeseries requires a metric key, not span data):
               fetch spans, from:now()-14d
               | filter dt.entity.service == "SERVICE-XXX"
               | filter span.kind == "SERVER"
-              | summarize requests=count(), by:bin(timestamp, 1h)
+              | summarize requests=count(), by:{bin(timestamp, 1h)}
 
             Resolve entity ID:
               fetch dt.entity.service
@@ -71,10 +71,10 @@ def execute_dql(query: str) -> dict[str, Any]:
               | fields timestamp, content
               | limit 100
 
-            Davis problems:
-              fetch events(type:problem), from:now()-2h
-              | filter affectedEntityIds contains "SERVICE-XXX"
-              | fields event.id, event.title, event.status
+            Davis problems (use the dt.davis.problems source; there is no events() function):
+              fetch dt.davis.problems, from:now()-2h
+              | filter dt.entity.service == "SERVICE-XXX"
+              | fields event.id, event.name, event.status
 
             Redis/DB side effects via spans:
               fetch spans, from:now()-14d

@@ -46,7 +46,7 @@ def _make_contract(category: ContractCategory = ContractCategory.SIDE_EFFECT) ->
         learning_window=_make_learning_window(),
         violation_predicate=ViolationPredicate(
             type=ViolationPredicateType.ABSENCE,
-            test_dql='fetch logs | filter service.name == "svc-payments-v3" and content contains "redis.SET" | summarize count()',
+            test_dql='fetch logs | filter service.name == "svc-payments-v3" and contains(content, "redis.SET") | summarize count()',
             threshold="count >= 1 over any 5-minute window",
             tolerance_window_seconds=300,
         ),

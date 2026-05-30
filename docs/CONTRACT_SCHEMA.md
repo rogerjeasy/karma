@@ -288,7 +288,7 @@ Verify in Dynatrace → **Observe & Explore → SLOs**:
 
 ```dql
 fetch slo
-| filter customInfo contains "karma-contract"
+| filter contains(customInfo, "karma-contract")
 | fields name, target, status, errorBudget, customInfo
 | sort name asc
 ```

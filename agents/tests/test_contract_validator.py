@@ -46,7 +46,7 @@ def _contract(
     predicate_type: ViolationPredicateType = ViolationPredicateType.ABSENCE,
     test_dql: str = (
         'fetch logs | filter service.name == "svc-payments-v3" '
-        'and content contains "redis.SET" | summarize count()'
+        'and contains(content, "redis.SET") | summarize count()'
     ),
     threshold: str = "count >= 1 over any 5-minute window",
     service_id: str = "SERVICE-SVC-PAYMENTS-V2",
@@ -497,7 +497,7 @@ class TestCacheWarmingDemoScenario:
     _CACHE_WARMING_DQL = (
         'fetch logs '
         '| filter service.name == "svc-payments-v2" '
-        '| filter content contains "redis.SET" '
+        '| filter contains(content, "redis.SET") '
         '| summarize count()'
     )
 
@@ -531,7 +531,7 @@ class TestCacheWarmingDemoScenario:
                 test_dql=(
                     'fetch logs '
                     '| filter service.name == "svc-payments-v3" '
-                    '| filter content contains "redis.SET" '
+                    '| filter contains(content, "redis.SET") '
                     '| summarize count()'
                 ),
                 threshold="count >= 1 over any 5-minute window",

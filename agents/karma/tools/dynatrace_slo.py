@@ -19,7 +19,7 @@ Supported contract categories for SLO creation:
 
 DQL to list all Karma-managed SLOs:
   fetch slo
-  | filter slo.customInfo contains "karma-contract"
+  | filter contains(slo.customInfo, "karma-contract")
   | fields slo.name, slo.target, slo.status, slo.errorBudget
   | sort slo.name asc
 """

@@ -155,7 +155,7 @@ fetch logs
 fetch logs
 | filter dt.entity.service in ["<downstream_service_id_1>", "<downstream_service_id_2>"]
 | filter timestamp >= "<start>" AND timestamp <= "<end>"
-| filter content contains "fallback" OR content contains "cache miss" OR loglevel == "ERROR"
+| filter contains(content, "fallback") OR contains(content, "cache miss") OR loglevel == "ERROR"
 | fields timestamp, dt.entity.service, content
 | limit 50
 ```
@@ -174,7 +174,7 @@ fetch spans
 fetch logs
 | filter dt.entity.service == "<downstream_service_id>"
 | filter timestamp >= "<start>" AND timestamp <= "<end>"
-| filter loglevel == "ERROR" OR content contains "unexpected status"
+| filter loglevel == "ERROR" OR contains(content, "unexpected status")
 | fields timestamp, content
 | limit 50
 ```
@@ -218,14 +218,14 @@ timeseries upstream_rate = count(), by: {dt.entity.service}
 fetch logs
 | filter dt.entity.service == "<new_service_id>"
 | filter timestamp >= "<start>" AND timestamp <= "<end>"
-| filter content contains "cron" OR content contains "scheduler" OR content contains "periodic"
+| filter contains(content, "cron") OR contains(content, "scheduler") OR contains(content, "periodic")
 | fields timestamp, content
 | sort timestamp asc
 
 // Compare event frequency: old service vs. new service
 fetch logs
 | filter dt.entity.service in ["<old_service_id>", "<new_service_id>"]
-| filter content contains "<task_signature>"
+| filter contains(content, "<task_signature>")
 | summarize count(), by: {dt.entity.service}
 ```
 
@@ -266,9 +266,9 @@ fetch spans
 
 ```dql
 // Check Davis AI problems in the same window
-fetch events(type:problem), from:<start>
-| filter affectedEntityIds contains "<new_service_id>"
-| fields event.id, event.title, event.status, timestamp
+fetch dt.davis.problems, from:<start>
+| filter dt.entity.service == "<new_service_id>"
+| fields event.id, event.name, event.status, timestamp
 | limit 20
 
 // Changelog detection: when exactly did the signal shift?
