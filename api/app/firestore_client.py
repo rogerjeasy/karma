@@ -195,6 +195,11 @@ async def get_contract_by_id(contract_id: str) -> dict[str, Any] | None:
     return doc.to_dict() if doc.exists else None
 
 
+async def update_contract(contract_id: str, payload: dict[str, Any]) -> None:
+    db = get_db()
+    await db.collection("contracts").document(contract_id).update(payload)
+
+
 async def list_contracts_for_service(service_id: str) -> list[dict[str, Any]]:
     db = get_db()
     query = db.collection("contracts").where(

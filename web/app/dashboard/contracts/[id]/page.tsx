@@ -1,18 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import {
   ArrowLeft, Copy, Check, Shield, Clock,
-  FileCode2, AlertTriangle, ChevronRight, Brain, ExternalLink,
+  FileCode2, AlertTriangle, ChevronRight, Brain, ExternalLink, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import { useDashboardData } from "@/lib/dashboard-context";
 import { GhostCard } from "@/components/GhostCard";
-import type { ContractDetail, ContractEvidence } from "@/lib/types";
+import type { ContractDetail, ContractEvidence, VerifyNotebookResponse } from "@/lib/types";
 
 
 const CATEGORY_COLOR: Record<string, string> = {
@@ -53,26 +53,96 @@ function CopyButton({ value, className }: { value: string; className?: string })
 }
 
 /**
- * "Verify it yourself" — copies the exact DQL and opens the tenant's Notebooks app
- * so a judge can run the query against their own Grail data and confirm the claim.
+ * Shared "verify" controller for a contract page. A single Dynatrace Notebook
+ * (cells = this contract's DQL) backs every Verify button on the page, so all
+ * buttons open the same real, executable notebook instead of the generic
+ * getting-started page. Falls back to copy-DQL if the notebook can't be created.
+ */
+type VerifyState = "ready" | "creating" | "fallback";
+interface VerifyCtx {
+  verify: (fallbackDql: string) => void;
+  state: VerifyState;
+}
+const VerifyNotebookContext = createContext<VerifyCtx | null>(null);
+
+function useContractVerify(contractId: string | undefined, precomputedUrl: string | null): VerifyCtx {
+  const [creating, setCreating] = useState(false);
+  const urlRef = useRef<string | null>(precomputedUrl);
+  const promiseRef = useRef<Promise<string> | null>(null);
+  useEffect(() => { urlRef.current = precomputedUrl; }, [precomputedUrl]);
+
+  const verify = useCallback((fallbackDql: string) => {
+    if (urlRef.current) {
+      window.open(urlRef.current, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (!contractId) return;
+    setCreating(true);
+    // Dedupe concurrent clicks across buttons — one create per contract.
+    if (!promiseRef.current) {
+      promiseRef.current = apiFetch<VerifyNotebookResponse>(
+        `/contracts/detail/${contractId}/verify-notebook`,
+        { method: "POST" },
+      ).then((r) => r.notebook_url);
+    }
+    promiseRef.current
+      .then((url) => {
+        urlRef.current = url;
+        window.open(url, "_blank", "noopener,noreferrer");
+      })
+      .catch(() => {
+        // Fallback: copy the DQL and open the Notebooks app so the user can paste.
+        promiseRef.current = null;
+        if (fallbackDql) navigator.clipboard.writeText(fallbackDql);
+        const root = notebooksAppUrl();
+        if (root) window.open(root, "_blank", "noopener,noreferrer");
+      })
+      .finally(() => setCreating(false));
+  }, [contractId]);
+
+  return { verify, state: creating ? "creating" : "ready" };
+}
+
+/**
+ * "Verify it yourself" — opens a Dynatrace Notebook whose cells are this
+ * contract's DQL, runnable against the judge's own Grail data. If the notebook
+ * can't be created, it copies the DQL and opens the Notebooks app to paste.
  */
 function VerifyInDynatrace({ dql }: { dql: string }) {
+  const ctx = useContext(VerifyNotebookContext);
   const [copied, setCopied] = useState(false);
-  const url = notebooksAppUrl();
-  if (!url) return null;
+  if (!notebooksAppUrl()) return null;
+
+  // No provider (defensive): preserve the original copy-and-open behaviour.
+  if (!ctx) {
+    const url = notebooksAppUrl()!;
+    return (
+      <button
+        onClick={() => {
+          navigator.clipboard.writeText(dql);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+          window.open(url, "_blank", "noopener,noreferrer");
+        }}
+        title="Copies this DQL and opens Dynatrace Notebooks — paste to run it against your own Grail data"
+        className="inline-flex items-center gap-1.5 rounded-md border border-teal-500/25 px-2 py-1 text-[10px] font-medium text-teal-400 transition-all hover:border-teal-400/40 hover:bg-teal-500/10"
+      >
+        {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <ExternalLink className="h-3 w-3" />}
+        {copied ? "DQL copied — paste in notebook" : "Verify in Dynatrace"}
+      </button>
+    );
+  }
+
+  const creating = ctx.state === "creating";
   return (
     <button
-      onClick={() => {
-        navigator.clipboard.writeText(dql);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-        window.open(url, "_blank", "noopener,noreferrer");
-      }}
-      title="Copies this DQL and opens Dynatrace Notebooks — paste to run it against your own Grail data"
-      className="inline-flex items-center gap-1.5 rounded-md border border-teal-500/25 px-2 py-1 text-[10px] font-medium text-teal-400 transition-all hover:border-teal-400/40 hover:bg-teal-500/10"
+      onClick={() => ctx.verify(dql)}
+      disabled={creating}
+      title="Opens a Dynatrace Notebook of this contract's DQL — run it against your own Grail data"
+      className="inline-flex items-center gap-1.5 rounded-md border border-teal-500/25 px-2 py-1 text-[10px] font-medium text-teal-400 transition-all hover:border-teal-400/40 hover:bg-teal-500/10 disabled:opacity-60"
     >
-      {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <ExternalLink className="h-3 w-3" />}
-      {copied ? "DQL copied — paste in notebook" : "Verify in Dynatrace"}
+      {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : <ExternalLink className="h-3 w-3" />}
+      {creating ? "Building notebook…" : "Verify in Dynatrace"}
     </button>
   );
 }
@@ -153,6 +223,9 @@ export default function ContractDetailPage() {
   // Related ghost reports
   const relatedGhosts = ghosts.filter((g) => g.contract_id === id);
 
+  // One Dynatrace Notebook (this contract's DQL) backs every Verify button.
+  const verifyCtx = useContractVerify(id, detail?.verification_notebook_url ?? null);
+
   // Fetch full detail (predicate + evidence)
   useEffect(() => {
     if (!id) return;
@@ -181,6 +254,7 @@ export default function ContractDetailPage() {
   const colorClass = CATEGORY_COLOR[c?.category ?? ""] ?? "bg-muted/30 text-muted-foreground border-border";
 
   return (
+    <VerifyNotebookContext.Provider value={verifyCtx}>
     <div className="space-y-8 animate-fade-in-up max-w-4xl">
       {/* ── Breadcrumb ── */}
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -349,5 +423,6 @@ export default function ContractDetailPage() {
         )}
       </section>
     </div>
+    </VerifyNotebookContext.Provider>
   );
 }

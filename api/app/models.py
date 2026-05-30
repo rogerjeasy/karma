@@ -218,6 +218,16 @@ class ContractDetailResponse(BaseModel):
     evidence: list[dict[str, Any]] | None = None
     downstream_dependents: list[str] | None = None
     slo_id: str | None = None  # Dynatrace SLO ID created by Learner for this contract
+    # Deep-link to a Dynatrace Notebook whose cells are this contract's DQL.
+    # Pre-populated when present (precompute), or created on demand via the
+    # /verify-notebook endpoint and cached back here.
+    verification_notebook_url: str | None = None
+
+
+class VerifyNotebookResponse(BaseModel):
+    """Result of creating (or returning a cached) verification notebook."""
+    notebook_url: str
+    created: bool  # True if created this call, False if it already existed
 
 
 class WatcherRunRequest(BaseModel):

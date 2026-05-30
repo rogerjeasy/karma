@@ -69,6 +69,22 @@ fetch dt.davis.problems, from:now()-14d
 | limit 20
 ```
 
+### DQL correctness — predicate & evidence queries MUST run and return rows
+
+A contract's `test_dql` and evidence `dql` are shown to users and run via "Verify in
+Dynatrace". They must execute without error and return real results against live Grail.
+Before baking a query into a contract:
+
+- **Filter on fields that actually carry values.** For Redis/DB side-effect spans the
+  operation and key live in `span.name` (e.g. `span.name == "redis.SET recent_charges:summary"`).
+  `db.statement` is frequently **null** on these spans — never filter on it for the predicate;
+  use the exact `span.name` (copy it from your exploration query) or `db.system == "redis"`.
+- **`contains` is a function, not an operator.** Write `contains(span.name, "redis.SET")`,
+  never `span.name contains "redis.SET"` (that is a parse error).
+- **Confirm the exact `span.name` first.** Run the exploration query, read the real
+  `span.name`/`db.system`/`db.operation` values, then write a predicate that matches them.
+  A predicate that returns 0 rows because it references a wrong name/field is a fabricated claim.
+
 ### Dynatrace MCP Gateway tools
 
 These tools call the Dynatrace MCP server via the MCP Streamable HTTP protocol,

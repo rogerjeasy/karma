@@ -31,7 +31,7 @@ _CONTRACTS_TEMPLATE = [
             "type": "absence",
             "test_dql": (
                 'fetch spans | filter service.name == "svc-payments-v3" '
-                'and span.name == "redis.SET" and contains(db.statement, "recent_charges:summary") '
+                'and span.name == "redis.SET recent_charges:summary" '
                 "| summarize count = count(), by: { bin(timestamp, 5m) } | filter count == 0"
             ),
             "threshold": "count >= 0 writes over any 5-minute window (must be > 0)",
@@ -42,18 +42,17 @@ _CONTRACTS_TEMPLATE = [
                 "type": "dql_query",
                 "dql": (
                     'fetch spans, from:now()-14d | filter service.name == "svc-payments-v2" '
-                    'and span.name == "redis.SET" '
-                    'and contains(db.statement, "recent_charges:summary") '
+                    'and span.name == "redis.SET recent_charges:summary" '
                     "| summarize count = count(), by: { bin(timestamp, 1h) }"
                 ),
                 "sample_count": 4032,
                 "timespan": "14d",
-                "result_summary": "32 ± 4 writes per minute, continuous over 14-day window",
+                "result_summary": "~2 writes/min (every 30s), continuous over the observed window",
             },
             {
                 "type": "trace_pattern",
                 "pattern": "svc-payments-v2.background_loop -> redis.SET(recent_charges:summary)",
-                "frequency": "32 ± 4 per minute",
+                "frequency": "~2 per minute (every 30s)",
                 "sample_count": 4032,
             },
         ],
@@ -265,24 +264,23 @@ async def seed_demo(
         ),
         "evidence_links": [
             (
-                "DQL#1 (cache miss rate spike): fetch spans, from:now()-1h"
+                "DQL#1 (cache hit vs miss split): fetch spans, from:now()-24h"
                 ' | filter service.name == "svc-reporting"'
-                ' and contains(span.name, "redis.GET")'
-                ' and contains(db.statement, "recent_charges")'
-                " | summarize hit_rate = avg(toLong(redis.hit == \"true\")),"
+                ' and span.name == "reporting.get_charges_summary"'
+                " | summarize calls = count(),"
+                " p95_ms = percentile(duration, 95) / 1000000.0, by: { cache.hit }"
+            ),
+            (
+                "DQL#2 (p95 latency regression): fetch spans, from:now()-24h"
+                ' | filter service.name == "svc-reporting"'
+                ' and span.name == "reporting.get_charges_summary"'
+                " | summarize p95_ms = percentile(duration, 95) / 1000000.0,"
                 " by: { bin(timestamp, 5m) }"
             ),
             (
-                "DQL#2 (p95 latency regression): fetch spans, from:now()-1h"
-                ' | filter service.name == "svc-reporting"'
-                ' and contains(http.url, "/summary")'
-                " | summarize p95 = percentile(duration, 95), by: { bin(timestamp, 5m) }"
-            ),
-            (
-                "DQL#3 (missing Redis SET spans): fetch spans, from:now()-1h"
-                ' | filter service.name == "svc-payments-v3"'
-                ' and span.name == "redis.SET"'
-                ' and contains(db.statement, "recent_charges") | summarize count = count()'
+                "DQL#3 (missing Redis SET spans on v3): fetch spans, from:now()-24h"
+                ' | filter span.name == "redis.SET recent_charges:summary"'
+                " | summarize writes = count(), by: { service.name }"
             ),
         ],
         "remediation_suggestions": [
@@ -321,7 +319,7 @@ async def seed_demo(
                 "Davis AI correlated the downstream regression (problem P-1234567).\n\n"
                 "## Verification\n\n"
                 "After deploy, confirm `redis.SET recent_charges:summary` spans reappear "
-                "(≈32/min) and `svc-reporting` p95 returns to baseline."
+                "(≈2/min, one every 30s) and `svc-reporting` p95 returns to baseline."
             ),
             "target_file": "synthetic-env/svc-payments-v3/main.py",
             "language": "python",

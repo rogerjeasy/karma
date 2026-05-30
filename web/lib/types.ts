@@ -67,6 +67,14 @@ export interface ContractDetail extends ContractResponse {
   evidence?: ContractEvidence[] | null;
   downstream_dependents?: string[] | null;
   slo_id?: string | null;
+  // Deep-link to a Dynatrace Notebook of this contract's DQL. Present when
+  // precomputed; otherwise created on demand via /verify-notebook and cached.
+  verification_notebook_url?: string | null;
+}
+
+export interface VerifyNotebookResponse {
+  notebook_url: string;
+  created: boolean;
 }
 
 export interface PlatformStats {
