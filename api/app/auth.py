@@ -104,6 +104,24 @@ async def get_optional_user(
         return None
 
 
+async def require_registered_user(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Dependency that rejects anonymous (guest) sessions.
+
+    Guest/demo visitors sign in anonymously to explore the dashboard. Actions
+    that reach outside Karma — like opening a real GitHub pull request — must be
+    limited to users with a real account.
+    """
+    provider = (user.get("firebase") or {}).get("sign_in_provider")
+    if provider == "anonymous":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Sign in with a real account to open a remediation pull request.",
+        )
+    return user
+
+
 async def require_admin(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
