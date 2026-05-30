@@ -194,6 +194,8 @@ async def open_remediation_pr(
             pr_body=patch.pr_body,
             patch_diff=patch.patch_diff,
             target_file=patch.target_file,
+            requested_by_name=user.get("name", "") or user.get("email", ""),
+            requested_by_email=user.get("email", ""),
         )
     except Exception as exc:
         logger.warning("open_remediation_pr_failed", report_id=report_id, repo=repo, error=str(exc))

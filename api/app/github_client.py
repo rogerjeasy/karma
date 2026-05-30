@@ -180,6 +180,8 @@ async def open_remediation_pr(
     pr_body: str,
     patch_diff: str,
     target_file: str,
+    requested_by_name: str = "",
+    requested_by_email: str = "",
 ) -> dict[str, Any]:
     """Open a DRAFT pull request carrying the Forensic agent's remediation patch.
 
@@ -203,7 +205,9 @@ async def open_remediation_pr(
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
     }
-    body = _build_pr_body(pr_body, report_id, path, target_file)
+    body = _build_pr_body(
+        pr_body, report_id, path, target_file, requested_by_name, requested_by_email
+    )
 
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         # 1. Resolve the base branch SHA.
@@ -223,7 +227,10 @@ async def open_remediation_pr(
             json={"ref": f"refs/heads/{branch}", "sha": base_sha},
         )
         if create_ref.status_code in (200, 201):
-            await _put_patch_file(client, headers, repo, path, branch, pr_title, patch_diff)
+            await _put_patch_file(
+                client, headers, repo, path, branch, pr_title, patch_diff,
+                requested_by_name, requested_by_email,
+            )
         elif create_ref.status_code == 422:
             # Branch already exists — a PR may already be open for it.
             existing = await _find_pr_for_branch(client, headers, repo, owner, branch)
@@ -244,14 +251,27 @@ async def _put_patch_file(
     branch: str,
     pr_title: str,
     patch_diff: str,
+    author_name: str = "",
+    author_email: str = "",
 ) -> None:
-    """Commit the unified diff as a file on the remediation branch."""
+    """Commit the unified diff as a file on the remediation branch.
+
+    When the Karma requester's name + email are supplied, the commit is authored
+    in their name so the PR's commit history attributes the change to them rather
+    than to the shared write-token (bot) identity. GitHub still records the token
+    owner as the PR *creator* — that cannot be overridden via the API.
+    """
     content_b64 = base64.b64encode(patch_diff.encode("utf-8")).decode("ascii")
     message = pr_title if len(pr_title) <= 72 else pr_title[:69] + "..."
+    payload: dict[str, Any] = {"message": message, "content": content_b64, "branch": branch}
+    if author_name and author_email:
+        identity = {"name": author_name, "email": author_email}
+        payload["author"] = identity
+        payload["committer"] = identity
     resp = await client.put(
         f"{_GH_API}/repos/{repo}/contents/{path}",
         headers=headers,
-        json={"message": message, "content": content_b64, "branch": branch},
+        json=payload,
     )
     if resp.status_code not in (200, 201):
         raise RuntimeError(_gh_err("commit patch file", resp))
@@ -327,12 +347,25 @@ async def _find_pr_for_branch(
     }
 
 
-def _build_pr_body(agent_body: str, report_id: str, path: str, target_file: str) -> str:
+def _build_pr_body(
+    agent_body: str,
+    report_id: str,
+    path: str,
+    target_file: str,
+    requested_by_name: str = "",
+    requested_by_email: str = "",
+) -> str:
     """Append Karma provenance + apply instructions to the agent's PR body."""
+    requester = ""
+    if requested_by_name or requested_by_email:
+        who = requested_by_name or requested_by_email
+        email_part = f" <{requested_by_email}>" if requested_by_email else ""
+        requester = f"\n**Requested by {who}{email_part}** via Karma.\n"
     footer = (
         "\n\n---\n"
         f"*Opened automatically by Karma's Forensic agent from ghost report "
-        f"`{report_id}`. This is a **draft** — review before merging.*\n\n"
+        f"`{report_id}`. This is a **draft** — review before merging.*\n"
+        f"{requester}\n"
         f"The proposed change targets `{target_file}`. The unified diff is committed "
         f"at `{path}`; apply it locally with:\n\n"
         f"```bash\ngit apply {path}\n```\n"
