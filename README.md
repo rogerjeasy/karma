@@ -7,11 +7,14 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Google Cloud Rapid Agent Hackathon](https://img.shields.io/badge/Google%20Cloud-Rapid%20Agent%20Hackathon-4285F4?logo=google-cloud&logoColor=white)](https://rapid-agent.devpost.com)
 [![Track: Dynatrace](https://img.shields.io/badge/Partner%20Track-Dynatrace-1284CC?logo=dynatrace&logoColor=white)](https://rapid-agent.devpost.com)
+[![Vertex AI Agent Builder](https://img.shields.io/badge/Vertex%20AI-Agent%20Builder%20(ADK%20%2B%20Agent%20Engine)-4285F4?logo=google-cloud&logoColor=white)](https://cloud.google.com/products/agent-builder)
 [![Built with ADK](https://img.shields.io/badge/Built%20with-Google%20ADK%20v1.0-34A853?logo=google&logoColor=white)](https://github.com/google/adk-python)
 [![Gemini 2.5](https://img.shields.io/badge/Powered%20by-Gemini%202.5%20Pro%20%2F%20Flash-8B5CF6?logo=google&logoColor=white)](https://deepmind.google/technologies/gemini/)
 [![Cloud Run](https://img.shields.io/badge/Deployed%20on-Cloud%20Run-4285F4?logo=google-cloud&logoColor=white)](https://cloud.google.com/run)
 
 **Karma is an autonomous multi-agent system that haunts deprecated services.** It learns the undocumented behavioral contracts of an old service — latency bands, error semantics, cache writes, async side effects — and watches its replacement, filing *ghost reports* for every silent regression that passes every test but quietly breaks what lives downstream.
+
+> **Built on Google Cloud's Vertex AI Agent Builder** — four agents authored with the Agent Development Kit (ADK v1.0) and run on Vertex AI Agent Engine, powered **100% by Gemini 2.5** (Pro / Flash). Partner integration: the **Dynatrace MCP Server**. No non-Google models participate in any agent reasoning.
 
 [**Live Dashboard**](https://karma-web-ucvx5uwt5q-uc.a.run.app) · [**API Docs**](https://karma-api-ucvx5uwt5q-uc.a.run.app/docs) · [**Demo Runbook**](docs/DEMO_RUNBOOK.md)
 

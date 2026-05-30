@@ -153,8 +153,8 @@ function KarmaAgentPlatformPanel({ stats }: { stats: KarmaAgentsStats }) {
           <Bot className="h-3.5 w-3.5 text-cyan-400" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-bold text-foreground leading-tight">Karma ADK</p>
-          <p className="text-[10px] text-muted-foreground">Agent Platform · Vertex AI · Gemini 2.5</p>
+          <p className="text-xs font-bold text-foreground leading-tight">Karma Agents <span className="text-cyan-400/80 font-medium">· product runtime</span></p>
+          <p className="text-[10px] text-muted-foreground">Vertex AI Agent Builder · Agent Engine · Gemini 2.5</p>
         </div>
         {stats.from_grail && (
           <div className="flex items-center gap-1 text-[10px] text-emerald-400 border border-emerald-500/30 rounded-full px-2 py-0.5 shrink-0">
@@ -331,8 +331,13 @@ function ClaudeCodePanel({ stats, dtEnv }: { stats: ClaudeCodeStats; dtEnv: stri
           <Code2 className="h-3.5 w-3.5 text-violet-400" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-bold text-foreground leading-tight">Claude Code</p>
-          <p className="text-[10px] text-muted-foreground">AI Coding Agent · Anthropic · built Karma</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs font-bold text-foreground leading-tight">Claude Code</p>
+            <span className="text-[8.5px] font-bold uppercase tracking-wider text-amber-300 border border-amber-500/40 bg-amber-500/10 rounded px-1 py-0.5 shrink-0">
+              Dev tool — not in product
+            </span>
+          </div>
+          <p className="text-[10px] text-muted-foreground">Monitored coding tool · observed via Dynatrace, never part of Karma&#39;s reasoning</p>
         </div>
         {stats.from_grail ? (
           <div className="flex items-center gap-1 text-[10px] text-emerald-400 border border-emerald-500/30 rounded-full px-2 py-0.5 shrink-0">
@@ -535,7 +540,7 @@ export function AgentObservabilityPanel() {
             <div>
               <h2 className="text-base font-bold text-foreground">AI Agent Observability</h2>
               <p className="text-xs text-muted-foreground">
-                Dynatrace monitors both the system that built this and the system it built
+                Karma&#39;s product runtime is <span className="text-cyan-400 font-medium">100% Gemini on Vertex AI Agent Builder</span>. Claude Code is the dev tool that built it — shown here only because Dynatrace observes it too.
               </p>
             </div>
           </div>
@@ -601,6 +606,12 @@ export function AgentObservabilityPanel() {
               <span className="font-mono text-cyan-400">karma.agent_run</span> spans with
               per-agent token attribution. Dynatrace watches both. This panel queries both
               live from Grail.
+            </p>
+            <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+              <span className="text-foreground font-semibold">To be unambiguous:</span> Karma&#39;s
+              application is 100% Gemini 2.5 on Vertex AI Agent Builder — no Anthropic or other
+              non-Google model takes part in any agent reasoning. Claude Code is a telemetry source
+              (the developer&#39;s coding tool, observed via Dynatrace), never part of the product.
             </p>
             {data.grail_configured && (
               <div className="flex flex-wrap gap-3 pt-1">

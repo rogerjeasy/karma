@@ -5,9 +5,10 @@ import { Cpu, Activity, Brain, TrendingUp, Layers, Zap, Code2, Shield, Bell } fr
 import { useInView } from "./hooks";
 
 const TECH = [
-  { name: "Google ADK v1.0",    icon: Cpu,        color: "border-blue-500/30 bg-blue-500/8 text-blue-300 hover:bg-blue-500/14" },
+  { name: "Vertex AI Agent Builder", icon: Cpu,   color: "border-blue-500/30 bg-blue-500/8 text-blue-300 hover:bg-blue-500/14" },
+  { name: "Agent Engine (ADK v1.0)", icon: Layers, color: "border-blue-500/30 bg-blue-500/8 text-blue-300 hover:bg-blue-500/14" },
   { name: "Dynatrace MCP",      icon: Activity,   color: "border-violet-500/30 bg-violet-500/8 text-violet-300 hover:bg-violet-500/14" },
-  { name: "Gemini 2.5 Pro",     icon: Brain,      color: "border-primary/30 bg-primary/8 text-primary hover:bg-primary/14" },
+  { name: "Gemini 2.5 Pro / Flash", icon: Brain,  color: "border-primary/30 bg-primary/8 text-primary hover:bg-primary/14" },
   { name: "OpenTelemetry",      icon: TrendingUp, color: "border-cyan-500/30 bg-cyan-500/8 text-cyan-300 hover:bg-cyan-500/14" },
   { name: "Bindplane",          icon: Layers,     color: "border-indigo-500/30 bg-indigo-500/8 text-indigo-300 hover:bg-indigo-500/14" },
   { name: "FastAPI",            icon: Zap,        color: "border-emerald-500/30 bg-emerald-500/8 text-emerald-300 hover:bg-emerald-500/14" },
@@ -27,6 +28,10 @@ export default function TechStack() {
           </h2>
           <p className="mt-4 text-slate-300 max-w-md mx-auto leading-relaxed text-sm sm:text-base">
             Cutting-edge AI agents fused with production-grade observability infrastructure.
+          </p>
+          <p className="mt-3 text-[12px] sm:text-[13px] text-slate-400 max-w-xl mx-auto leading-relaxed">
+            Four agents built on <span className="text-blue-300 font-medium">Vertex AI Agent Builder</span> (ADK v1.0 + Agent Engine),
+            powered <span className="text-primary font-medium">100% by Gemini 2.5</span> on Vertex AI — no non-Google models in the product runtime.
           </p>
         </div>
         <div className="flex flex-wrap justify-center gap-2.5 sm:gap-3">
