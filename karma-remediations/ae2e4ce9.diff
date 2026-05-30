@@ -1,0 +1,24 @@
+--- a/synthetic-env/svc-payments-v3/main.py
++++ b/synthetic-env/svc-payments-v3/main.py
+@@ -38,6 +38,21 @@ app = FastAPI(title="svc-payments-v3")
+ redis_client = redis.Redis(host=REDIS_HOST, port=6379, decode_responses=True)
+ 
++
++async def _cache_warming_loop() -> None:
++    """Refresh the recent-charges summary key every 30s.
++
++    Ported from svc-payments-v2. svc-reporting reads this key directly
++    and degrades to a synchronous DB call when it is absent.
++    """
++    while True:
++        summary = await _compute_recent_charges_summary()
++        redis_client.set("recent_charges:summary", json.dumps(summary), ex=90)
++        await asyncio.sleep(30)
++
++
++@app.on_event("startup")
++async def _start_cache_warming() -> None:
++    asyncio.create_task(_cache_warming_loop())
+ 
+ @app.post("/charge")
+ async def charge(req: ChargeRequest) -> ChargeResponse:
