@@ -12,7 +12,7 @@ from app.auth import get_current_user
 from app.models import (
     ContractDetailResponse,
     ContractResponse,
-    VerifyNotebookResponse,
+    NotebookResponse,
 )
 
 logger = structlog.get_logger(__name__)
@@ -50,11 +50,11 @@ async def _load_owned_contract(contract_id: str, user: dict[str, Any]) -> dict[s
     return doc
 
 
-@router.post("/detail/{contract_id}/verify-notebook", response_model=VerifyNotebookResponse)
+@router.post("/detail/{contract_id}/verify-notebook", response_model=NotebookResponse)
 async def create_verification_notebook(
     contract_id: str,
     user: dict[str, Any] = Depends(get_current_user),
-) -> VerifyNotebookResponse:
+) -> NotebookResponse:
     """Create (or return a cached) Dynatrace Notebook for this contract's DQL.
 
     Powers the "Verify in Dynatrace" button: instead of opening the generic
@@ -68,7 +68,7 @@ async def create_verification_notebook(
 
     cached = doc.get("verification_notebook_url")
     if cached:
-        return VerifyNotebookResponse(notebook_url=cached, created=False)
+        return NotebookResponse(notebook_url=cached, created=False)
 
     name, cells, description = _build_notebook(doc)
     url = await dt_notebook.create_notebook(name=name, content=cells, description=description)
@@ -88,7 +88,7 @@ async def create_verification_notebook(
         logger.warning("verify_notebook_cache_failed", contract_id=contract_id, error=str(exc))
 
     logger.info("verify_notebook_created", contract_id=contract_id)
-    return VerifyNotebookResponse(notebook_url=url, created=True)
+    return NotebookResponse(notebook_url=url, created=True)
 
 
 @router.get("/{service_id}", response_model=list[ContractResponse])

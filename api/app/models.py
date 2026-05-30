@@ -224,8 +224,8 @@ class ContractDetailResponse(BaseModel):
     verification_notebook_url: str | None = None
 
 
-class VerifyNotebookResponse(BaseModel):
-    """Result of creating (or returning a cached) verification notebook."""
+class NotebookResponse(BaseModel):
+    """Result of creating (or returning a cached) Dynatrace notebook."""
     notebook_url: str
     created: bool  # True if created this call, False if it already existed
 

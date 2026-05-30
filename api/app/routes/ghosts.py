@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import json
+import re
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app import firestore_client, github_client
+from app import dt_notebook, firestore_client, github_client
 from app.auth import get_current_user, require_registered_user
 from app.chat_client import ask_gemini
 from app.config import settings
@@ -15,12 +17,29 @@ from app.models import (
     GhostAskRequest,
     GhostAskResponse,
     GhostReportResponse,
+    NotebookResponse,
     OpenPrResponse,
     RemediationPatch,
 )
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/ghosts", tags=["ghosts"])
+
+# Evidence link strings may carry a "DQL#1 (label): " prefix and a trailing
+# "-- RESULT: …" annotation. Mirror the dashboard's extractDql() to recover the
+# raw query before placing it in an executable notebook cell.
+_DQL_PREFIX_RE = re.compile(r"^DQL#?\d*\s*[^:]*:\s*", re.IGNORECASE)
+_DQL_RESULT_RE = re.compile(r"\s*--\s*RESULT:[\s\S]*$", re.IGNORECASE)
+_DQL_VERBS = ("fetch", "timeseries", "data", "describe")
+
+
+def _extract_dql(raw: str) -> str | None:
+    """Recover a runnable DQL string from an evidence_links entry, or None."""
+    if not isinstance(raw, str) or raw.strip().lower().startswith(("http://", "https://")):
+        return None
+    cleaned = _DQL_RESULT_RE.sub("", _DQL_PREFIX_RE.sub("", raw)).strip()
+    head = cleaned.lstrip("|").strip().lower()
+    return cleaned if head.startswith(_DQL_VERBS) else None
 
 
 @router.get("", response_model=list[GhostReportResponse])
@@ -228,6 +247,101 @@ async def open_remediation_pr(
         repo=repo,
         created=result["created"],
     )
+
+
+@router.post("/{report_id}/notebook", response_model=NotebookResponse)
+async def create_ghost_notebook(
+    report_id: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> NotebookResponse:
+    """Create (or return a cached) Dynatrace Notebook for this ghost report.
+
+    Powers the "Open in Dynatrace" button: the custom timeline-annotation event
+    can't be linked into a standalone events app (not installed on all tenants),
+    so we publish the investigation as a native Notebook whose cells are the
+    ghost's evidence DQL — runnable against the user's own Grail data.
+
+    Idempotent: the URL is cached on the report (dynatrace_notebook_url), so
+    repeat clicks return the same notebook instead of creating duplicates.
+    """
+    doc = await firestore_client.get_ghost_report(report_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Ghost report not found")
+
+    karma_service_id = doc.get("karma_service_id", "")
+    if karma_service_id:
+        svc = await firestore_client.get_service(karma_service_id)
+        if svc is None or svc.get("user_id") != user["uid"]:
+            raise HTTPException(status_code=404, detail="Ghost report not found")
+
+    cached = doc.get("dynatrace_notebook_url")
+    if cached:
+        return NotebookResponse(notebook_url=cached, created=False)
+
+    name, cells, description = _build_ghost_notebook(doc)
+    url = await dt_notebook.create_notebook(name=name, content=cells, description=description)
+    if not url:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Could not create a Dynatrace Notebook "
+                "(Dynatrace not configured or gateway unavailable)."
+            ),
+        )
+
+    try:
+        await firestore_client.update_ghost_report(report_id, {"dynatrace_notebook_url": url})
+    except Exception as exc:  # noqa: BLE001 — caching is best-effort
+        logger.warning("ghost_notebook_cache_failed", report_id=report_id, error=str(exc))
+
+    logger.info("ghost_notebook_created", report_id=report_id)
+    return NotebookResponse(notebook_url=url, created=True)
+
+
+def _build_ghost_notebook(doc: dict[str, Any]) -> tuple[str, list[dict[str, str]], str]:
+    """Assemble a Dynatrace Notebook (name, cells, description) from a ghost report.
+
+    Markdown intro (summary, root cause, impact, Davis insights) + an executable
+    DQL cell for each evidence query + a remediation checklist.
+    """
+    contract = doc.get("contract") or {}
+    category = contract.get("category", "ghost")
+    subcategory = contract.get("subcategory", "")
+    label = f"{category}/{subcategory}" if subcategory else category
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    name = f"[Karma] {label} — investigation — {today}"
+
+    intro = f"# Ghost investigation — {label}\n\n"
+    if doc.get("severity"):
+        intro += f"**Severity:** {doc['severity']}  ·  "
+    intro += "Every DQL cell runs against **your own Grail data** — no fabricated numbers.\n\n"
+    if doc.get("summary"):
+        intro += f"## Summary\n\n{doc['summary']}\n\n"
+    if doc.get("root_cause"):
+        intro += f"## Root cause\n\n{doc['root_cause']}\n\n"
+    if doc.get("downstream_impact"):
+        intro += f"## Downstream impact\n\n{doc['downstream_impact']}\n"
+    cells: list[dict[str, str]] = [{"type": "markdown", "text": intro.rstrip()}]
+
+    davis = doc.get("davis_ai_insights")
+    if davis and davis != "not available":
+        cells.append({"type": "markdown", "text": f"## Davis AI insights\n\n{davis}"})
+
+    # Evidence DQL — the queries behind the findings, as executable cells.
+    dql_cells = [d for link in (doc.get("evidence_links") or []) if (d := _extract_dql(link))]
+    if dql_cells:
+        cells.append({"type": "markdown", "text": "## Evidence queries"})
+        for i, dql in enumerate(dql_cells, start=1):
+            cells.append({"type": "markdown", "text": f"**Evidence #{i}**"})
+            cells.append({"type": "dql", "text": dql})
+
+    suggestions = doc.get("remediation_suggestions") or []
+    if suggestions:
+        body = "\n".join(f"- {s}" for s in suggestions)
+        cells.append({"type": "markdown", "text": f"## Remediation\n\n{body}"})
+
+    description = f"Karma ghost investigation notebook ({label})."
+    return name, cells, description
 
 
 def _parse_remediation_patch(raw: Any) -> RemediationPatch | None:
