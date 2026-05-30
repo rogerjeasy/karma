@@ -72,7 +72,7 @@ export interface ContractDetail extends ContractResponse {
   verification_notebook_url?: string | null;
 }
 
-export interface VerifyNotebookResponse {
+export interface NotebookResponse {
   notebook_url: string;
   created: boolean;
 }

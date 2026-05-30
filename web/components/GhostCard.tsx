@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   ExternalLink, ArrowRight, Clock, Copy, Check,
   Brain, Coins, Cpu, AlertOctagon, ServerCrash,
@@ -8,7 +8,7 @@ import {
   GitPullRequest, FileCode2, Loader2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import type { GhostReport, RemediationPatch, ViolationSeverity } from "@/lib/types";
+import type { GhostReport, NotebookResponse, RemediationPatch, ViolationSeverity } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -51,14 +51,81 @@ function buildEntityUrl(entityId: string): string | null {
   return `${base}/ui/apps/dynatrace.entity/${encodeURIComponent(entityId)}`;
 }
 
-function buildEventUrl(eventId: string): string | null {
-  const base = buildDtBase();
-  if (!base || !eventId) return null;
-  return `${base}/ui/apps/dynatrace.events/events?filter=${encodeURIComponent(eventId)}`;
-}
-
-
 // ── Shared DT link button ──────────────────────────────────────────────────────
+
+const DT_LINK_COLORS = {
+  teal:   "text-teal-400 hover:text-teal-300 border-teal-500/25 hover:border-teal-400/40 hover:bg-teal-500/10",
+  violet: "text-violet-400 hover:text-violet-300 border-violet-500/25 hover:border-violet-400/40 hover:bg-violet-500/10",
+  amber:  "text-amber-400 hover:text-amber-300 border-amber-500/25 hover:border-amber-400/40 hover:bg-amber-500/10",
+  blue:   "text-blue-400 hover:text-blue-300 border-blue-500/25 hover:border-blue-400/40 hover:bg-blue-500/10",
+  red:    "text-red-400 hover:text-red-300 border-red-500/25 hover:border-red-400/40 hover:bg-red-500/10",
+} as const;
+
+const DT_LINK_BASE = cn(
+  "inline-flex items-center gap-1.5 rounded-md border px-2 py-1",
+  "text-[11px] font-medium font-mono transition-all duration-150",
+);
+
+/**
+ * Opens a Dynatrace Notebook of this ghost's investigation (evidence DQL etc.).
+ * If the report already has a notebook URL it links straight to it; otherwise it
+ * creates one on demand (cached server-side), so the link always lands on a real,
+ * executable notebook instead of an uninstalled events app.
+ */
+function GhostNotebookLink({
+  reportId,
+  precomputedUrl,
+  icon: Icon,
+  label,
+  color = "teal",
+}: {
+  reportId: string;
+  precomputedUrl: string | null;
+  icon: React.ElementType;
+  label: string;
+  color?: keyof typeof DT_LINK_COLORS;
+}) {
+  const [busy, setBusy] = useState(false);
+  const urlRef = useRef<string | null>(precomputedUrl);
+  const promiseRef = useRef<Promise<string> | null>(null);
+
+  function open() {
+    if (urlRef.current) {
+      window.open(urlRef.current, "_blank", "noopener,noreferrer");
+      return;
+    }
+    setBusy(true);
+    if (!promiseRef.current) {
+      promiseRef.current = apiFetch<NotebookResponse>(`/ghosts/${reportId}/notebook`, {
+        method: "POST",
+      }).then((r) => r.notebook_url);
+    }
+    promiseRef.current
+      .then((url) => {
+        urlRef.current = url;
+        window.open(url, "_blank", "noopener,noreferrer");
+      })
+      .catch(() => {
+        // Fallback: open the Notebooks app so the user isn't left on a dead link.
+        promiseRef.current = null;
+        const base = buildDtBase();
+        if (base) window.open(`${base}/ui/apps/dynatrace.notebooks/`, "_blank", "noopener,noreferrer");
+      })
+      .finally(() => setBusy(false));
+  }
+
+  return (
+    <button
+      onClick={open}
+      disabled={busy}
+      className={cn(DT_LINK_BASE, DT_LINK_COLORS[color], "disabled:opacity-60")}
+    >
+      {busy ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" /> : <Icon className="h-3 w-3 shrink-0" />}
+      {busy ? "Opening notebook…" : label}
+      {!busy && <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-60" />}
+    </button>
+  );
+}
 
 function DtLink({
   href,
@@ -288,9 +355,11 @@ export function GhostCard({ report }: GhostCardProps) {
   // Build all DT deep links
   const problemUrl       = report.davis_problem_id  ? buildProblemUrl(report.davis_problem_id) : null;
   const entityUrl        = report.new_service_entity_id ? buildEntityUrl(report.new_service_entity_id) : null;
-  const eventUrl         = report.dynatrace_event_id ? buildEventUrl(report.dynatrace_event_id) : null;
   const notebookUrl      = report.dynatrace_notebook_url ?? null;
-  const hasDtLinks       = dtBase && (problemUrl || entityUrl || eventUrl || notebookUrl);
+  // The timeline-annotation event opens as a real Dynatrace Notebook (created on
+  // demand) — available whenever there's an event or evidence to put in it.
+  const canOpenNotebook  = !!(notebookUrl || report.dynatrace_event_id || (report.evidence_links?.length ?? 0) > 0);
+  const hasDtLinks       = dtBase && (problemUrl || entityUrl || canOpenNotebook);
 
   return (
     <article
@@ -406,9 +475,10 @@ export function GhostCard({ report }: GhostCardProps) {
                   color="blue"
                 />
               )}
-              {eventUrl && (
-                <DtLink
-                  href={eventUrl}
+              {canOpenNotebook && (
+                <GhostNotebookLink
+                  reportId={report.report_id}
+                  precomputedUrl={notebookUrl}
                   icon={FileSearch}
                   label="Timeline Annotation"
                   color="teal"

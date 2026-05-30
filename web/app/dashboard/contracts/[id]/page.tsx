@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import { useDashboardData } from "@/lib/dashboard-context";
 import { GhostCard } from "@/components/GhostCard";
-import type { ContractDetail, ContractEvidence, VerifyNotebookResponse } from "@/lib/types";
+import type { ContractDetail, ContractEvidence, NotebookResponse } from "@/lib/types";
 
 
 const CATEGORY_COLOR: Record<string, string> = {
@@ -80,7 +80,7 @@ function useContractVerify(contractId: string | undefined, precomputedUrl: strin
     setCreating(true);
     // Dedupe concurrent clicks across buttons — one create per contract.
     if (!promiseRef.current) {
-      promiseRef.current = apiFetch<VerifyNotebookResponse>(
+      promiseRef.current = apiFetch<NotebookResponse>(
         `/contracts/detail/${contractId}/verify-notebook`,
         { method: "POST" },
       ).then((r) => r.notebook_url);
