@@ -12,6 +12,7 @@ import {
   Zap,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useDashboardData } from "@/lib/dashboard-context";
 import { cn } from "@/lib/utils";
 
 type Step =
@@ -37,6 +38,7 @@ export function DemoRunPanel({
   redirectAfterRun?: string | null;
 }) {
   const router = useRouter();
+  const { refresh } = useDashboardData();
 
   const [runState,     setRunState]     = useState<RunState>("idle");
   const [activeStep,   setActiveStep]   = useState<number>(-1);
@@ -68,8 +70,11 @@ export function DemoRunPanel({
       });
       setActiveStep(2);
 
-      // Brief pause so the SSE stream can start flowing before we redirect
+      // Brief pause so the seed/watcher Firestore writes are queryable and the
+      // SSE stream can start flowing, then pull the new service + contracts +
+      // ghost into the shared dashboard state — no manual page refresh needed.
       await new Promise((r) => setTimeout(r, 800));
+      await refresh();
 
       setRunState("done");
 
@@ -98,6 +103,8 @@ export function DemoRunPanel({
       setRunState("idle");
       setActiveStep(-1);
       setServiceId(null);
+      // Reflect the cleared demo data immediately — no manual refresh needed.
+      await refresh();
     } catch (e: unknown) {
       setResetMsg((e as Error).message ?? "Reset failed");
     } finally {

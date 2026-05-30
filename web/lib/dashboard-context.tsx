@@ -16,6 +16,9 @@ interface DashboardContextValue {
   updateService: (id: string, patch: Partial<ServiceResponse>) => void;
   removeService: (id: string) => void;
   refreshContracts: (serviceId: string) => Promise<void>;
+  // Re-fetch everything (services + ghosts + contracts). Call after an in-browser
+  // action that mutates server state outside the SSE stream (e.g. the demo seed).
+  refresh: () => Promise<void>;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -26,38 +29,34 @@ export function DashboardDataProvider({ children }: { children: React.ReactNode 
   const [contracts, setContracts] = useState<Record<string, ContractResponse[]>>({});
   const [loading, setLoading]     = useState(true);
 
-  // ── Initial fetch: services + ghosts in parallel, then contracts per service ──
-  useEffect(() => {
-    let cancelled = false;
+  // ── Fetch services + ghosts in parallel, then contracts per service ──────────
+  const loadAll = useCallback(async () => {
+    const [svcs, ghsts] = await Promise.all([
+      apiFetch<ServiceResponse[]>("/services").catch(() => [] as ServiceResponse[]),
+      apiFetch<GhostReport[]>("/ghosts?limit=100").catch(() => [] as GhostReport[]),
+    ]);
 
-    (async () => {
-      const [svcs, ghsts] = await Promise.all([
-        apiFetch<ServiceResponse[]>("/services").catch(() => [] as ServiceResponse[]),
-        apiFetch<GhostReport[]>("/ghosts?limit=100").catch(() => [] as GhostReport[]),
-      ]);
+    const svcArr   = Array.isArray(svcs)  ? svcs  : [];
+    const ghostArr = Array.isArray(ghsts) ? ghsts : [];
+    setServices(svcArr);
+    setGhosts(ghostArr);
 
-      if (cancelled) return;
-      const svcArr   = Array.isArray(svcs)  ? svcs  : [];
-      const ghostArr = Array.isArray(ghsts) ? ghsts : [];
-      setServices(svcArr);
-      setGhosts(ghostArr);
+    const pairs = await Promise.all(
+      svcArr.map(async (s) => {
+        const c = await apiFetch<ContractResponse[]>(`/contracts/${s.service_id}`)
+          .catch(() => [] as ContractResponse[]);
+        return [s.service_id, Array.isArray(c) ? c : []] as [string, ContractResponse[]];
+      })
+    );
 
-      const pairs = await Promise.all(
-        svcArr.map(async (s) => {
-          const c = await apiFetch<ContractResponse[]>(`/contracts/${s.service_id}`)
-            .catch(() => [] as ContractResponse[]);
-          return [s.service_id, Array.isArray(c) ? c : []] as [string, ContractResponse[]];
-        })
-      );
-
-      if (!cancelled) {
-        setContracts(Object.fromEntries(pairs));
-        setLoading(false);
-      }
-    })();
-
-    return () => { cancelled = true; };
+    setContracts(Object.fromEntries(pairs));
+    setLoading(false);
   }, []);
+
+  // ── Initial fetch on mount ───────────────────────────────────────────────────
+  useEffect(() => {
+    void loadAll();
+  }, [loadAll]);
 
   // ── SSE: live ghost reports → prepend to list ─────────────────────────────
   useSSEEvent("ghost_report", (data) => {
@@ -114,6 +113,7 @@ export function DashboardDataProvider({ children }: { children: React.ReactNode 
     <DashboardContext.Provider value={{
       services, ghosts, contracts, loading,
       addService, updateService, removeService, refreshContracts,
+      refresh: loadAll,
     }}>
       {children}
     </DashboardContext.Provider>
