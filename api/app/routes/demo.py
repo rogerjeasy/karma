@@ -31,8 +31,8 @@ _CONTRACTS_TEMPLATE = [
             "type": "absence",
             "test_dql": (
                 'fetch spans | filter service.name == "svc-payments-v3" '
-                'and span.name == "redis.SET" and db.statement contains "recent_charges:summary" '
-                "| summarize count = count() by bin(timestamp, 5m) | filter count == 0"
+                'and span.name == "redis.SET" and contains(db.statement, "recent_charges:summary") '
+                "| summarize count = count(), by: { bin(timestamp, 5m) } | filter count == 0"
             ),
             "threshold": "count >= 0 writes over any 5-minute window (must be > 0)",
             "tolerance_window_seconds": 300,
@@ -43,8 +43,8 @@ _CONTRACTS_TEMPLATE = [
                 "dql": (
                     'fetch spans, from:now()-14d | filter service.name == "svc-payments-v2" '
                     'and span.name == "redis.SET" '
-                    'and db.statement contains "recent_charges:summary" '
-                    "| summarize count = count() by bin(timestamp, 1h)"
+                    'and contains(db.statement, "recent_charges:summary") '
+                    "| summarize count = count(), by: { bin(timestamp, 1h) }"
                 ),
                 "sample_count": 4032,
                 "timespan": "14d",
@@ -71,8 +71,8 @@ _CONTRACTS_TEMPLATE = [
             "type": "threshold_breach",
             "test_dql": (
                 'fetch spans | filter service.name == "svc-payments-v3" '
-                'and http.url contains "/charge" '
-                "| summarize p95 = percentile(duration, 95) by bin(timestamp, 5m) "
+                'and contains(http.url, "/charge") '
+                "| summarize p95 = percentile(duration, 95), by: { bin(timestamp, 5m) } "
                 "| filter p95 > 200000000"
             ),
             "threshold": "p95 latency > 200 ms for any 5-minute window",
@@ -83,9 +83,9 @@ _CONTRACTS_TEMPLATE = [
                 "type": "dql_query",
                 "dql": (
                     'fetch spans, from:now()-14d | filter service.name == "svc-payments-v2" '
-                    'and http.url contains "/charge" '
-                    "| summarize p50 = percentile(duration, 50), p95 = percentile(duration, 95) "
-                    "by bin(timestamp, 1h)"
+                    'and contains(http.url, "/charge") '
+                    "| summarize p50 = percentile(duration, 50), p95 = percentile(duration, 95), "
+                    "by: { bin(timestamp, 1h) }"
                 ),
                 "sample_count": 8760,
                 "timespan": "14d",
@@ -107,9 +107,9 @@ _CONTRACTS_TEMPLATE = [
             "type": "threshold_breach",
             "test_dql": (
                 'fetch spans | filter service.name == "svc-reporting" '
-                'and span.name contains "redis.GET" and db.statement contains "recent_charges" '
+                'and contains(span.name, "redis.GET") and contains(db.statement, "recent_charges") '
                 '| summarize hits = countIf(redis.hit == "true"), '
-                "total = count() by bin(timestamp, 5m) | filter (hits / total) < 0.50"
+                "total = count(), by: { bin(timestamp, 5m) } | filter (hits / total) < 0.50"
             ),
             "threshold": "cache hit rate < 50 % for any 5-minute window",
             "tolerance_window_seconds": 300,
@@ -119,8 +119,10 @@ _CONTRACTS_TEMPLATE = [
                 "type": "dql_query",
                 "dql": (
                     'fetch spans, from:now()-14d | filter service.name == "svc-reporting" '
-                    'and span.name contains "redis.GET" and db.statement contains "recent_charges" '
-                    '| summarize hit_rate = avg(redis.hit == "true") by bin(timestamp, 1h)'
+                    'and contains(span.name, "redis.GET") '
+                    'and contains(db.statement, "recent_charges") '
+                    '| summarize hit_rate = avg(toLong(redis.hit == "true")), '
+                    "by: { bin(timestamp, 1h) }"
                 ),
                 "sample_count": 672,
                 "timespan": "14d",
@@ -142,8 +144,8 @@ _CONTRACTS_TEMPLATE = [
             "test_dql": (
                 'fetch logs | filter service.name == "svc-payments-v3" '
                 'and http.status_code == "409" '
-                'and not(content contains "original_txn_id") '
-                "| summarize count = count() by bin(timestamp, 5m) | filter count > 0"
+                'and not contains(content, "original_txn_id") '
+                "| summarize count = count(), by: { bin(timestamp, 5m) } | filter count > 0"
             ),
             "threshold": "any 409 response missing original_txn_id field",
             "tolerance_window_seconds": 60,
@@ -265,21 +267,22 @@ async def seed_demo(
             (
                 "DQL#1 (cache miss rate spike): fetch spans, from:now()-1h"
                 ' | filter service.name == "svc-reporting"'
-                ' and span.name contains "redis.GET"'
-                ' and db.statement contains "recent_charges"'
-                " | summarize hit_rate = avg(redis.hit == \"true\") by bin(timestamp, 5m)"
+                ' and contains(span.name, "redis.GET")'
+                ' and contains(db.statement, "recent_charges")'
+                " | summarize hit_rate = avg(toLong(redis.hit == \"true\")),"
+                " by: { bin(timestamp, 5m) }"
             ),
             (
                 "DQL#2 (p95 latency regression): fetch spans, from:now()-1h"
                 ' | filter service.name == "svc-reporting"'
-                ' and http.url contains "/summary"'
-                " | summarize p95 = percentile(duration, 95) by bin(timestamp, 5m)"
+                ' and contains(http.url, "/summary")'
+                " | summarize p95 = percentile(duration, 95), by: { bin(timestamp, 5m) }"
             ),
             (
                 "DQL#3 (missing Redis SET spans): fetch spans, from:now()-1h"
                 ' | filter service.name == "svc-payments-v3"'
                 ' and span.name == "redis.SET"'
-                ' and db.statement contains "recent_charges" | count'
+                ' and contains(db.statement, "recent_charges") | summarize count = count()'
             ),
         ],
         "remediation_suggestions": [
