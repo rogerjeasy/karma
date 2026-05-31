@@ -80,6 +80,7 @@ class Settings(BaseSettings):
     @field_validator(
         "dt_query_token", "dt_otel_token", "dt_env", "api_secret_key",
         "dt_api_token", "github_token", "github_write_token",
+        "svc_payments_v3_url", "karma_control_token",
         mode="after",
     )
     @classmethod
@@ -103,6 +104,15 @@ class Settings(BaseSettings):
     github_write_token: str = ""
     # Branch that remediation PRs target.
     github_pr_base_branch: str = "main"
+
+    # ── Live demo control ("Break v3 live") ───────────────────────────────────
+    # Base URL of the synthetic svc-payments-v3 Cloud Run service. When set, the
+    # /control endpoints can flip its behavioral contract at runtime for the live
+    # demo. Leave blank to disable (the dashboard hides the button).
+    svc_payments_v3_url: str = ""
+    # Shared secret sent as X-Karma-Control when toggling v3's contract. Must match
+    # KARMA_CONTROL_TOKEN on the svc-payments-v3 service.
+    karma_control_token: str = ""
 
     @property
     def dt_otel_endpoint(self) -> str:

@@ -256,6 +256,7 @@ async def seed_demo(
             "3 downstream batch jobs have exceeded their SLA windows."
         ),
         "severity": "critical",
+        "avoided_incident_cost_usd": 4200.0,
         "davis_ai_insights": (
             "Davis AI detected a performance anomaly on svc-reporting 4 minutes after the "
             "svc-payments-v3 cutover. Root cause: Redis miss-rate spike (0 % → 100 %) correlated "

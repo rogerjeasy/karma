@@ -290,6 +290,7 @@ class StatsResponse(BaseModel):
     avg_contracts_per_service: float | None
     avg_minutes_to_first_alert: float | None
     pct_services_with_violations: float | None
+    total_avoided_cost_usd: float = 0.0
 
 
 class HealthResponse(BaseModel):
@@ -297,6 +298,17 @@ class HealthResponse(BaseModel):
     version: str = "0.1.0"
     firestore: bool = False
     agent_engine: bool = False
+
+
+class V3ControlResponse(BaseModel):
+    """State of the live-demo svc-payments-v3 contract toggle."""
+
+    configured: bool
+    reachable: bool = False
+    healthy: bool | None = None
+    writes_cache: bool | None = None
+    watcher_triggered: int = 0
+    message: str | None = None
 
 
 class RecordDeploymentRequest(BaseModel):

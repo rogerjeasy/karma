@@ -304,6 +304,7 @@ async def compute_user_stats(user_id: str) -> dict[str, Any]:
             "avg_contracts_per_service": None,
             "avg_minutes_to_first_alert": None,
             "pct_services_with_violations": None,
+            "total_avoided_cost_usd": 0.0,
         }
 
     service_ids = [s["service_id"] for s in services if "service_id" in s]
@@ -332,6 +333,8 @@ async def compute_user_stats(user_id: str) -> dict[str, Any]:
     services_with_violations: set[str] = set()
     alert_times_minutes: list[float] = []
     total_ghost_reports = 0
+    total_avoided = 0.0
+    _avoided_fallback = {"critical": 4200.0, "high": 1500.0, "medium": 500.0, "low": 100.0}
 
     for svc in haunted[:50]:
         sid = svc.get("service_id", "")
@@ -347,6 +350,14 @@ async def compute_user_stats(user_id: str) -> dict[str, Any]:
         )
         first_docs = [d async for doc in query.stream() if (d := doc.to_dict()) is not None]
         total_ghost_reports += len(first_docs)
+
+        for g in first_docs:
+            explicit = g.get("avoided_incident_cost_usd")
+            total_avoided += (
+                float(explicit)
+                if explicit
+                else _avoided_fallback.get(str(g.get("severity", "medium")).lower(), 500.0)
+            )
 
         if not first_docs:
             continue
@@ -390,6 +401,7 @@ async def compute_user_stats(user_id: str) -> dict[str, Any]:
         "avg_contracts_per_service": avg_contracts,
         "avg_minutes_to_first_alert": avg_alert_minutes,
         "pct_services_with_violations": pct_violations,
+        "total_avoided_cost_usd": round(total_avoided, 2),
     }
 
 
@@ -488,6 +500,21 @@ async def compute_platform_stats() -> dict[str, Any]:
         else None
     )
 
+    # Aggregate avoided-incident cost across every ghost report. Prefer each
+    # report's own avoided_incident_cost_usd; fall back to a conservative
+    # per-severity estimate when the field is absent so the headline is never $0
+    # while ghosts exist.
+    _avoided_fallback = {"critical": 4200.0, "high": 1500.0, "medium": 500.0, "low": 100.0}
+    total_avoided = 0.0
+    for g in all_ghosts:
+        explicit = g.get("avoided_incident_cost_usd")
+        if explicit:
+            total_avoided += float(explicit)
+        else:
+            total_avoided += _avoided_fallback.get(
+                str(g.get("severity", "medium")).lower(), 500.0
+            )
+
     return {
         "total_services": len(services),
         "total_contracts": len(contracts),
@@ -495,6 +522,7 @@ async def compute_platform_stats() -> dict[str, Any]:
         "avg_contracts_per_service": avg_contracts,
         "avg_minutes_to_first_alert": avg_alert_minutes,
         "pct_services_with_violations": pct_violations,
+        "total_avoided_cost_usd": round(total_avoided, 2),
     }
 
 

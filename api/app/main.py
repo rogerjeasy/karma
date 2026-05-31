@@ -21,6 +21,7 @@ from app.routes import (
     admin,
     console,
     contracts,
+    control,
     cutover,
     demo,
     ghosts,
@@ -103,6 +104,7 @@ def create_app() -> FastAPI:
     application.include_router(contracts.router)
     application.include_router(ghosts.router)
     application.include_router(cutover.router)
+    application.include_router(control.router)
     application.include_router(stream.router)
     application.include_router(pubsub.router)
     application.include_router(demo.router)
