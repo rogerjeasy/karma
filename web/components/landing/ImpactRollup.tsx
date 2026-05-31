@@ -57,7 +57,7 @@ export default function ImpactRollup() {
   const ghosts = useCountUp(stats.ghosts, 1400, trigger);
 
   return (
-    <section className="relative py-20 sm:py-28 overflow-hidden">
+    <section className="relative pt-20 pb-12 sm:pt-28 sm:pb-16 overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-background via-[hsl(186_55%_3%)] to-background" />
       <div ref={ref} className="relative mx-auto max-w-5xl px-4 sm:px-8 text-center">
         <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/8 px-4 py-1.5 mb-6">

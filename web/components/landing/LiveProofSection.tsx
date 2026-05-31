@@ -65,7 +65,7 @@ export default function LiveProofSection() {
   const dtLink = entityUrl(proof.dt_env, proof.dynatrace_entity_id);
 
   return (
-    <section id="live-proof" className="relative py-20 sm:py-28 overflow-hidden">
+    <section id="live-proof" className="relative py-12 sm:py-16 overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-background via-[hsl(186_60%_2.5%)] to-background" />
       <div className="relative mx-auto max-w-5xl px-4 sm:px-8">
         <div

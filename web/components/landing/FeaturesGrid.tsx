@@ -16,7 +16,7 @@ const FEATURES = [
 export default function FeaturesGrid() {
   const { ref, inView } = useInView();
   return (
-    <section className="py-20 sm:py-28 relative">
+    <section className="pt-12 pb-20 sm:pt-16 sm:pb-28 relative">
       <div className="absolute inset-0 bg-card/20" />
       <div className="relative mx-auto max-w-7xl px-4 sm:px-8">
         <div ref={ref} className={cn("text-center mb-12 sm:mb-16 transition-all duration-700", inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8")}>
