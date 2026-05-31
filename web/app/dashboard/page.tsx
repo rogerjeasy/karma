@@ -20,6 +20,7 @@ import type { ContractCategory, ContractResponse, GhostReport, PlatformStats, Vi
 import { WatcherLiveLog } from "@/components/WatcherLiveLog";
 import { DemoRunPanel } from "@/components/DemoRunPanel";
 import AskKarmaConsole from "@/components/AskKarmaConsole";
+import BreakV3Button from "@/components/BreakV3Button";
 
 
 interface Stats {
@@ -227,6 +228,9 @@ export default function DashboardPage() {
           </Link>
         ))}
       </div>
+
+      {/* ── Live demo control — Break v3 live (hidden unless API configured) ── */}
+      <BreakV3Button />
 
       {/* ── Ask Karma console — NL → Davis CoPilot → DQL → live telemetry ── */}
       <AskKarmaConsole />

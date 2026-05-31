@@ -13,4 +13,5 @@ dependencies = [
     "opentelemetry-exporter-otlp-proto-http>=1.25.0",
     "opentelemetry-instrumentation-fastapi>=0.46b0",
     "pydantic>=2.7.0",
+    "redis[asyncio]>=5.0.0",
 ]

@@ -5,6 +5,7 @@ import ProblemSection from "@/components/landing/ProblemSection";
 import HowItWorks from "@/components/landing/HowItWorks";
 import DashboardShowcase from "@/components/landing/DashboardShowcase";
 import GhostSection from "@/components/landing/GhostSection";
+import ImpactRollup from "@/components/landing/ImpactRollup";
 import LiveProofSection from "@/components/landing/LiveProofSection";
 import FeaturesGrid from "@/components/landing/FeaturesGrid";
 import TechStack from "@/components/landing/TechStack";
@@ -22,6 +23,7 @@ export default function HomePage() {
         <HowItWorks />
         <DashboardShowcase />
         <GhostSection />
+        <ImpactRollup />
         <LiveProofSection />
         <FeaturesGrid />
         <TechStack />

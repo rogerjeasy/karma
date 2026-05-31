@@ -40,8 +40,17 @@ services:
     ports:
       - "8011:8080"
     environment:
+      # v3 now needs Redis: when its contract is "healthy" it writes the
+      # recent_charges:summary cache key (the side effect the demo can break live).
+      REDIS_URL: redis://redis:6379
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318/v1/traces}
       DT_API_TOKEN: ${DT_API_TOKEN:-}
+      # Live demo control — start healthy, flip via POST /admin/contract.
+      V3_CONTRACT_HEALTHY: ${V3_CONTRACT_HEALTHY:-true}
+      KARMA_CONTROL_TOKEN: ${KARMA_CONTROL_TOKEN:-}
+    depends_on:
+      redis:
+        condition: service_healthy
 
   svc-reporting:
     build: ./svc-reporting

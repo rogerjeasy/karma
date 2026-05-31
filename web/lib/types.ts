@@ -84,6 +84,16 @@ export interface PlatformStats {
   avg_contracts_per_service: number | null;
   avg_minutes_to_first_alert: number | null;
   pct_services_with_violations: number | null;
+  total_avoided_cost_usd: number;
+}
+
+export interface V3Control {
+  configured: boolean;
+  reachable?: boolean;
+  healthy?: boolean | null;
+  writes_cache?: boolean | null;
+  watcher_triggered?: number;
+  message?: string | null;
 }
 
 export interface WatcherRun {
