@@ -29,12 +29,21 @@ jobs:
           - name: svc-payments-v2
             dir: synthetic-env/svc-payments-v2
             cloud_run_name: karma-svc-payments-v2
+            extra_secrets: ""
+            extra_env: ""
+          # v3 carries the live-demo contract toggle: it reads KARMA_CONTROL_TOKEN
+          # (same secret the API holds) to guard POST /admin/contract, and starts
+          # in the healthy state (V3_CONTRACT_HEALTHY=true).
           - name: svc-payments-v3
             dir: synthetic-env/svc-payments-v3
             cloud_run_name: karma-svc-payments-v3
+            extra_secrets: ",KARMA_CONTROL_TOKEN=karma-control-token:latest"
+            extra_env: ",V3_CONTRACT_HEALTHY=true"
           - name: svc-reporting
             dir: synthetic-env/svc-reporting
             cloud_run_name: karma-svc-reporting
+            extra_secrets: ""
+            extra_env: ""
 
     steps:
       - uses: actions/checkout@v4
@@ -68,9 +77,9 @@ jobs:
             --cpu=1
             --vpc-connector=karma-vpc-connector
             --vpc-egress=private-ranges-only
-            --set-secrets=DT_API_TOKEN=dt-api-token:latest,DT_OTEL_TOKEN=dt-otel-token:latest
+            --set-secrets=DT_API_TOKEN=dt-api-token:latest,DT_OTEL_TOKEN=dt-otel-token:latest${{ matrix.service.extra_secrets }}
           env_vars: >
             OTEL_SERVICE_NAME=${{ matrix.service.name }},
             OTEL_EXPORTER_OTLP_ENDPOINT=https://${{ vars.DT_ENV }}.live.dynatrace.com/api/v2/otlp/v1/traces,
             PAYMENTS_URL=${{ vars.PAYMENTS_URL }},
-            REDIS_URL=${{ vars.REDIS_URL }}
+            REDIS_URL=${{ vars.REDIS_URL }}${{ matrix.service.extra_env }}

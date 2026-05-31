@@ -82,6 +82,7 @@ jobs:
         env:
           ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS }}
           AGENT_ENGINE_RESOURCE_NAME: ${{ vars.AGENT_ENGINE_RESOURCE_NAME }}
+          SVC_PAYMENTS_V3_URL: ${{ vars.SVC_PAYMENTS_V3_URL }}
         run: |
           gcloud run deploy ${{ env.SERVICE_NAME }} \
             --project=${{ env.GCP_PROJECT_ID }} \
@@ -93,5 +94,5 @@ jobs:
             --max-instances=10 \
             --memory=512Mi \
             --cpu=1 \
-            --set-secrets=DT_API_TOKEN=dt-api-token:latest,DT_QUERY_TOKEN=dt-api-token:latest,API_SECRET_KEY=api-secret-key:latest,DT_OTEL_TOKEN=dt-otel-token:latest,GITHUB_TOKEN=gh-token:latest,GITHUB_WRITE_TOKEN=gh-write-token:latest \
-            "--set-env-vars=^|^GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}|GCP_LOCATION=${{ env.GCP_LOCATION }}|AGENT_ENGINE_RESOURCE_NAME=${AGENT_ENGINE_RESOURCE_NAME}|ALLOWED_ORIGINS=${ALLOWED_ORIGINS}|FIRESTORE_DATABASE=(default)|DT_ENV=${{ vars.DT_ENV }}|GITHUB_REPO=${{ vars.GH_REPO }}"
+            --set-secrets=DT_API_TOKEN=dt-api-token:latest,DT_QUERY_TOKEN=dt-api-token:latest,API_SECRET_KEY=api-secret-key:latest,DT_OTEL_TOKEN=dt-otel-token:latest,GITHUB_TOKEN=gh-token:latest,GITHUB_WRITE_TOKEN=gh-write-token:latest,KARMA_CONTROL_TOKEN=karma-control-token:latest \
+            "--set-env-vars=^|^GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}|GCP_LOCATION=${{ env.GCP_LOCATION }}|AGENT_ENGINE_RESOURCE_NAME=${AGENT_ENGINE_RESOURCE_NAME}|ALLOWED_ORIGINS=${ALLOWED_ORIGINS}|FIRESTORE_DATABASE=(default)|DT_ENV=${{ vars.DT_ENV }}|GITHUB_REPO=${{ vars.GH_REPO }}|SVC_PAYMENTS_V3_URL=${SVC_PAYMENTS_V3_URL}"
