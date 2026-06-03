@@ -21,9 +21,9 @@ spec:
                 # v2 is intentionally left idle so the Redis cache goes cold and the
                 # downstream regression in svc-reporting stays visible.
                 - name: PAYMENTS_URL
-                  value: "https://karma-svc-payments-v3-<hash>-uc.a.run.app"
+                  value: "https://karma-svc-payments-v3-ucvx5uwt5q-uc.a.run.app"
                 - name: REPORTING_URL
-                  value: "https://karma-svc-reporting-<hash>-uc.a.run.app"
+                  value: "https://karma-svc-reporting-ucvx5uwt5q-uc.a.run.app"
                 # Bound k6 memory growth over long runs (don't retain response bodies)
                 - name: K6_DISCARD_RESPONSE_BODIES
                   value: "true"

@@ -108,6 +108,38 @@ async def get_charges_summary() -> dict:
         return {"source": "fallback", "data": fallback_data, "duration_ms": elapsed_ms}
 
 
+@app.get("/dashboard/top-merchants")
+async def get_top_merchants() -> dict:
+    """Secondary dashboard widget — depends on the SAME Redis summary key, so the
+    cache-warming regression degrades this endpoint too (broader downstream blast
+    radius for the Forensic agent to quantify)."""
+    start = time.monotonic()
+
+    with _tracer.start_as_current_span("reporting.get_top_merchants") as span:  # type: ignore[union-attr]
+        try:
+            cached = await _redis.get("recent_charges:summary")  # type: ignore[union-attr]
+        except Exception:
+            cached = None
+
+        if cached:
+            span.set_attribute("cache.hit", True)
+            elapsed_ms = (time.monotonic() - start) * 1000
+            span.set_attribute("duration_ms", elapsed_ms)
+            return {"source": "cache", "widget": "top_merchants", "duration_ms": elapsed_ms}
+
+        span.set_attribute("cache.hit", False)
+        span.set_attribute("fallback.reason", "cache_miss_key_recent_charges_summary")
+        try:
+            response = await _http.post("/charge", json={"amount": 0.01, "currency": "USD"})  # type: ignore[union-attr]
+            _ = response.json()
+        except Exception:
+            pass
+        await asyncio.sleep(0.55)
+        elapsed_ms = (time.monotonic() - start) * 1000
+        span.set_attribute("duration_ms", elapsed_ms)
+        return {"source": "fallback", "widget": "top_merchants", "duration_ms": elapsed_ms}
+
+
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok", "service": SERVICE_NAME}
