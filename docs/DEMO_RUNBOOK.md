@@ -263,13 +263,12 @@ A score below 80 shows a banner: "Unresolved violations — address before cutti
 
 ---
 
-## Step 9 — Admin — Coding Agent Observability
+## Step 9 — Admin — Agent Observability
 
-Navigate to **Dashboard → Admin → Coding Agents** to see the agent token/cost comparison:
+Navigate to **Dashboard → Admin → Agent Observability** to see per-agent token/cost telemetry:
 
-- **Karma ADK agents** (Gemini 2.5 Pro) — total tokens + cost for the entire Learner/Watcher/Forensic system
-- **Claude Code dev sessions** (Claude Sonnet 4.6) — tokens from the development sessions that built this system
-- Both powered by live DQL against `fetch spans` in Grail (falls back to Firestore when `DT_QUERY_TOKEN` is not set)
+- **Karma ADK agents** (Gemini 2.5 Pro/Flash) — total and per-agent tokens + cost for the entire Coordinator/Learner/Watcher/Forensic system, plus recent invocations with deep links into Dynatrace traces
+- Powered by live DQL against `fetch spans` in Grail (falls back to Firestore when `DT_QUERY_TOKEN` is not set)
 
 ---
 

@@ -220,7 +220,7 @@ memories = memory_service.search_memories(
 | `POST /users/sync` | POST | User | Upsert user on first login |
 | `GET /admin/observability` | GET | Admin | Platform observability summary |
 | `GET /admin/stats` | GET | Admin | Platform-wide admin stats |
-| `GET /admin/agent-observability` | GET | Admin | ADK + Claude Code token spend |
+| `GET /admin/agent-observability` | GET | Admin | Per-agent ADK token spend |
 | `GET /admin/investigation-engine` | GET | Admin | Per-user forensics + AI spend |
 | `GET /admin/system-services` | GET | Admin | Karma self-monitoring services |
 | `POST /admin/system-services` | POST | Admin | Register system service |
@@ -312,24 +312,19 @@ The dashboard includes an admin-only panel at `/dashboard/admin` with four tabs:
 | **Infrastructure** | Karma self-monitoring system services; register, learn, cutover, haunt; Demo quick-start panel (`DemoRunPanel`) |
 | **Platform Observability** | Session activity, engineering metrics (commits/PRs/lines), OTel status, BizEvent counts |
 | **AI Investigation** | Per-user ghost report forensics; AI spend summary; investigation cost tracking |
-| **Coding Agents** | Side-by-side token/cost view: Karma ADK agents (Gemini 2.5 Pro) vs Claude Code dev sessions (Claude Sonnet); powered by live DQL against `fetch spans` in Grail |
+| **Agent Observability** | Per-agent token/cost view of Karma's ADK agents (Gemini 2.5 Pro/Flash); powered by live DQL against `fetch spans` in Grail |
 
 ### Agent Observability
 
-The **Coding Agents** tab (`/admin/agent-observability`) queries Dynatrace Grail for:
+The **Agent Observability** tab (`/admin/agent-observability`) queries Dynatrace Grail for:
 
 ```dql
--- Karma ADK agents
+-- Karma ADK agents, broken down per agent
 fetch spans, from:now()-30d
 | filter service.name == "karma-agent-system"
-| filter isNotNull(gen_ai.usage.input_tokens)
-| summarize input_tokens = sum(...), output_tokens = sum(...), span_count = count()
-
--- Claude Code dev sessions
-fetch spans, from:now()-30d
-| filter service.name == "claude-code-dev"
-| filter isNotNull(gen_ai.usage.input_tokens)
-| summarize ...
+| filter span.name == "gen_ai.chat"
+| filter isNotNull(karma.agent)
+| summarize input_tokens = sum(...), output_tokens = sum(...), span_count = count(), by: {agent = karma.agent}
 ```
 
 Falls back to Firestore-aggregated investigation costs when `DT_QUERY_TOKEN` is not configured.

@@ -700,8 +700,8 @@ The following items were originally scoped out but were subsequently implemented
 - ✅ **Dynatrace SLOs from contracts** — The Learner registers validated `latency`, `throughput`, and `error_semantics` contracts as official Dynatrace SLOs with burn-rate alerting.
 - ✅ **Session cost estimation** — Ghost reports include the ADK session's token count and USD cost estimate, computed by `get_session_cost_estimate`.
 - ✅ **Avoided incident cost** — The Forensic agent estimates the avoided incident cost (severity × affected services × hours detected early) and stores it on the ghost report.
-- ✅ **Admin self-monitoring panel** — The dashboard includes a full admin panel with 4 tabs: Infrastructure (system services), Platform Observability, AI Investigation Engine, and Coding Agent Observability.
-- ✅ **Coding Agent Observability** — Side-by-side token/cost view of Karma ADK agents (Gemini 2.5 Pro) vs Claude Code dev sessions (Claude Sonnet), powered by live Grail DQL.
+- ✅ **Admin self-monitoring panel** — The dashboard includes a full admin panel with 4 tabs: Infrastructure (system services), Platform Observability, AI Investigation Engine, and Agent Observability.
+- ✅ **Agent Observability** — Per-agent token/cost view of Karma's ADK agents (Gemini 2.5 Pro/Flash), with recent invocations and Dynatrace trace deep links, powered by live Grail DQL.
 - ✅ **Migration Readiness Score** — Weighted 0–100 compliance score across all 8 contract categories, with avoided-incident-cost totals.
 - ✅ **Demo seed/reset API** — `POST /demo/seed` and `DELETE /demo/reset` for instant judge-ready state, with an Admin Panel quick-start button.
 - ✅ **GitHub deployment metrics** — The Admin panel's record-deployment endpoint fetches real commits, PRs, and line changes from the GitHub API.
