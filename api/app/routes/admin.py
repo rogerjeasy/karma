@@ -462,24 +462,6 @@ _DQL_RECENT_INVOCATIONS = (
     " | limit 10"
 )
 
-_DQL_CC_TOTALS = (
-    "fetch spans, from:now()-30d"
-    ' | filter gen_ai.system == "anthropic"'
-    " | filter isNotNull(gen_ai.usage.input_tokens)"
-    " | summarize input_tokens = sum(toLong(gen_ai.usage.input_tokens)),"
-    " output_tokens = sum(toLong(gen_ai.usage.output_tokens)), span_count = count()"
-)
-
-# 7-day window for Claude Code activity — timestamp bin() is unreliable in Grail spans
-# so we use a simple total instead of day-by-day breakdown.
-_DQL_CC_WEEK = (
-    "fetch spans, from:now()-7d"
-    ' | filter gen_ai.system == "anthropic"'
-    " | filter isNotNull(gen_ai.usage.input_tokens)"
-    " | summarize input_tokens = sum(toLong(gen_ai.usage.input_tokens)),"
-    " output_tokens = sum(toLong(gen_ai.usage.output_tokens)), span_count = count()"
-)
-
 # USD / 1M tokens for cost attribution per agent
 _AGENT_PRICING: dict[str, dict[str, float]] = {
     "karma_learner":     {"input": 2.50, "output": 10.0},
@@ -494,18 +476,15 @@ _DEFAULT_PRICING = {"input": 2.50, "output": 10.0}
 async def get_agent_observability(
     _: dict[str, Any] = Depends(require_admin),
 ) -> dict[str, Any]:
-    """Token spend and trace data for Karma ADK agents (Agent Platform story) and Claude Code.
+    """Token spend and trace data for Karma's ADK agents (Agent Platform story).
 
-    Runs five Grail DQL queries in parallel when DT_QUERY_TOKEN is set:
+    Runs three Grail DQL queries in parallel when DT_QUERY_TOKEN is set:
       1. Karma total token aggregation (30-day)
       2. Per-agent token breakdown grouped by karma.agent
       3. Recent karma.agent_run invocations (last 10, 7-day window)
-      4. Claude Code total token aggregation (30-day)
-      5. Claude Code daily token breakdown (7-day, binned per day)
 
     Falls back to Firestore-aggregated investigation costs for Karma when Grail
-    is unavailable.  Claude Code fields are zeroed out without a fallback because
-    there is no Firestore path for Claude Code activity.
+    is unavailable.
     """
     from app.config import settings as _settings
     from app.dt_client import query_grail
@@ -518,23 +497,16 @@ async def get_agent_observability(
     karma_from_grail = False
     per_agent: list[dict[str, Any]] = []
     recent_invocations: list[dict[str, Any]] = []
-    cc_input = cc_output = cc_sessions = 0
-    cc_from_grail = False
-    cc_week_input = cc_week_output = cc_week_spans = 0
 
     if grail_ok:
         (
             karma_rows,
             per_agent_rows,
             recent_rows,
-            cc_rows,
-            cc_week_rows,
         ) = await asyncio.gather(
             query_grail(_DQL_KARMA_TOTALS),
             query_grail(_DQL_PER_AGENT),
             query_grail(_DQL_RECENT_INVOCATIONS),
-            query_grail(_DQL_CC_TOTALS),
-            query_grail(_DQL_CC_WEEK),
         )
 
         # Karma totals
@@ -580,21 +552,6 @@ async def get_agent_observability(
                 "dt_trace_url": dt_trace_url,
             })
 
-        # Claude Code totals
-        if cc_rows:
-            cr = cc_rows[0]
-            cc_input    = int(cr.get("input_tokens")  or 0)
-            cc_output   = int(cr.get("output_tokens") or 0)
-            cc_sessions = int(cr.get("span_count")    or 0)
-            cc_from_grail = True
-
-        # Claude Code 7-day rolling totals
-        if cc_week_rows:
-            wr = cc_week_rows[0]
-            cc_week_input  = int(wr.get("input_tokens")  or 0)
-            cc_week_output = int(wr.get("output_tokens") or 0)
-            cc_week_spans  = int(wr.get("span_count")    or 0)
-
     # ── Firestore fallback for Karma when Grail is unavailable ────────────────
     if not karma_from_grail:
         inv_stats = await firestore_client.get_investigation_engine_stats()
@@ -605,9 +562,7 @@ async def get_agent_observability(
 
     # ── Cost estimates ────────────────────────────────────────────────────────
     # Gemini 2.5 Pro: $2.50/1M in, $10/1M out (blended rate — Learner + Forensic dominate)
-    # Claude Sonnet 4.6: $3/1M in, $15/1M out
     karma_cost = (karma_input / 1_000_000 * 2.50) + (karma_output / 1_000_000 * 10.0)
-    cc_cost    = (cc_input    / 1_000_000 * 3.00) + (cc_output    / 1_000_000 * 15.0)
 
     return {
         "grail_configured": grail_ok,
@@ -623,25 +578,6 @@ async def get_agent_observability(
             "from_grail":          karma_from_grail,
             "per_agent":           per_agent,
             "recent_invocations":  recent_invocations,
-        },
-        "claude_code": {
-            "service_name":   "claude-code-dev",
-            "description":    "Claude Code sessions that built this monitoring system",
-            "model":          "Claude Sonnet 4.6 (Anthropic)",
-            "span_count":     cc_sessions,
-            "input_tokens":   cc_input,
-            "output_tokens":  cc_output,
-            "total_tokens":   cc_input + cc_output,
-            "cost_usd":       round(cc_cost, 4),
-            "from_grail":     cc_from_grail,
-            "setup_required":       not cc_from_grail,
-            "week_input_tokens":    cc_week_input,
-            "week_output_tokens":   cc_week_output,
-            "week_span_count":      cc_week_spans,
-            "note":                 (
-                None if cc_from_grail
-                else "Claude Code OTel telemetry not yet flowing to this Dynatrace environment"
-            ),
         },
     }
 
