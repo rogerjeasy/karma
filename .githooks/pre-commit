@@ -74,7 +74,7 @@ PATTERNS = [
 SKIP_EXTS  = {'.lock', '.sum', '.png', '.jpg', '.jpeg', '.gif', '.ico',
               '.woff', '.woff2', '.ttf', '.eot', '.map', '.bin', '.pyc', '.svg'}
 SKIP_FILES = {'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'poetry.lock'}
-SKIP_DIRS  = {'.claude'}  # Claude Code internal tooling — may contain example patterns
+SKIP_DIRS  = {'.claude'}  # local editor/agent tooling — may contain example patterns
 
 staged = subprocess.run(
     ['git', 'diff', '--cached', '--name-only', '--diff-filter=ACMR'],

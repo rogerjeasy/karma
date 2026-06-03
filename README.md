@@ -258,9 +258,9 @@ After `N` consecutive clean Watcher runs (default: 3), a service transitions aut
 The Next.js dashboard receives ghost reports, watcher run updates, and AI cost events via Server-Sent Events — sub-second latency from agent output to browser animation.
 
 ### Full Self-Observability
-Every agent run emits OTel spans to Dynatrace. BizEvents capture every discovered contract, every violation, and every ghost report. The admin panel's **Coding Agents** tab shows a side-by-side cost comparison: Karma's Gemini 2.5 production agents vs the developer's Claude Code coding sessions — both queryable via live DQL.
+Every agent run emits OTel spans to Dynatrace. BizEvents capture every discovered contract, every violation, and every ghost report. The admin panel's **Agent Observability** tab shows live per-agent token spend and cost for Karma's Gemini 2.5 production agents — queried directly from Grail via DQL.
 
-> **To be unambiguous:** Karma's application runs entirely on **Gemini 2.5 via Vertex AI** — no Anthropic or other non-Google model is used in the product. Claude Code appears *only* in the Coding Agents tab as an example of Dynatrace's [AI Coding Agent Monitoring](https://www.dynatrace.com/news/blog/dynatrace-expands-ai-coding-agent-monitoring/) — i.e. Karma observing the *developer's tooling* through Dynatrace, exactly as Dynatrace intends. It never participates in Karma's agent reasoning.
+> Karma's application runs entirely on **Gemini 2.5 via Vertex AI** — no non-Google model takes part in any agent reasoning.
 
 ---
 
@@ -348,7 +348,7 @@ registered ──Learner──▶ learning ──contracts saved──▶ ready 
 | **Ghosts** | `/dashboard/ghosts` | All ghost reports with severity, Davis AI insights, DT deep links (problem, entity, notebook, BizEvent, timeline annotation) |
 | **Timeline** | `/dashboard/timeline` | Chronological contract discovery view; before/after service comparison |
 | **Contract Detail** | `/dashboard/contracts/[id]` | Full contract spec, violation predicate DQL, evidence, sparkline trend |
-| **Admin** | `/dashboard/admin` | Infrastructure management, platform observability, AI investigation engine, coding agents token/cost comparison |
+| **Admin** | `/dashboard/admin` | Infrastructure management, platform observability, AI investigation engine, per-agent token/cost observability |
 
 ---
 
@@ -463,7 +463,7 @@ The full interactive spec is at `/docs` (Swagger) and `/redoc`. Key endpoints:
 | `GET /contracts/{id}` | Auth | Contract detail with DQL evidence |
 | `GET /stream` | Auth | SSE event stream (ghost reports, watcher runs, cost updates) |
 | `POST /demo/seed` | Auth | Seed the demo scenario (idempotent) |
-| `GET /admin/agent-observability` | Admin | ADK + Claude Code token spend from Grail |
+| `GET /admin/agent-observability` | Admin | Per-agent ADK token spend from Grail |
 | `POST /pubsub/watcher-tick` | Internal | Cloud Scheduler → Watcher trigger |
 | `POST /pubsub/violation` | Internal | Pub/Sub → Forensic trigger |
 
@@ -573,7 +573,7 @@ Built for the [Google Cloud Rapid Agent Hackathon — Dynatrace Track](https://r
 
 The `synthetic-env/` directory is a purpose-built three-service demo environment. It is not production traffic. Every claim in a ghost report is backed by real Dynatrace telemetry from that environment — the Redis write truly happens, the cache truly warms, the downstream service truly degrades when it stops.
 
-**No OpenAI, Anthropic, or other non-Google AI services are used in the application — Gemini family only.** Claude Code appears solely in the admin "Coding Agents" tab, where Karma *observes* the developer's coding tool through Dynatrace's AI Coding Agent Monitoring. It is a telemetry source, never part of Karma's agent reasoning.
+**No OpenAI, Anthropic, or other non-Google AI services are used in the application — Gemini family only.**
 
 ---
 
