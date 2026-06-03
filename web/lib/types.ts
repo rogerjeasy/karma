@@ -405,17 +405,9 @@ export interface KarmaAgentsStats extends AgentSystemStats {
   recent_invocations: RecentInvocation[];
 }
 
-export interface ClaudeCodeStats extends AgentSystemStats {
-  setup_required: boolean;
-  week_input_tokens: number;
-  week_output_tokens: number;
-  week_span_count: number;
-}
-
 export interface AgentObservabilityData {
   grail_configured: boolean;
   karma_agents: KarmaAgentsStats;
-  claude_code: ClaudeCodeStats;
 }
 
 // ── AI cost SSE event ─────────────────────────────────────────────────────────

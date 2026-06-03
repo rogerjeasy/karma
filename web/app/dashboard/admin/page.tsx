@@ -32,7 +32,7 @@ const TABS: { id: Tab; label: string; icon?: string }[] = [
   { id: "infrastructure",  label: "Infrastructure" },
   { id: "observability",   label: "Platform Observability" },
   { id: "investigation",   label: "AI Investigation" },
-  { id: "agents",          label: "Coding Agents" },
+  { id: "agents",          label: "Agent Observability" },
 ];
 
 export default function AdminPage() {
@@ -227,7 +227,7 @@ export default function AdminPage() {
       {/* Investigation tab */}
       {tab === "investigation" && <InvestigationEnginePanel />}
 
-      {/* Coding Agents tab */}
+      {/* Agent Observability tab */}
       {tab === "agents" && <AgentObservabilityPanel />}
 
       <AddServiceDialog
