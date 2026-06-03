@@ -59,7 +59,13 @@ storage:buckets:read
 storage:logs:read       ← logs
 storage:metrics:read    ← metrics
 storage:spans:read      ← traces
+storage:bizevents:read  ← bizevents (required to DQL-query Karma's own
+                          self-observability decisions — see §8)
 ```
+
+> Without `storage:bizevents:read`, `fetch bizevents` returns HTTP 403
+> `NOT_AUTHORIZED_FOR_TABLE`. No runtime app code depends on it, but the §8
+> "inspect Karma agent decisions" DQL demo needs it.
 
 **Root Cause Agent + Root Cause Details Agent** (`query-problems`, `get-problem-by-id`):
 ```
@@ -261,7 +267,9 @@ Content-Type: application/cloudevents+json
 **Required scope on the classic API token:** `bizevents.ingest`
 This is a classic API scope — available on Dynatrace free trials.
 
-**Querying emitted events via DQL:**
+**Querying emitted events via DQL:** requires the **platform token** to have
+`storage:bizevents:read` (see §2). Writing uses `bizevents.ingest` on the classic
+token; reading back via DQL is a separate platform-token scope.
 ```dql
 fetch bizevents
 | filter startsWith(event.type, "karma.")
