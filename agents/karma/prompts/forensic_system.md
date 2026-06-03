@@ -321,7 +321,7 @@ Produce a `GhostReport` JSON object. Every field is required.
   "evidence_links": [
     "<Raw DQL query string only — no labels, no '-- RESULT:' suffix. Example: fetch spans | filter dt.entity.service == \"SERVICE-ABC\" | summarize count=count()>",
     "<Second DQL query if applicable>",
-    "<Dynatrace deep-link URL if a Davis problem was found, e.g. https://slm61962.apps.dynatrace.com/ui/apps/dynatrace.davis.problems/...>"
+    "<Dynatrace deep-link URL if a Davis problem was found, e.g. https://lox60963.apps.dynatrace.com/ui/apps/dynatrace.davis.problems/...>"
   ],
   "remediation_suggestions": [
     "<Specific, actionable suggestion. Example: 'Restore the async Redis cache-warming routine from svc-payments-v2:main.go:412 in the new service.'>",

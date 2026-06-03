@@ -45,7 +45,7 @@ Tests check the contract you wrote down. **Karma checks the contract you forgot 
 | **Web Dashboard** | https://karma-web-ucvx5uwt5q-uc.a.run.app |
 | **REST API** | https://karma-api-ucvx5uwt5q-uc.a.run.app |
 | **API Swagger Docs** | https://karma-api-ucvx5uwt5q-uc.a.run.app/docs |
-| **Dynatrace Tenant** | https://slm61962.apps.dynatrace.com |
+| **Dynatrace Tenant** | https://lox60963.apps.dynatrace.com |
 | **Demo: svc-payments-v2** | https://karma-svc-payments-v2-957527396263.us-central1.run.app |
 | **Demo: svc-payments-v3** | https://karma-svc-payments-v3-957527396263.us-central1.run.app |
 | **Demo: svc-reporting** | https://karma-svc-reporting-957527396263.us-central1.run.app |
@@ -99,7 +99,7 @@ Contract #2 violated: error_semantics / idempotency_response
   Downstream clients receive null silently — no exception raised, silent data corruption
 
 Davis AI confirms: ACTIVE PROBLEM P-2847 correlated.
-Investigation notebook created: https://slm61962.apps.dynatrace.com/ui/notebooks/...
+Investigation notebook created: https://lox60963.apps.dynatrace.com/ui/notebooks/...
 Slack notification sent to #migrations channel.
 Avoided incident cost: $4,200
 ```

@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     webhook_url: str = ""
 
     # ── Dynatrace / OpenTelemetry ─────────────────────────────────────────────
-    # DT environment ID, e.g. "slm61962" — used to derive the OTLP endpoint.
+    # DT environment ID, e.g. "lox60963" — used to derive the OTLP endpoint.
     dt_env: str = ""
     # DT API token with openTelemetryTrace.ingest + metrics.ingest scopes.
     dt_otel_token: str = ""

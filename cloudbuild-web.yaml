@@ -7,8 +7,8 @@
 #   _REPO             us-central1-docker.pkg.dev/skillbridge-76a4c/karma-images
 #   _SERVICE          karma-web
 #   _GITHUB_TOKEN     GitHub fine-grained PAT (Contents:read + Pull requests:read)
-#   _NEXT_PUBLIC_API_URL  https://karma-api-<hash>-uc.a.run.app
-#   _NEXT_PUBLIC_DT_ENV   slm61962
+#   _NEXT_PUBLIC_API_URL  required — karma-api Cloud Run URL (e.g. https://karma-api-<hash>-uc.a.run.app); no default
+#   _NEXT_PUBLIC_DT_ENV   required — DT environment id (e.g. lox60963); no default
 #   (Firebase env vars passed as --build-arg)
 #
 # The SA running this build needs:
@@ -22,8 +22,8 @@ substitutions:
   _REPO:    us-central1-docker.pkg.dev/skillbridge-76a4c/karma-images
   _SERVICE: karma-web
   _GITHUB_TOKEN: ""
-  _NEXT_PUBLIC_API_URL: https://karma-api-957527396263.us-central1.run.app
-  _NEXT_PUBLIC_DT_ENV:  slm61962
+  _NEXT_PUBLIC_API_URL: ""
+  _NEXT_PUBLIC_DT_ENV:  ""
   _NEXT_PUBLIC_FIREBASE_PROJECT_ID: ""
   _NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ""
   _NEXT_PUBLIC_FIREBASE_API_KEY: ""
