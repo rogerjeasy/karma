@@ -16,7 +16,7 @@
 
 > **Built on Google Cloud's Vertex AI Agent Builder** — four agents authored with the Agent Development Kit (ADK v1.0) and run on Vertex AI Agent Engine, powered **100% by Gemini 2.5** (Pro / Flash). Partner integration: the **Dynatrace MCP Server**. No non-Google models participate in any agent reasoning.
 
-[**Live Dashboard**](https://karma-web-ucvx5uwt5q-uc.a.run.app) · [**API Docs**](https://karma-api-ucvx5uwt5q-uc.a.run.app/docs) · [**Demo Runbook**](docs/DEMO_RUNBOOK.md)
+[**▶ Watch the Demo**](https://youtu.be/GHxO0_f6qN8) · [**Live Dashboard**](https://karma-web-ucvx5uwt5q-uc.a.run.app) · [**API Docs**](https://karma-api-ucvx5uwt5q-uc.a.run.app/docs) · [**Demo Runbook**](docs/DEMO_RUNBOOK.md)
 
 </div>
 
@@ -49,6 +49,8 @@ Tests check the contract you wrote down. **Karma checks the contract you forgot 
 | **Demo: svc-payments-v2** | https://karma-svc-payments-v2-957527396263.us-central1.run.app |
 | **Demo: svc-payments-v3** | https://karma-svc-payments-v3-957527396263.us-central1.run.app |
 | **Demo: svc-reporting** | https://karma-svc-reporting-957527396263.us-central1.run.app |
+
+> **⚠️ Note on the Dynatrace environment.** The Dynatrace tenant above (`lox60963`) runs on a **free trial that expires on or around June 18, 2026.** After that date, the live Dynatrace-backed features (Grail DQL queries, the Dynatrace MCP / Davis AI calls, and the Agent Observability tab) may be temporarily unavailable until the tenant is renewed. **The demo video captures the complete live behavior end-to-end**, and the dashboard's ghost reports, contracts, services, and stats are served from **Firestore** — so they remain fully viewable independently of the trial.
 
 ---
 
