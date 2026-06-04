@@ -58,6 +58,9 @@ jobs:
             type=raw,value=${{ env.RELEASE_TAG }}
             type=raw,value=latest,enable=${{ !github.event.release.prerelease }}
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -91,6 +94,9 @@ jobs:
           tags: |
             type=raw,value=${{ env.RELEASE_TAG }}
             type=raw,value=latest,enable=${{ !github.event.release.prerelease }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Build and push
         uses: docker/build-push-action@v6
