@@ -1,8 +1,16 @@
 <div align="center">
 
+<a href="https://devpost.com/software/karma-the-reincarnation-agent-for-deprecated-services">
+  <img src="docs/assets/winner-banner.svg" width="100%" alt="Winner — 2nd Place, Dynatrace Track, Google Cloud Rapid Agent Hackathon (14,484 participants)">
+</a>
+
 # Karma — The Reincarnation Agent for Deprecated Services
 
 ### *"The new service passes every test. CI is green. And downstream throughput just dropped 8% because nobody knew the old service was warming a cache."*
+
+[![Devpost Project](https://img.shields.io/badge/Devpost-Karma-003E54?logo=devpost&logoColor=white)](https://devpost.com/software/karma-the-reincarnation-agent-for-deprecated-services)
+[![2nd Place — Dynatrace Track](https://img.shields.io/badge/%F0%9F%A5%88%202nd%20Place-Dynatrace%20Track-C0C7D0?labelColor=1284CC)](https://devpost.com/software/karma-the-reincarnation-agent-for-deprecated-services)
+[![Participants](https://img.shields.io/badge/Field-14%2C484%20participants-4285F4)](https://rapid-agent.devpost.com)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Google Cloud Rapid Agent Hackathon](https://img.shields.io/badge/Google%20Cloud-Rapid%20Agent%20Hackathon-4285F4?logo=google-cloud&logoColor=white)](https://rapid-agent.devpost.com)
@@ -19,6 +27,24 @@
 [**▶ Watch the Demo**](https://youtu.be/GHxO0_f6qN8) · [**Live Dashboard**](https://karma-web-ucvx5uwt5q-uc.a.run.app) · [**API Docs**](https://karma-api-ucvx5uwt5q-uc.a.run.app/docs) · [**Demo Runbook**](docs/DEMO_RUNBOOK.md)
 
 </div>
+
+---
+
+## 🏆 Hackathon Result
+
+**Karma won 2nd Place in the Dynatrace Track of the Google Cloud Rapid Agent Hackathon**, announced by Devpost on July 16, 2026.
+
+| | |
+|---|---|
+| **Award** | 🥈 Dynatrace — 2nd Place |
+| **Hackathon** | [Google Cloud Rapid Agent Hackathon](https://rapid-agent.devpost.com) |
+| **Partner track** | Dynatrace |
+| **Participants** | 14,484 |
+| **Project page** | [devpost.com/software/karma-the-reincarnation-agent-for-deprecated-services](https://devpost.com/software/karma-the-reincarnation-agent-for-deprecated-services) |
+| **Submitted** | June 11, 2026 |
+| **Results announced** | July 16, 2026 |
+| **Built by** | [Roger Jeasy Bavibidila](https://github.com/rogerjeasy) |
+| **Stack** | Vertex AI Agent Builder (ADK v1.0 + Agent Engine) · Gemini 2.5 Pro / Flash · Dynatrace MCP Server · Cloud Run |
 
 ---
 
@@ -39,6 +65,8 @@ Tests check the contract you wrote down. **Karma checks the contract you forgot 
 ---
 
 ## Live Deployment
+
+> **For judges — no account needed.** Open the [Live Dashboard](https://karma-web-ucvx5uwt5q-uc.a.run.app), then on the sign-in page click **"Explore the live demo — no sign-up."** A guest workspace is created and seeded automatically with the full `svc-payments` ghost scenario (contracts, ghost report, watcher history) backed by real Dynatrace telemetry.
 
 | Service | URL |
 |---------|-----|
@@ -565,7 +593,7 @@ Required DT_OTEL_TOKEN scopes: `openTelemetryTrace.ingest`, `logs.ingest`, `metr
 
 ## Hackathon Disclosure
 
-Built for the [Google Cloud Rapid Agent Hackathon — Dynatrace Track](https://rapid-agent.devpost.com), submission deadline June 11, 2026.
+Built for the [Google Cloud Rapid Agent Hackathon — Dynatrace Track](https://rapid-agent.devpost.com), submission deadline June 11, 2026. Out of a field of **14,484 participants**, Karma was awarded **2nd Place in the Dynatrace Track** ([project page](https://devpost.com/software/karma-the-reincarnation-agent-for-deprecated-services)), announced July 16, 2026.
 
 **Required-stack compliance:**
 - **Powered by Gemini** — every model call in the application is Gemini 2.5 Pro or Gemini 2.5 Flash on Vertex AI.
@@ -582,3 +610,15 @@ The `synthetic-env/` directory is a purpose-built three-service demo environment
 ## License
 
 [MIT](LICENSE) © 2026 Roger Jeasy Bavibidila ([@rogerjeasy](https://github.com/rogerjeasy))
+
+---
+
+<div align="center">
+
+<a href="https://devpost.com/software/karma-the-reincarnation-agent-for-deprecated-services">
+  <img src="docs/assets/winner-banner-footer.svg" width="100%" alt="Karma — 2nd Place, Dynatrace Track, Google Cloud Rapid Agent Hackathon 2026">
+</a>
+
+[**Devpost Project**](https://devpost.com/software/karma-the-reincarnation-agent-for-deprecated-services) · [**Watch the Demo**](https://youtu.be/GHxO0_f6qN8) · [**Live Dashboard**](https://karma-web-ucvx5uwt5q-uc.a.run.app) · [**Hackathon**](https://rapid-agent.devpost.com)
+
+</div>

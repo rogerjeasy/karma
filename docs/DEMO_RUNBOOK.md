@@ -8,7 +8,18 @@ This runbook lets a judge (or teammate) reproduce the full demo without assistan
 
 - Google Cloud project `skillbridge-76a4c` with all services deployed (see deployment section in README)
 - Dynatrace tenant with telemetry flowing from the synthetic environment
-- Access to the hosted dashboard at `https://karma.<domain>`
+- Access to the hosted dashboard at https://karma-web-ucvx5uwt5q-uc.a.run.app
+
+---
+
+## Judge Quick-Start (no account required)
+
+The fastest path for judges — under 1 minute, no Google account needed:
+
+1. Open the hosted dashboard (Live Dashboard link in the README)
+2. On the sign-in page, click **"Explore the live demo — no sign-up"**
+3. A guest workspace is created and seeded automatically (idempotent `POST /demo/seed`): `svc-payments-v2 [demo]` in `haunting` phase, 4 validated contracts, the cache-warming ghost report, and watcher history
+4. You land on the dashboard with live data — explore **Services**, **Ghosts**, **Timeline**, and the per-ghost "Ask Karma" chat from there
 
 ---
 
